@@ -23,8 +23,8 @@ namespace BibleReader.Library.Downloads
         static bool? any;
 
         /// <summary>
-        /// Whether a Strong's dictionary is switched on. Without one the words with Strong's numbers are not marked and
-        /// cannot be clicked. The value is kept; <see cref="Refresh"/> checks it again and raises
+        /// Whether the words with Strong's numbers are marked and can be clicked: <see cref="Settings.ShowStrongs"/> is on and a
+        /// Strong's dictionary is switched on (without one there is nothing to show). The value is kept; <see cref="Refresh"/> checks it again and raises
         /// <see cref="AnyChanged"/> when it changed.
         /// </summary>
         public static bool Any => any ??= Compute();
@@ -32,13 +32,14 @@ namespace BibleReader.Library.Downloads
         /// <summary>Raised when <see cref="Any"/> changed (possibly on another thread than the UI).</summary>
         public static event EventHandler? AnyChanged;
 
-        static bool Compute() => (Settings.Current.Bibles ?? new List<BookText>())
-            .OfType<IStrongDictionary>()
-            .Any(d => d.IsEnabled);
+        static bool Compute() => Settings.Current.ShowStrongs &&
+            (Settings.Current.Bibles ?? new List<BookText>())
+                .OfType<IStrongDictionary>()
+                .Any(d => d.IsEnabled);
 
         /// <summary>
         /// To be called when a dictionary was switched on or off, installed or deleted (a dictionary does it when its
-        /// <see cref="IStrongDictionary.IsEnabled"/> changes).
+        /// <see cref="IStrongDictionary.IsEnabled"/> changes), or <see cref="Settings.ShowStrongs"/> changed.
         /// </summary>
         public static void Refresh()
         {

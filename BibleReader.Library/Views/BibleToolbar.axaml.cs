@@ -157,9 +157,9 @@ public partial class BibleToolbar : UserControl
     // Raised when a dictionary is switched on or off, installed or deleted, possibly on another thread.
     private void OnStrongsAnyChanged(object? sender, EventArgs e) => Avalonia.Threading.Dispatcher.UIThread.Post(UpdateStrongsSelected);
 
-    /// <summary>The Strongs button is selected while any of the Strong's dictionaries of <see cref="Settings.Bibles"/> is switched on.</summary>
+    /// <summary>The Strongs button is selected while <see cref="Settings.ShowStrongs"/> is on.</summary>
     private void UpdateStrongsSelected() =>
-        StrongsButton.Classes.Set("selected", StrongsDictionariesInstalled().Any(d => d.IsEnabled));
+        StrongsButton.Classes.Set("selected", Settings.Current.ShowStrongs);
 
     private void OnTargetChanged(BibleTextBlock? old, BibleTextBlock? target)
     {
@@ -487,12 +487,13 @@ public partial class BibleToolbar : UserControl
         var pending = _strongsPending = new object();
         await Task.Delay(StrongsDoubleClickDelay);
         if (!ReferenceEquals(pending, _strongsPending)) return;
-        SetAllStrongs(!StrongsDictionariesInstalled().All(d => d.IsEnabled));
+        SetShowStrongs(!Settings.Current.ShowStrongs);
     }
 
     /// <summary>
     /// Lists the installed Strong's dictionaries (the <see cref="IStrongDictionary"/> entries of
-    /// <see cref="Settings.Bibles"/>); checking one sets its <see cref="IStrongDictionary.IsEnabled"/>.
+    /// <see cref="Settings.Bibles"/>); checking one sets its <see cref="IStrongDictionary.IsEnabled"/>; the "All" box above them
+    /// switches all of them.
     /// </summary>
     private void OpenStrongsPopup()
     {
@@ -502,7 +503,7 @@ public partial class BibleToolbar : UserControl
         if (dictionaries.Count > 0)
         {
             // "All" switches all the dictionaries on, or, when they all are, off; it is unchecked when none is on and
-            // shows a dash when some are.
+            // shows a dash when some are. It does not change Settings.ShowStrongs (that is the Strongs button).
             _strongsAllBox = new CheckBox { Content = Localizer.Get("All"), IsThreeState = true, Margin = new Thickness(4, 2), FontWeight = FontWeight.SemiBold };
             _strongsAllBox.Click += (_, _) => SetAllStrongs(!dictionaries.All(d => d.IsEnabled));
             StrongsItems.Children.Add(_strongsAllBox);
@@ -545,12 +546,20 @@ public partial class BibleToolbar : UserControl
         SyncStrongsBoxes();
     }
 
-    /// <summary>Switches all the installed dictionaries on or off.</summary>
+    /// <summary>Switches all the installed dictionaries on or off (their <see cref="IStrongDictionary.IsEnabled"/>); <see cref="Settings.ShowStrongs"/> is left as it is.</summary>
     private void SetAllStrongs(bool enabled)
     {
         var dictionaries = StrongsDictionariesInstalled();
         if (dictionaries.Count == 0) return;
         foreach (var dictionary in dictionaries) dictionary.IsEnabled = enabled;
+        StrongsDictionariesChanged();
+    }
+
+    /// <summary>Switches <see cref="Settings.ShowStrongs"/> (the Strongs button); the individual dictionaries are left as they are.</summary>
+    private void SetShowStrongs(bool show)
+    {
+        Settings.Current.ShowStrongs = show;
+        UpdateStrongsSelected(); // Any does not change (and so tells nobody) when no dictionary is switched on
         StrongsDictionariesChanged();
     }
 

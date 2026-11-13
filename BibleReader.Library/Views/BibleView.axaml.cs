@@ -30,35 +30,6 @@ public partial class BibleView : UserControl
             try { Settings.Current.Save(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not save the settings: {ex}"); }
         };
         AttachedToVisualTree += (_, _) => RestoreBible();
-
-        // Pinching with two fingers changes the font size; the single finger still scrolls (see BibleTextBlock).
-        Block.GestureRecognizers.Add(new Avalonia.Input.PinchGestureRecognizer());
-        Block.AddHandler(Avalonia.Input.InputElement.PinchEvent, OnPinch);
-        Block.AddHandler(Avalonia.Input.InputElement.PinchEndedEvent, OnPinchEnded);
-    }
-
-    public const double MinFontSize = 12, MaxFontSize = 40;
-    private double _pinchStartSize;
-
-    /// <summary>
-    /// <see cref="Avalonia.Input.PinchEventArgs.Scale"/> is the spread of the fingers relative to where the pinch started,
-    /// so the size is the one at the start times it. The text itself is only built again a moment after the fingers stop
-    /// moving (<see cref="OnAppearanceChanged"/>).
-    /// </summary>
-    private void OnPinch(object? sender, Avalonia.Input.PinchEventArgs e)
-    {
-        if (_pinchStartSize <= 0) _pinchStartSize = Settings.Current.FontSize ?? SettingsView.DefaultFontSize;
-        double size = Math.Round(Math.Clamp(_pinchStartSize * e.Scale, MinFontSize, MaxFontSize));
-        e.Handled = true;
-        if (Settings.Current.FontSize == size) return;
-        Settings.Current.FontSize = size;
-        OnAppearanceChanged(this, EventArgs.Empty);
-    }
-
-    private void OnPinchEnded(object? sender, Avalonia.Input.PinchEndedEventArgs e)
-    {
-        _pinchStartSize = 0;
-        try { Settings.Current.Save(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not save the settings: {ex}"); }
     }
 
     private bool _restored;

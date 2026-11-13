@@ -1183,23 +1183,40 @@ public class BibleTextBlock : Panel
             SetOffsetY(target);
             e.Handled = true;
         }
-        else if (_scrolling && _touchDown)
+        else if (_scrolling && (_touchDown || _inertia))
         {
-            // Horizontal mode: the columns follow the finger; they settle on a whole column when it lifts.
+            // Horizontal mode: the columns follow the finger, and carry on after it lifted (the inertia of a ScrollViewer: the
+            // same gesture events, with the speed dying down); they settle on a whole column when the finger lifts slowly,
+            // or when the inertia has become slow.
             StopAnimation();
             _panning = true;
             double max = Math.Max(0, _scrollBar.Maximum * _pitch);
+            double min = -0.4 * _pitch, upper = max + 0.4 * _pitch;
             // A little rubber band past both ends: letting go there moves on to the neighbouring book.
-            _offsetX = Math.Clamp(_offsetX + e.Delta.X, -0.4 * _pitch, max + 0.4 * _pitch);
+            _offsetX = Math.Clamp(_offsetX + e.Delta.X, min, upper);
             _popup.IsOpen = false;
             InvalidateArrange();
             _layer.InvalidateVisual();
             e.Handled = true;
+
+            if (_inertia)
+            {
+                // The speed of the columns between this event and the one before, smoothed a little.
+                double seconds = _inertiaClock.Elapsed.TotalSeconds;
+                _inertiaClock.Restart();
+                if (seconds > 0) _inertiaSpeed = _inertiaSpeed <= 0 ? Math.Abs(e.Delta.X) / seconds : 0.5 * _inertiaSpeed + 0.5 * Math.Abs(e.Delta.X) / seconds;
+                bool atEnd = _offsetX <= min + 0.5 || _offsetX >= upper - 0.5; // ran into the rubber band
+                if (_inertiaSpeed < SettleSpeed || atEnd) SettleAfterInertia();
+            }
         }
     }
 
-    private bool _touchDown, _panning;
-    private double _overscroll;
+    private bool _touchDown, _panning, _inertia;
+    private double _overscroll, _inertiaSpeed;
+    private readonly System.Diagnostics.Stopwatch _inertiaClock = new();
+
+    /// <summary>Below this speed (pixels per second) the columns settle on a whole column: a slow lift, or an inertia that has died down.</summary>
+    private const double SettleSpeed = 250;
 
     /// <summary>Finger lifted while panning: choose the column to settle on (a short flick is enough).</summary>
     private void OnScrollInertiaStarting(object? sender, ScrollGestureInertiaStartingEventArgs e)
@@ -1207,18 +1224,42 @@ public class BibleTextBlock : Panel
         // Vertical mode: Avalonia's own inertia runs on (the same as in a ScrollViewer): the gesture events it
         // raises carry on arriving in OnScrollGesture, so a fast swipe travels further than a slow one.
         if (!_panning) return;
-        SettlePan(e.Inertia.X);
-        e.Handled = true; // no free-running inertia: the columns snap
+        if (Math.Abs(e.Inertia.X) < SettleSpeed)
+        {
+            // A slow lift: settle at once (a small push is enough to turn to the next column).
+            SettlePan(e.Inertia.X);
+            e.Handled = true;
+            return;
+        }
+        // A fast one: not handled, so the recognizer goes on with its inertia, the events of which move the columns on
+        // (see OnScrollGesture) until they have become slow.
+        _inertia = true;
+        _inertiaSpeed = Math.Abs(e.Inertia.X);
+        _inertiaClock.Restart();
     }
 
     private void OnScrollGestureEnded(object? sender, ScrollGestureEndedEventArgs e)
     {
-        if (_panning) SettlePan(0);
+        if (_inertia) SettleAfterInertia();
+        else if (_panning) SettlePan(0);
+    }
+
+    /// <summary>The inertia is over (or too slow to matter): show the whole column that is nearest. Past an end that is the neighbouring book.</summary>
+    private void SettleAfterInertia()
+    {
+        _inertia = false;
+        _panning = false;
+        _inertiaSpeed = 0;
+        double max = Math.Max(0, _scrollBar.Maximum);
+        double position = _offsetX / _pitch;
+        int target = position > max + 0.15 ? (int)max + 1 : position < -0.15 ? -1 : (int)Math.Round(position);
+        ApplyColumn(target, force: true);
     }
 
     private void SettlePan(double velocityX)
     {
         _panning = false;
+        _inertia = false;
         double moved = _offsetX / _pitch - _firstColumn; // columns dragged, signed (positive = towards later columns)
         int sign = Math.Sign(moved);
         bool flick = sign != 0 && Math.Sign(velocityX) == sign;
@@ -1840,7 +1881,7 @@ public class BibleTextBlock : Panel
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (e.Pointer.Type == PointerType.Touch) { _touchDown = true; return; } // touch pans (and taps open footnotes); it does not select
+        if (e.Pointer.Type == PointerType.Touch) { _touchDown = true; _inertia = false; return; } // touch pans (and taps open footnotes); it does not select
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         var position = e.GetPosition(this);
         if (OverScrollBar(position)) return; // the scroll bar is a child; its presses bubble up to here
@@ -2051,7 +2092,8 @@ public class BibleTextBlock : Panel
         _vBar = new ScrollBar { Orientation = Orientation.Vertical, IsVisible = false };
         _vBar.ValueChanged += (_, e) => { if (!_updatingBar) SetOffsetY(e.NewValue); };
         Children.Add(_vBar);
-        GestureRecognizers.Add(new ScrollGestureRecognizer { CanVerticallyScroll = true, CanHorizontallyScroll = true });
+        // Inertia is off by default in the recognizer (a ScrollViewer switches it on): without it the scrolling stops when the finger lifts.
+        GestureRecognizers.Add(new ScrollGestureRecognizer { CanVerticallyScroll = true, CanHorizontallyScroll = true, IsScrollInertiaEnabled = true });
         AddHandler(InputElement.ScrollGestureEvent, OnScrollGesture);
         AddHandler(InputElement.ScrollGestureInertiaStartingEvent, OnScrollInertiaStarting);
         AddHandler(InputElement.ScrollGestureEndedEvent, OnScrollGestureEnded);
@@ -2202,6 +2244,7 @@ public class BibleTextBlock : Panel
     {
         StopAnimation();
         _panning = false;
+        _inertia = false;
         _overscroll = 0;
         // When a position is already known (the window slides on while scrolling, or a verse is wanted) the shown
         // layout stays exactly where it is until the new lines are flowed, and the position is then set from the

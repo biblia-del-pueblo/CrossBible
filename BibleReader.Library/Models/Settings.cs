@@ -34,6 +34,21 @@ namespace BibleReader.Library
         /// <summary>The entry of <see cref="History"/> that the reader is at (earlier ones are back, later ones forward).</summary>
         public int HistoryIndex { get; set; } = -1;
         public bool? ShowWordsOfJesus { get; set; }
+        /// <summary>
+        /// Whether the words with Strong's numbers are marked and can be clicked (the Strongs button of the toolbar and the "All" box of its
+        /// list switch it). It does not change which dictionaries are used: that is the <see cref="BibleReader.Library.Downloads.IStrongDictionary.IsEnabled"/>
+        /// of each dictionary. On by default.
+        /// </summary>
+        public bool ShowStrongs
+        {
+            get => field;
+            set
+            {
+                if (field == value) return;
+                field = value;
+                BibleReader.Library.Downloads.StrongsDictionaries.Refresh();
+            }
+        } = true;
         /// <summary>The user confirmed that there is no persecution of Christians in their country; only then are online Bibles listed.</summary>
         public bool InMyCountryThereIsNoPersecution { get; set; }
         /// <summary>The language of the texts: "en", "de" ...; null for the language of the device. It is taken when the app starts.</summary>
@@ -172,6 +187,7 @@ namespace BibleReader.Library
                 History = settings.History;
                 HistoryIndex = settings.HistoryIndex;
                 ShowWordsOfJesus = settings.ShowWordsOfJesus;
+                ShowStrongs = settings.ShowStrongs;
                 InMyCountryThereIsNoPersecution = settings.InMyCountryThereIsNoPersecution;
                 ShowVerseNumbersInGreen = settings.ShowVerseNumbersInGreen;
                 Hyphenate = settings.Hyphenate;
