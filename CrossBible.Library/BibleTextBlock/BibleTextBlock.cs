@@ -318,6 +318,10 @@ public class BibleTextBlock : Panel
         _pendingPosition = pos;
         _keepPosition = true;
         UpdateBusy();
+        // The book is one of the two that are shown, but not laid out yet (the Bible was just switched): that layout resolves the position.
+        // The window must not be loaded again: its content would replace the scroll anchor that this layout finds with none, and the
+        // reader would be at the start of the book.
+        if ((!_hasLayout || _dirty) && ReferenceEquals(Books, books) && (index == BookIndex || index == BookIndex + 1)) return;
         if (!_loadingBook) _ = SwitchWindowAsync(books, WindowStartFor(books, index), null);
     }
 
@@ -404,9 +408,24 @@ public class BibleTextBlock : Panel
                 !System.IO.Path.GetFileName(book.File ?? string.Empty).StartsWith("00.", StringComparison.Ordinal));
             // Keep the position: the same book (by its number), chapter and verse of the new Bible, when it has them.
             int kept = previous is { } old ? books.FindIndex(book => book.Index == old.BookIndex) : -1;
-            await ShowBookAsync(kept >= 0 ? kept : index < 0 ? 0 : index);
-            if (kept >= 0 && previous is { } p && (p.Chapter > 0 || p.Verse > 0) && ReferenceEquals(BookText, bible))
-                Position = new BookText.VersePosition { Book = books[kept], Chapter = p.Chapter, Verse = p.Verse };
+            int showIndex = kept >= 0 ? kept : index < 0 ? 0 : index;
+            await ShowBookAsync(showIndex);
+            if (books.Count > 0 && ReferenceEquals(BookText, bible))
+            {
+                // Position is the same place in the new Bible (its book object, which the toolbar and the book and chapter grids compare
+                // with); the start of its first book when it has not the book that was shown.
+                var place = kept >= 0 && previous is { } p
+                    ? new BookText.VersePosition { Book = books[kept], Chapter = p.Chapter, Verse = p.Verse }
+                    : new BookText.VersePosition { Book = books[showIndex], Chapter = 0, Verse = 0 };
+                if (place.Chapter > 0 || place.Verse > 0) Position = place; // scrolls to it
+                else
+                {
+                    // The start of a book is shown already: published only, not scrolled to.
+                    _settingPosition = true;
+                    try { SetCurrentValue(PositionProperty, place); }
+                    finally { _settingPosition = false; }
+                }
+            }
             if (books.Count == 0) { _switchingBible = false; UpdateBusy(); } // nothing to lay out
         }
         catch (Exception ex)

@@ -176,6 +176,7 @@ public partial class BibleToolbar : UserControl
         if (old is not null)
         {
             old.PropertyChanged -= OnTargetPropertyChanged;
+            old.BookChanged -= OnTargetBookChanged;
             old.RemoveHandler(PointerPressedEvent, OnTextSwipePressed);
             old.RemoveHandler(PointerMovedEvent, OnSwipeMoved);
             old.RemoveHandler(PointerReleasedEvent, OnSwipeReleased);
@@ -183,6 +184,7 @@ public partial class BibleToolbar : UserControl
         if (target is not null)
         {
             target.PropertyChanged += OnTargetPropertyChanged;
+            target.BookChanged += OnTargetBookChanged;
             // A swipe on the text goes through the history too (tunnelled: the text block handles its own presses).
             target.AddHandler(PointerPressedEvent, OnTextSwipePressed, RoutingStrategies.Tunnel);
             target.AddHandler(PointerMovedEvent, OnSwipeMoved, RoutingStrategies.Tunnel);
@@ -190,6 +192,9 @@ public partial class BibleToolbar : UserControl
         }
         Position = target?.Position;
     }
+
+    // The books of another Bible were loaded and shown: the names of the bar follow them (Position is kept as it is).
+    private void OnTargetBookChanged(object? sender, EventArgs e) => UpdateText();
 
     private void OnTargetPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
@@ -940,16 +945,30 @@ public partial class BibleToolbar : UserControl
         if (e.PropertyName == nameof(BookText.HasStrongs)) Avalonia.Threading.Dispatcher.UIThread.Post(UpdateText);
     }
 
+    /// <summary>
+    /// The book that the bar names. It is the book of <see cref="Position"/>, but after a switch of the Bible, Position can still be the
+    /// one of the Bible that was replaced (a position at the start of a book is not published again): then it is the book of the Bible
+    /// that is shown with the same number, or the book that is shown if that Bible has no such book. Position itself is not changed.
+    /// </summary>
+    private BookText.Book? NamedBook(BookText.VersePosition? position)
+    {
+        var book = position?.Book;
+        if (Target?.BookText is not { } bible || book is null || ReferenceEquals(book.BookText, bible)) return book;
+        if (bible.Books.FirstOrDefault(b => b.Index == book.Index) is { } same) return same;
+        return Target.Books is { } books && Target.CurrentBookIndex < books.Count ? books[Target.CurrentBookIndex] : book;
+    }
+
     private void UpdateText()
     {
         var position = Position;
-        WatchBible(position?.Book?.BookText);
+        var book = NamedBook(position);
+        WatchBible(book?.BookText);
         BackButton.IsVisible = ForwardButton.IsVisible = IsWide;
         // The Strongs button is only there for a Bible that has Strong's numbers (known once a book of it has been read).
-        StrongsButton.IsVisible = position?.Book?.BookText?.HasStrongs == true;
-        UpdateStrongsLetters(position?.Book);
-        BookName.Text = ShortenWithEllipsis(position?.Book?.Name ?? string.Empty, IsWide ? 35 : 30);
-        BibleName.Text = ShortenWithEllipsis(position?.Book?.BookText?.Name ?? string.Empty, IsWide ? 35 : 30);
+        StrongsButton.IsVisible = book?.BookText?.HasStrongs == true;
+        UpdateStrongsLetters(book);
+        BookName.Text = ShortenWithEllipsis(book?.Name ?? string.Empty, IsWide ? 35 : 30);
+        BibleName.Text = ShortenWithEllipsis(book?.BookText?.Name ?? string.Empty, IsWide ? 35 : 30);
         ReferenceText.Text = position is null ? "—"
             : position.Verse > 0 ? $"{position.Chapter}:{position.Verse}"
             : position.Chapter > 0 ? position.Chapter.ToString() : string.Empty;

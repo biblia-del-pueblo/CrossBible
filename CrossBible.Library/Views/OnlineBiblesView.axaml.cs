@@ -539,10 +539,13 @@ public partial class OnlineBiblesView : UserControl
             while (i < languages.Count - 1 && languages[i + 1].Contains(languages[i], StringComparison.OrdinalIgnoreCase)) languages.RemoveAt(i + 1);
             i++;
         }
+        // A language typed before the list was there is only text: there was no item to select, so SelectedItem is null. Replacing the
+        // items clears the text of the box, and it must not stay empty.
+        var typed = LanguageBox.Text;
         var selected = LanguageBox.SelectedItem as string;
         LanguageBox.ItemsSource = new[] { AllLanguages }.Concat(languages).ToList();
         if (selected is not null && ((IEnumerable<string>)LanguageBox.ItemsSource).Contains(selected)) LanguageBox.SelectedItem = selected;
-        else LanguageBox.Text = "";
+        else LanguageBox.Text = typed ?? "";
     }
 
     private static string LanguageOf(InstallableBook bible) =>
