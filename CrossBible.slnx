@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="BibleMarkdown/BibleMarkdown/BibleMarkdown.csproj" />
+  <Project Path="CrossBible.Android/CrossBible.Android.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="CrossBible.Desktop/CrossBible.Desktop.csproj" />
+  <Project Path="CrossBible.iOS/CrossBible.iOS.csproj" />
+  <Project Path="CrossBible.Library/CrossBible.Library.csproj" />
+  <Project Path="CrossBible.Msix/CrossBible.Msix.wapproj" Type="c7167f0d-bc9f-4e6e-afe1-012c56b48db5">
+    <Build Solution="Debug|*" Project="false" />
+  </Project>
+</Solution>

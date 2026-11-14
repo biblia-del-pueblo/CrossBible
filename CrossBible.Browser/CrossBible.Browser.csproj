@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0-browser</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Remove="wwwroot\logo.svg" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="wwwroot\logo.svg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Browser" />
+    <!-- Native WebAssembly builds matching the managed SkiaSharp / HarfBuzzSharp (see Directory.Packages.props). -->
+    <PackageReference Include="SkiaSharp.NativeAssets.WebAssembly" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.WebAssembly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CrossBible.Library\CrossBible.Library.csproj" />
+  </ItemGroup>
+</Project>

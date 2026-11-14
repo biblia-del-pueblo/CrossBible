@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:CrossBible.Library.UI"
+             xmlns:loc="using:CrossBible.Library"
+             x:Name="Root"
+             x:Class="CrossBible.Library.UI.BibleView">
+
+    <!-- The toolbar on top follows the text block's Position and navigates it by book and chapter. -->
+    <Grid RowDefinitions="Auto,*" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+        <local:BibleToolbar x:Name="Toolbar" Target="{Binding #Block}" />
+        <!-- Vertical: a single column that scrolls by touch, which is what a phone wants.
+             Bible Roman is the font embedded in this assembly's Assets folder (regular, italic and bold). -->
+        <local:BibleTextBlock x:Name="Block"
+                              Grid.Row="1"
+                              BookText="{Binding #Toolbar.BookText}"
+                              Margin="16,8"
+                              IsVisible="{Binding #Toolbar.ShowText}"
+                              Orientation="Vertical"
+                              FontSize="18"
+                              FontFamily="avares://CrossBible.Library/Assets#Bible Roman"
+                              Background="{DynamicResource SystemControlBackgroundAltHighBrush}" />
+
+        <!-- Instead of a text that is not there: no Bible is installed. Big and gray, so it says "nothing here" and does not look like a control. -->
+        <loc:ThemedSvg Grid.Row="1" Path="/Assets/ban.svg" Size="200" Fill="{Binding #Root.NoBibleFill}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                       IsVisible="{Binding #Root.NoBibleVisible}" />
+
+        <!-- Replaces the text while the toolbar menu's "Online Bibles…" is chosen. -->
+        <local:OnlineBiblesView Grid.Row="1" BibleInstalled="OnBibleInstalled" BibleDeleted="OnBibleDeleted" CloseRequested="OnCloseOverlay" IsVisible="{Binding #Toolbar.ShowOnlineBibles}" />
+
+        <!-- Replaces the text while the toolbar menu's "Settings…" is chosen. -->
+        <local:SettingsView Grid.Row="1" CloseRequested="OnCloseOverlay" AppearanceChanged="OnAppearanceChanged" IsVisible="{Binding #Toolbar.ShowSettings}" />
+
+        <!-- Shown over the text while a requested verse (or the first text) is still being prepared. It does not take
+             touches, so the text underneath can still be scrolled. -->
+        <Border Grid.Row="1"
+                IsHitTestVisible="False"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Padding="16"
+                CornerRadius="16"
+                BoxShadow="0 2 12 0 #40000000"
+                Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+            <!-- Only over the text: the settings and the online Bibles cover the same area and need no spinner. -->
+            <Border.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="#Block.IsBusy" />
+                    <Binding Path="#Toolbar.ShowText" />
+                </MultiBinding>
+            </Border.IsVisible>
+            <!-- Draws itself and turns with the animation frames, only while it is visible. -->
+            <local:BusySpinner Width="36" Height="36"
+                               IsVisible="{Binding #Block.IsBusy}"
+                               Thickness="6"
+                               Brush="{DynamicResource SystemControlHighlightAccentBrush}" />
+        </Border>
+    </Grid>
+</UserControl>

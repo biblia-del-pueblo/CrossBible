@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <!--If you are willing to use Windows/MacOS native APIs you will need to create 3 projects.
+    One for Windows with net8.0-windows TFM, one for MacOS with net8.0-macos and one with net8.0 TFM for Linux.-->
+        <TargetFramework>net11.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+    </PropertyGroup>
+
+    <!-- CrossBible.Msix packages this app for the Microsoft Store for x64 and ARM64. The app is self-contained there:
+         the people who get it from the Store do not have the .NET runtime. A normal build (AnyCPU) is not affected. -->
+    <PropertyGroup>
+        <Platforms>AnyCPU;x64;ARM64</Platforms>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Platform)' == 'x64'">
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <SelfContained>true</SelfContained>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Platform)' == 'ARM64'">
+        <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
+        <SelfContained>true</SelfContained>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Remove="Assets\CrossBible-logo.ico" />
+        <None Remove="Assets\logo.icns" />
+        <None Remove="Assets\logo.ico" />
+        <None Remove="Assets\logo.svg" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AvaloniaResource Include="Assets\logo.icns" />
+      <AvaloniaResource Include="Assets\logo.ico" />
+      <AvaloniaResource Include="Assets\logo.svg" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia.Desktop" />
+        <PackageReference Include="Svg.Controls.Skia.Avalonia" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\CrossBible.Library\CrossBible.Library.csproj" />
+    </ItemGroup>
+</Project>

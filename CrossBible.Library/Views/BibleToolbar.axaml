@@ -1,0 +1,271 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:CrossBible.Library"
+             x:Class="CrossBible.Library.UI.BibleToolbar">
+
+    <UserControl.Styles>
+        <!-- A cell of the book / chapter grid (the buttons are added in code). -->
+        <Style Selector="Button.cell">
+            <Setter Property="MinWidth" Value="56" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Padding" Value="4,8" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="18" />
+        </Style>
+        <!-- Book buttons are tinted by Bible.Book.Class (the class name is added in code). The fills are translucent,
+             so the same colours work on light and dark backgrounds. Prefix and Appendix stay uncoloured. -->
+        <Style Selector="Button.cell.Pentateuch"><Setter Property="Background" Value="#664C8BF5" /></Style>
+        <Style Selector="Button.cell.Historical"><Setter Property="Background" Value="#66A0764A" /></Style>
+        <Style Selector="Button.cell.PoetryAndWisdom"><Setter Property="Background" Value="#6648B58A" /></Style>
+        <Style Selector="Button.cell.MajorProphets"><Setter Property="Background" Value="#66E0903C" /></Style>
+        <Style Selector="Button.cell.MinorProphets"><Setter Property="Background" Value="#66E0C03C" /></Style>
+        <Style Selector="Button.cell.Gospels"><Setter Property="Background" Value="#66D9534F" /></Style>
+        <Style Selector="Button.cell.Acts"><Setter Property="Background" Value="#66D9739F" /></Style>
+        <Style Selector="Button.cell.Epistles"><Setter Property="Background" Value="#668F66D9" /></Style>
+        <Style Selector="Button.cell.Revelation"><Setter Property="Background" Value="#6640B8C8" /></Style>
+        <Style Selector="Button.cell.Apocrypha"><Setter Property="Background" Value="#66909090" /></Style>
+        <!-- An entry of the menu popup (the buttons are added in code). -->
+        <Style Selector="Button.entry.current"><Setter Property="FontWeight" Value="Bold" /></Style>
+        <Style Selector="Button.entry">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <!-- The Strongs button looks selected while a Strong's dictionary is switched on (see UpdateStrongsSelected). -->
+        <Style Selector="Button.strongs"><Setter Property="Background" Value="Transparent" /></Style>
+        <Style Selector="Button.strongs.selected"><Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" /></Style>
+        <!-- The book or chapter the text block is at. -->
+        <Style Selector="Button.cell.current">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Theme brushes (not fixed colours): the bar and its popup follow light/dark mode, including live switches. -->
+    <Border Padding="8,2"
+            BorderThickness="0,0,0,1"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Grid>
+            <Grid x:Name="ToolbarGrid" ColumnDefinitions ="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="0">
+                <Button x:Name="MenuButton"
+                        Grid.Column="0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Cursor="Hand"
+                        Click="OnMenuClick">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <loc:ThemedSvg x:Name="Menu" Path="/Assets/bars.svg" Size="18" />
+                    </StackPanel>
+                </Button>
+                <!-- Back and forward in the history of positions; only in a wide bar (a narrow one has a menu entry).
+                     A long press on back lists the history. -->
+                <Button x:Name="BackButton"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Cursor="Hand"
+                        IsVisible="False"
+                        IsEnabled="False"
+                        ToolTip.Tip="{loc:Loc HistoryBack}"
+                        Click="OnBackHistoryClick">
+                    <loc:ThemedSvg Path="/Assets/angle-left.svg" Size="18" />
+                </Button>
+                <Button x:Name="ForwardButton"
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Cursor="Hand"
+                        IsVisible="False"
+                        IsEnabled="False"
+                        ToolTip.Tip="{loc:Loc HistoryForward}"
+                        Click="OnForwardHistoryClick">
+                    <loc:ThemedSvg Path="/Assets/angle-right.svg" Size="18" />
+                </Button>
+                <!-- The position is a flat button: it looks like text until hovered. -->
+                <Button x:Name="PositionButton"
+                        Grid.Column="3"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Cursor="Hand"
+                        Click="OnPositionClick">
+                    <Grid x:Name="PositionGrid" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="5">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="BookName" FontWeight="SemiBold" VerticalAlignment="Center" FontSize="{loc:Size 18}"/>
+                            <TextBlock x:Name="BibleName" FontWeight="SemiBold" VerticalAlignment="Center" FontSize="{loc:Size 12}"/>
+                        </StackPanel>
+                        <TextBlock x:Name="ReferenceText" Opacity="0.8" VerticalAlignment="Center" Grid.Column="1"/>
+                        <!-- Direct Svg tag -->
+                        <loc:ThemedSvg Path="/Assets/down-arrow.svg" Size="18" Grid.Column="2"/>
+                    </Grid>
+                </Button>
+                <!-- The installed Bibles: opens a list to choose the Bible to read. -->
+                <Button x:Name="BiblesButton"
+                        Grid.Column="4"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Cursor="Hand"
+                        ToolTip.Tip="{loc:Loc InstalledBibles}"
+                        Click="OnBiblesClick">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <loc:ThemedSvg Path="/Assets/bookshelf.svg" Size="30" />
+                    </StackPanel>
+                </Button>
+                <!-- Search: opens a box to type the words, and below it the verses that have them, best match first. -->
+                <Button x:Name="SearchButton"
+                        Grid.Column="5"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Background="Transparent"
+                        Cursor="Hand"
+                        ToolTip.Tip="{loc:Loc Search}"
+                        Click="OnSearchClick">
+                    <loc:ThemedSvg Path="/Assets/magnifying-glass.svg" Size="22" />
+                </Button>
+                <!-- The installed Strong's dictionaries: opens a list in which they are switched on and off. -->
+                <Button x:Name="StrongsButton"
+                        Grid.Column="6"
+                        Classes="strongs"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        ToolTip.Tip="{loc:Loc StrongsDictionaries}"
+                        Click="OnStrongsClick">
+                    <!-- Two Greek or Hebrew letters, after the testament of the position (see UpdateText). -->
+                    <TextBlock x:Name="StrongsLetters" FontSize="{loc:Size 20}" VerticalAlignment="Center" />
+                </Button>
+            </Grid>
+
+            <!-- The menu: opened by the menu button, its entries are added in code. -->
+            <Popup x:Name="MenuPopup"
+                   Placement="BottomEdgeAlignedLeft"
+                   IsLightDismissEnabled="True"
+                   Closed="OnMenuPopupClosed">
+                <Border MinWidth="200"
+                        Padding="4"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <StackPanel x:Name="MenuItems" />
+                </Border>
+            </Popup>
+
+            <!-- The history of positions, newest first; its entries are added in code. -->
+            <Popup x:Name="HistoryPopup"
+                   Placement="BottomEdgeAlignedLeft"
+                   IsLightDismissEnabled="True">
+                <Border MinWidth="200"
+                        Padding="4"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <ScrollViewer MaxHeight="400" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="HistoryItems" />
+                    </ScrollViewer>
+                </Border>
+            </Popup>
+
+            <!-- The installed Bibles; its entries are added in code. -->
+            <Popup x:Name="BiblesPopup"
+                   Placement="BottomEdgeAlignedLeft"
+                   IsLightDismissEnabled="True"
+                   Closed="OnBiblesPopupClosed">
+                <Border MinWidth="220"
+                        Padding="4"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <ScrollViewer MaxHeight="400" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="BiblesItems" />
+                    </ScrollViewer>
+                </Border>
+            </Popup>
+
+            <!-- The search: the words to look for, and the verses that have them. Its entries are added in code. -->
+            <Popup x:Name="SearchPopup"
+                   Placement="BottomEdgeAlignedLeft"
+                   IsLightDismissEnabled="True"
+                   Opened="OnSearchPopupOpened"
+                   Closed="OnSearchPopupClosed">
+                <Border MinWidth="340" MaxWidth="560" Padding="8"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                            <TextBox x:Name="SearchBox" PlaceholderText="{loc:Loc SearchBible}" KeyDown="OnSearchKeyDown" />
+                            <Button Grid.Column="1" Click="OnSearchGoClick" ToolTip.Tip="{loc:Loc Search}">
+                                <loc:ThemedSvg Path="/Assets/magnifying-glass.svg" Size="16" />
+                            </Button>
+                        </Grid>
+                        <TextBlock x:Name="SearchStatus" Opacity="0.7" FontSize="{loc:Size 12}" IsVisible="False" />
+                        <ScrollViewer MaxHeight="420" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="SearchResults" />
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+            </Popup>
+
+            <!-- The installed Strong's dictionaries, each with a check box; its entries are added in code. -->
+            <Popup x:Name="StrongsPopup"
+                   Placement="BottomEdgeAlignedLeft"
+                   IsLightDismissEnabled="True"
+                   Closed="OnStrongsPopupClosed">
+                <Border MinWidth="220"
+                        Padding="8,4"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <ScrollViewer MaxHeight="400" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="StrongsItems" />
+                    </ScrollViewer>
+                </Border>
+            </Popup>
+
+            <!-- Book grid, or (after choosing a book) the chapter grid with a header to go back. -->
+            <Popup x:Name="BookPopup"
+                   Placement="BottomEdgeAlignedLeft"
+                   IsLightDismissEnabled="True"
+                   Closed="OnPopupClosed">
+                <Border Padding="6"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <StackPanel>
+                        <StackPanel x:Name="ChapterHeader" Orientation="Horizontal" Spacing="10" Margin="2,0,2,6" IsVisible="False">
+                            <Button Content="{loc:Loc BackToBooks}" Padding="10,4" Background="Transparent" Click="OnBackClick" />
+                            <TextBlock x:Name="TitleText" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ScrollViewer MaxHeight="600" HorizontalScrollBarVisibility="Disabled">
+                            <UniformGrid x:Name="BookGrid" Columns="6" />
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+            </Popup>
+        </Grid>
+    </Border>
+</UserControl>
