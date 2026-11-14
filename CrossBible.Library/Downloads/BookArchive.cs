@@ -17,15 +17,18 @@ namespace CrossBible.Library.Downloads
         public string File { get; set; }
         public override string Origin => "Local File";
 
-        // Words in capitals (LORD, GOD) become small caps. A word with Strong's attributes ("LORD_H3068_&lemma_%morph") is
-        // matched as a whole, so its attributes are not mistaken for words in capitals (the morphology "HNcfsa" starts
-        // with "HN"), and the small caps go around the whole word: "[Lord_H3068_&lemma_%morph]{.smallcaps}", which the
-        // reader reads as a small caps run that holds a word with a Strong's number.
+        // Words in capitals (LORD, GOD) become small caps. A word with Strong's attributes is matched as a whole, so its
+        // attributes are not mistaken for words in capitals (the morphology "HR/Ncmsa" has capitals): either as
+        // "LORD_H3068" (the small caps go around the whole word: "[Lord_H3068]{.smallcaps}") or as
+        // [LORD]{strong="H3068" x-morph="HR/Ncmsa"} (the small caps go around the span: "[[Lord]{strong=...}]{.smallcaps}").
+        // The reader reads both as a small caps run that holds a word with a Strong's number.
         static readonly Regex SmallCapsPattern = new(
-            @"(?<!(^|\r?\n)#[^\r\n]*?)(?:(?<strongs>" + BookText.StrongsWord + @")|\p{Lu}{2,})",
+            @"(?<!(^|\r?\n)#[^\r\n]*?)(?:" +
+            @"(?<span>\[(?<spantext>[^\[\]]+)\]\{(?<spanattr>" + BookText.StrongsExtendedAttributes + @")\})|" +
+            @"(?<strongs>" + BookText.StrongsWord + @")|\p{Lu}{2,})",
             RegexOptions.Singleline | RegexOptions.Compiled);
 
-        static readonly Regex StrongsAttributePart = new(@"^(?:[GH][0-9]+|&.+|%.+)$", RegexOptions.Compiled);
+        static readonly Regex StrongsAttributePart = new(@"^[GH][0-9]+$", RegexOptions.Compiled);
 
         static bool IsRomanNumberOrIsbn(string word) => Regex.IsMatch(word, "^(?:[IVXCD]+|ISBN)$", RegexOptions.Singleline);
 
@@ -45,10 +48,22 @@ namespace CrossBible.Library.Downloads
             return "[" + string.Join('_', parts.Select(p => StrongsAttributePart.IsMatch(p) ? p : Capitalize(p))) + "]{.smallcaps}";
         }
 
+        /// <summary>A span with Strong's attributes: when all its words are in capitals, small caps go around the span, else unchanged.</summary>
+        static string SmallCapsStrongsSpan(Match m)
+        {
+            var text = m.Groups["spantext"].Value;
+            var words = Regex.Matches(text, @"[\p{L}\p{M}]+").Select(w => w.Value).ToList();
+            bool hasCapitals = words.Any(w => Regex.IsMatch(w, @"^\p{Lu}{2,}$") && !IsRomanNumberOrIsbn(w));
+            if (!hasCapitals || words.Any(w => w.Any(char.IsLower))) return m.Value;
+            var capitalized = Regex.Replace(text, @"[\p{L}\p{M}]+", w => Capitalize(w.Value));
+            return $"[[{capitalized}]{{{m.Groups["spanattr"].Value}}}]{{.smallcaps}}";
+        }
+
         public static string PostprocessMarkdownSmallCaps(string text)
         {
             return SmallCapsPattern.Replace(text, m =>
             {
+                if (m.Groups["span"].Success) return SmallCapsStrongsSpan(m);
                 if (m.Groups["strongs"].Success) return SmallCapsStrongsWord(m.Value);
 
                 if (IsRomanNumberOrIsbn(m.Value))

@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -1335,9 +1336,30 @@ public class BibleTextBlock : Panel
             char c = text[i];
             if (!char.IsLetter(c)) continue;
             letters++;
-            if (c is >= (char)0x0590 and <= (char)0x08FF or >= (char)0xFB1D and <= (char)0xFDFF or >= (char)0xFE70 and <= (char)0xFEFF) rtl++;
+            if (IsRightToLeftLetter(c)) rtl++;
         }
         return letters > 0 && rtl * 2 > letters;
+    }
+
+    private static bool IsRightToLeftLetter(char c) =>
+        c is >= (char)0x0590 and <= (char)0x08FF or >= (char)0xFB1D and <= (char)0xFDFF or >= (char)0xFE70 and <= (char)0xFEFF;
+
+    /// <summary>
+    /// Whether a short text, such as a popup, starts with a letter of a script that is written from right to left (the rule of the
+    /// browsers for dir="auto"): the first letter decides, numbers and punctuation do not. The Latin G or H of a Strong's number
+    /// ("H7225") is not a letter of its own, so it does not count. A short text can have more Latin letters than Arabic or Hebrew ones
+    /// (a book name, a reference, a number) and still be written from right to left.
+    /// </summary>
+    private static bool StartsRightToLeft(string text)
+    {
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (!char.IsLetter(c)) continue;
+            if (c is 'G' or 'H' && i + 1 < text.Length && char.IsDigit(text[i + 1])) continue; // a Strong's number
+            return IsRightToLeftLetter(c);
+        }
+        return false;
     }
 
     /// <summary>
@@ -1552,13 +1574,30 @@ public class BibleTextBlock : Panel
         int end = start + line.Length - line.NewLineLength;
         while (end > start && text[end - 1] == ' ') end--; // trailing spaces keep their natural width
 
+        // Avalonia's bidi analysis does not handle a non-text run well (found in its source, TextFormatterImpl):
+        //  - a run without Text counts as a strong Latin letter "a" for the bidi algorithm, so a gap in a right-to-left line would
+        //    be taken as a left-to-right letter;
+        //  - CoalesceLevels gives the first character after a non-text run the level of that run, not its own;
+        //  - the line puts a non-text run at the level of the run before it.
+        // So a gap keeps the bidi levels of the line only when the character before it, the gap and the character behind it all have
+        // the same level. The levels of the line formatted without gaps are right, they are the reference: a space becomes a gap only
+        // if it has the same level as both of its neighbours (not before a number: "16" would be shown as "61"; not behind one: the gap
+        // would join the number and be shown on its outer side), and the gap gets the text of a strong character that resolves to
+        // that level (RLM for an odd, LRM for an even level). A space that does not qualify stays a real space at its natural
+        // width. If the levels of the justified line are not the same as the reference, the line is not justified.
+        var levels = BidiLevels(line, start, text);
         var spaces = new Dictionary<int, double>();
+        var gapChars = new Dictionary<int, char>();
         for (int i = start; i < end; i++)
         {
             if (text[i] != ' ') continue;
+            if (i == start || i + 1 >= start + levels.Length) continue;
+            sbyte level = levels[i - start], before = levels[i - 1 - start], next = levels[i + 1 - start];
+            if (level < 0 || level != before || level != next) continue;
             var bounds = line.GetTextBounds(i, 1);
             if (bounds.Count == 0) return null;
             spaces[i] = bounds[0].Rectangle.Width;
+            gapChars[i] = (level & 1) != 0 ? '‏' : '‎';
         }
         if (spaces.Count == 0) return null;
 
@@ -1566,15 +1605,43 @@ public class BibleTextBlock : Panel
         if (extra < 0.01) return null;
 
         bool hyphen = line.NewLineLength == 0 && text[start + line.Length - 1] == Hyphenation.SoftHyphen;
-        var source = new JustifiedSource(text, segments, start + line.Length, spaces, extra, line.Height, line.Baseline, hyphen);
+        var source = new JustifiedSource(text, segments, start + line.Length, spaces, gapChars, extra, line.Height, line.Baseline, hyphen);
         var justified = TextFormatter.Current.FormatLine(source, start, 100_000, paragraph);
-        return justified is not null && justified.Length == line.Length ? justified : null;
+        if (justified is null || justified.Length != line.Length) return null;
+
+        var justifiedLevels = BidiLevels(justified, start, text);
+        for (int i = 0; i < levels.Length && i < justifiedLevels.Length; i++)
+            if (levels[i] >= 0 && justifiedLevels[i] >= 0 && levels[i] != justifiedLevels[i]) return null;
+        return justified;
+    }
+
+    /// <summary>
+    /// The bidi level of each character of a line (-1 where the line has none: a run that is not text). Each glyph says in its cluster
+    /// which character it starts; the characters that a glyph covers in addition (marks) have the level of the one before.
+    /// </summary>
+    private static sbyte[] BidiLevels(TextLine line, int start, string text)
+    {
+        var levels = new sbyte[line.Length];
+        Array.Fill(levels, (sbyte)-1);
+        foreach (var run in line.TextRuns)
+        {
+            // The text of a shaped run is a part of the text of the block (the sources slice it), so where it starts in it says
+            // which characters the run is. (The clusters of its glyphs only count from the start of the run, and the runs of
+            // a line are in visual order.) A run of other text, such as the hyphen at the end of a line, has no level here.
+            if (run is not ShapedTextRun shaped ||
+                !MemoryMarshal.TryGetString(shaped.Text, out var source, out int from, out int length) || !ReferenceEquals(source, text)) continue;
+            for (int i = Math.Max(from, start); i < from + length && i < start + levels.Length; i++)
+                levels[i - start] = (sbyte)shaped.BidiLevel;
+        }
+        return levels;
     }
 
     /// <summary>An invisible, fixed-width stand-in for one space character.</summary>
-    private sealed class GapRun(double width, double height, double baseline, TextRunProperties properties) : DrawableTextRun
+    private sealed class GapRun(double width, double height, double baseline, TextRunProperties properties, char bidiChar) : DrawableTextRun
     {
         public override TextRunProperties? Properties => properties; // required: Avalonia reads BaselineAlignment from it
+        // Without a text Avalonia takes the run as the letter "a" in the bidi analysis. The text is never drawn.
+        public override ReadOnlyMemory<char> Text => bidiChar.ToString().AsMemory();
         public override int Length => 1;
         public override Size Size => new(width, height);
         public override double Baseline => baseline;
@@ -1583,7 +1650,7 @@ public class BibleTextBlock : Panel
 
     /// <summary>Like <see cref="RichTextSource"/> for one line, with its inner spaces widened.</summary>
     private sealed class JustifiedSource(string text, List<Segment> segments, int lineEnd,
-        Dictionary<int, double> spaces, double extra, double height, double baseline, bool hyphen) : ITextSource
+        Dictionary<int, double> spaces, Dictionary<int, char> gapChars, double extra, double height, double baseline, bool hyphen) : ITextSource
     {
         public TextRun? GetTextRun(int index)
         {
@@ -1593,7 +1660,7 @@ public class BibleTextBlock : Panel
             if (spaces.TryGetValue(index, out double natural))
             {
                 var style = segments[FindSegment(segments, index)].Style with { Baseline = BaselineAlignment.Baseline };
-                return new GapRun(natural + extra, height, baseline, ToRunProperties(style));
+                return new GapRun(natural + extra, height, baseline, ToRunProperties(style), gapChars[index]);
             }
 
             int found = FindSegment(segments, index);
@@ -1686,7 +1753,7 @@ public class BibleTextBlock : Panel
             double x = point.X - pl.Origin.X;
             if (x < 0 || x > line.WidthIncludingTrailingWhitespace) continue; // another column's line may match
 
-            int index = line.GetCharacterHitFromDistance(x).FirstCharacterIndex;
+            int index = HitFromDistance(line, x).FirstCharacterIndex;
             int lo = 0, hi = _strongs.Count - 1;
             while (lo <= hi)
             {
@@ -1724,7 +1791,7 @@ public class BibleTextBlock : Panel
             if (x < 0 || x > line.WidthIncludingTrailingWhitespace) continue; // another column's line may match
 
             // Character indices from TextLine are absolute indices into the flattened text.
-            int index = line.GetCharacterHitFromDistance(x).FirstCharacterIndex;
+            int index = HitFromDistance(line, x).FirstCharacterIndex;
             foreach (var n in _notes)
             {
                 if (index < n.Start || index >= n.End) continue;
@@ -1930,11 +1997,47 @@ public class BibleTextBlock : Panel
 
         var line = b.Line;
         double x = Math.Clamp(point.X - b.Origin.X, 0, line.WidthIncludingTrailingWhitespace);
-        var hit = line.GetCharacterHitFromDistance(x);
+        var hit = HitFromDistance(line, x);
         int index = hit.FirstCharacterIndex + hit.TrailingLength;
         int first = line.FirstTextSourceIndex;
         return Math.Clamp(index, first, first + line.Length - line.NewLineLength);
     }
+
+    /// <summary>
+    /// The character hit of a distance from the start of the line, found from the bounds of the characters. Avalonia's own
+    /// TextLine.GetCharacterHitFromDistance is wrong for a right-to-left line that has non-text runs (the gaps of a justified line): it adds
+    /// no width for such a run and goes through runs again, so the pointer is mapped to the wrong character (a selection began a word
+    /// back). The hit is on the character whose bounds hold the distance (the nearest one beyond the line); its trailing edge is the one
+    /// at the end in the direction of the text, as with Avalonia.
+    /// </summary>
+    private CharacterHit HitFromDistance(TextLine line, double x)
+    {
+        int first = line.FirstTextSourceIndex, last = first + line.Length - line.NewLineLength;
+        int best = -1, bestLength = 1;
+        bool bestTrailing = false;
+        double bestDistance = double.MaxValue;
+        for (int i = first; i < last && i < _text.Length; i++)
+        {
+            if (IsPartOfCharacter(_text[i])) continue; // part of the character before it: a mark or the second half of a surrogate pair
+            int length = 1;
+            while (i + length < last && i + length < _text.Length && IsPartOfCharacter(_text[i + length])) length++;
+            foreach (var box in line.GetTextBounds(i, length))
+            {
+                var rect = box.Rectangle;
+                double distance = x < rect.X ? rect.X - x : x > rect.Right ? x - rect.Right : 0;
+                if (distance >= bestDistance) continue;
+                bool rtl = box.FlowDirection == FlowDirection.RightToLeft;
+                (best, bestLength, bestDistance) = (i, length, distance);
+                bestTrailing = rtl ? x < rect.X + rect.Width / 2 : x >= rect.X + rect.Width / 2;
+            }
+            if (bestDistance == 0) break;
+        }
+        return best < 0 ? new CharacterHit(first) : new CharacterHit(best, bestTrailing ? bestLength : 0);
+    }
+
+    private static bool IsPartOfCharacter(char c) =>
+        char.IsLowSurrogate(c) || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.NonSpacingMark
+            or System.Globalization.UnicodeCategory.SpacingCombiningMark or System.Globalization.UnicodeCategory.EnclosingMark;
 
     private bool IsOverText(Point point) =>
         _lines.Any(pl => point.Y >= pl.Origin.Y && point.Y < pl.Origin.Y + pl.Line.Height
@@ -2322,18 +2425,38 @@ public class BibleTextBlock : Panel
     internal static IEnumerable<Inline> MarkdownInlines(string markdown, double size) =>
         ToInlines(BookText.ParseText(markdown, new BookText.VersePosition()), size, upperCase: false);
 
+    /// <summary>The plain text of inlines (their runs, also in spans).</summary>
+    private static string PlainText(IEnumerable<Inline> inlines)
+    {
+        var sb = new StringBuilder();
+        void Walk(IEnumerable<Inline> items)
+        {
+            foreach (var inline in items)
+            {
+                if (inline is Avalonia.Controls.Documents.Run run) sb.Append(run.Text);
+                else if (inline is Span { Inlines: { } children }) Walk(children);
+            }
+        }
+        Walk(inlines);
+        return sb.ToString();
+    }
+
     private void ShowPopup(IEnumerable<Inline> content, Rect bounds)
     {
         _popup.IsOpen = false;
         _popup.PlacementRect = bounds;
+        var items = content.ToList();
         // Theme resources (not fixed colours) so the popup follows light/dark mode, including live theme switches.
         var text = new SelectableTextBlock // selectable so the text can be copied
         {
             TextWrapping = TextWrapping.Wrap,
             FontSize = FontSize * FootnoteScale,
             FontFamily = FontFamily, // a popup is its own visual root: it would not inherit the font from this control
+            // Nor the direction: a footnote of a Hebrew or Arabic text is written from right to left. It is decided by the text of the
+            // popup itself (its first letter), so an entry of a dictionary in another language, opened from such a text, is not turned around.
+            FlowDirection = StartsRightToLeft(PlainText(items)) ? FlowDirection.RightToLeft : FlowDirection.LeftToRight,
         };
-        foreach (var inline in content) text.Inlines!.Add(inline);
+        foreach (var inline in items) text.Inlines!.Add(inline);
         text[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SystemControlForegroundBaseHighBrush");
 
         var card = new Border
@@ -2902,6 +3025,7 @@ public class BibleTextBlock : Panel
         // Avalonia turns the line break between XAML elements into a one-character whitespace Run. Next to a
         // footnote that would be a (justify-stretched) gap, so it is dropped: the marker belongs to its word.
         bool afterFootnote = false;
+        int verseNumberEnd = -1; // where the text of the last verse number ends
 
         void TrimTrailingSpace()
         {
@@ -2940,14 +3064,18 @@ public class BibleTextBlock : Panel
                             Foreground = fn.IsSet(TextElement.ForegroundProperty) ? fn.Foreground : LinkBrush,
                             Decorations = null,
                         };
-                        TrimTrailingSpace(); // no gap between the word and its marker
+                        // no gap between the word and its marker, but the space behind a verse number stays: the marker is the first of its verse
+                        if (verseNumberEnd != sb.Length - 1) TrimTrailingSpace();
                         int markerStart = sb.Length;
                         Append(marker, markerStyle, verbatim: true);
                         if (sb.Length > markerStart) notes.Add(new NoteRange(markerStart, sb.Length, fn));
                         afterFootnote = true;
                         break;
                     }
-                    case Run run: Append(run.Text ?? string.Empty, style); break;
+                    case Run run:
+                        Append(run.Text ?? string.Empty, style);
+                        if (inline is VerseRun) verseNumberEnd = sb.Length;
+                        break;
                     case PageBreak pageBreak:
                         Append("\n", style, verbatim: true);
                         breaks.Add(sb.Length); // the next line starts a column
