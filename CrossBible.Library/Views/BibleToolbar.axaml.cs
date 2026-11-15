@@ -770,9 +770,13 @@ public partial class BibleToolbar : UserControl
             var verse = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = UiScale.Size(14) };
             foreach (var inline in BibleTextBlock.MarkdownInlines(BibleMarkdown.WordIndex.WithoutFootnotes(found.Markdown), UiScale.Size(14)))
                 verse.Inlines!.Add(inline);
+            // A verse of Hebrew or Arabic is written from right to left, and so is its reference above it. The popup is its own visual root,
+            // so the direction is decided here, per verse (by its first letter): an English Bible in an Arabic interface stays left to right.
+            bool rtl = BibleTextBlock.StartsRightToLeft(BibleTextBlock.PlainText(verse.Inlines!));
             var content = new StackPanel
             {
                 Spacing = 2,
+                FlowDirection = rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight,
                 Children =
                 {
                     new TextBlock { Text = $"{found.Position.Book.Name} {found.Position.Chapter}:{found.Position.Verse}", FontWeight = FontWeight.SemiBold, FontSize = UiScale.Size(12), Opacity = 0.7 },
@@ -906,8 +910,8 @@ public partial class BibleToolbar : UserControl
 
     private static string Abbreviation(BookText.Book book)
     {
-        if (!string.IsNullOrWhiteSpace(book.Abbrevation)) return book.Abbrevation.Replace(" ","");
-        string name = book.Name.Replace(" ", "") ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(book.Abbrevation)) return book.Abbrevation.Replace(" ", "").Replace(".", "");
+        string name = book.Name?.Replace(" ", "").Replace(".", "") ?? string.Empty;
         return name.Length > 3 ? name[..3] : name;
     }
 

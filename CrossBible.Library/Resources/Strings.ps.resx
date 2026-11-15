@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>فونټ:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>یوناني فونټ:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>عبراني فونټ:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>فونټ نصب کړئ ...</value>
   </data>

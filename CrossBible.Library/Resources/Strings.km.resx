@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>ពុម្ពអក្សរ៖</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>ពុម្ពអក្សរក្រិក៖</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>ពុម្ពអក្សរហេប្រឺ៖</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>ដំឡើងពុម្ពអក្សរ ...</value>
   </data>

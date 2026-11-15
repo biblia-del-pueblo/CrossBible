@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>גופן:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>גופן יווני:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>גופן עברי:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>התקנת גופן ...</value>
   </data>

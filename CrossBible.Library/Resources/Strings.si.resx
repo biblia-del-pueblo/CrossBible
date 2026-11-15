@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>අකුරු වර්ගය:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>ග්‍රීක අකුරු වර්ගය:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>හෙබ්‍රෙව් අකුරු වර්ගය:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>අකුරු වර්ගයක් ස්ථාපනය ...</value>
   </data>

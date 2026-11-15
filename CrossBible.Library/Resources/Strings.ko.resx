@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>글꼴:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>그리스어 글꼴:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>히브리어 글꼴:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>글꼴 설치 ...</value>
   </data>

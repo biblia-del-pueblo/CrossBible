@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>Fontti:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Kreikan fontti:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Heprean fontti:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>Asenna fontti ...</value>
   </data>

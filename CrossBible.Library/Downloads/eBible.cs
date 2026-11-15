@@ -56,6 +56,7 @@ public class eBible : InstallableBook
                 }
                 throw new NotSupportedException("ebible.org returned an invalid format.");
             })
+            .Where(bible => bible.EnglishName != "Spanish LBLA") // Spanish LBLA does not have a Strongs Module for download
             .ToList();
     }
 

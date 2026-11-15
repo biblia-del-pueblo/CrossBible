@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>قلم:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>قلم یونانی:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>قلم عبری:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>نصب قلم ...</value>
   </data>

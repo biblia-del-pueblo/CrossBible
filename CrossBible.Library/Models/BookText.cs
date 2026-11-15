@@ -18,7 +18,9 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace CrossBible.Library;
 
-public class BookText : System.ComponentModel.INotifyPropertyChanged
+// partial: the regular expressions of the parsing are made at build time ([GeneratedRegex]). They are ordinary C# then, which the
+// ReadyToRun compiler precompiles, instead of being built (and for the Compiled ones, compiled) when the first book is read.
+public partial class BookText : System.ComponentModel.INotifyPropertyChanged
 {
     /// <summary>Raised when <see cref="HasStrongs"/> changes (possibly on the thread that reads a book).</summary>
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
@@ -226,7 +228,7 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
         public string File { get; set; }
         public string Markdown { get => field ??= System.IO.File.ReadAllText(File, System.Text.Encoding.UTF8); set => field = value; }
         bool? isBible = null;
-        public bool IsBible => isBible ??= Regex.IsMatch(Markdown, @"\A(?=[\s\S]*@\d)(?![\s\S]*^#[ \t]+(?!\d+[ \t]*\r?$))", RegexOptions.Multiline);
+        public bool IsBible => isBible ??= BookText.IsBibleRegex().IsMatch(Markdown);
         public List<Run> Runs {
             get => field ??= BookText.ParseBibleBook(this).ToList();
             set => field = value;
@@ -268,7 +270,8 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
             Chapter,
             Verse,
             Footnote,
-            Paragraph
+            Paragraph,
+            LineBreak
         }
         public Classes Class { get; set; }
         public string Text { get; set; }
@@ -324,28 +327,39 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
     const string VerseMarker = @"(?<![^ \n])@[0-9]+(?=[ \t])";
     // A title inside a text: one or more "#" at the start of a line, a space and the text up to the end of the line.
     const string TitleStart = @"(?<![^\n])#+ ";
+    // The line and paragraph breaks of Pandoc's markdown: a backslash at the end of a line, or two or more spaces, make a line break (poetry has
+    // one for each of its lines), and an empty line makes a new paragraph; a single line ending is only a space. The spaces around a break
+    // belong to it. A backslash that is escaped (\\) is a pair of the text (and no break), which Escaped takes before this is looked at.
+    const string HardBreak = @"(?:[ \t]*\\(?:\r?\n|\z)|[ \t]{2,}\r?\n)[ \t]*";
+    const string ParagraphBreak = @"[ \t]*(?:\r?\n[ \t]*){2,}";
     // The plain text ends at the true end of the text (\z, not $: $ also matches in front of a final line break, which would then be lost, and with
     // it the only space between a verse and the number of the next one in a file with LF line breaks, as the phone writes them).
-    static readonly Regex TextParts = new(
+    const string TextPartsPattern =
         @"(?<![^ \n])@(?<verse>[0-9]+)(?=[ \t])|" +
         @"(?<![^\n])(?<hashes>#+) (?<title>[^\r\n]*)(?:\r?\n|$)|" +
+        "(?<paragraph>" + ParagraphBreak + ")|(?<linebreak>" + HardBreak + ")|" +
         @"\*\*(?<bold>.*?)\*\*|\*(?<italic>.*?)\*|" +
         @"\^\[(?<footnote>" + Balanced + @")\]|" +
         @"\[(?<smallcaps>" + Balanced + @")" + SmallCapsEnd + "|" +
         @"\[(?<wordsofjesus>" + Balanced + @")" + WordsOfJesusEnd + "|" +
         @"\[(?<link>" + Balanced + @")\]\((?<linkurl>[a-zA-Z]+://.*?)\)|" +
         "(?<strongs>" + StrongsWord + "|" + StrongsExtendedWord + ")|" +
-        @"(?<normal>(?:" + Escaped + @"|.)*?(?=" + VerseMarker + "|" + TitleStart + "|" + StrongsWord + @"|" + StrongsExtendedWord + @"|\*\*.*?\*\*|\*.*?\*|\^\[" + Balanced + @"\]|" +
-        @"\[" + Balanced + SmallCapsEnd + @"|\[" + Balanced + WordsOfJesusEnd + @"|\[" + Balanced + LinkEnd + @"|\z))",
-        RegexOptions.Singleline | RegexOptions.Compiled);
+        @"(?<normal>(?:" + Escaped + @"|.)*?(?=" + VerseMarker + "|" + TitleStart + "|" + ParagraphBreak + "|" + HardBreak + "|" + StrongsWord + @"|" + StrongsExtendedWord + @"|\*\*.*?\*\*|\*.*?\*|\^\[" + Balanced + @"\]|" +
+        @"\[" + Balanced + SmallCapsEnd + @"|\[" + Balanced + WordsOfJesusEnd + @"|\[" + Balanced + LinkEnd + @"|\z))";
+
+    [GeneratedRegex(TextPartsPattern, RegexOptions.Singleline)]
+    private static partial Regex TextParts();
+
+    [GeneratedRegex(@"\\([\[\]*^\\])")]
+    private static partial Regex EscapedCharacter();
 
     /// <summary>Drops the backslash of an escaped <c>[ ] * ^ \</c>.</summary>
-    static string Unescape(string text) => text.Contains('\\') ? Regex.Replace(text, @"\\([\[\]*^\\])", "$1") : text;
+    static string Unescape(string text) => text.Contains('\\') ? EscapedCharacter().Replace(text, "$1") : text;
 
     public static IEnumerable<Run> ParseText(string text, VersePosition position)
     {
         int titleIndex = 1;
-        foreach (Match m in TextParts.Matches(text))
+        foreach (Match m in TextParts().Matches(text))
         {
             if (m.Value == "") continue;
 
@@ -361,6 +375,22 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
                     Runs = Enumerable.Empty<Run>()
                 };
             }
+            else if (m.Groups["paragraph"].Success)
+                yield return new Run
+                {
+                    Class = Run.Classes.Paragraph,
+                    Text = "",
+                    Position = position,
+                    Runs = Enumerable.Empty<Run>()
+                };
+            else if (m.Groups["linebreak"].Success)
+                yield return new Run
+                {
+                    Class = Run.Classes.LineBreak,
+                    Text = "",
+                    Position = position,
+                    Runs = Enumerable.Empty<Run>()
+                };
             else if (m.Groups["title"].Success)
             {
                 position = position.Clone;
@@ -439,9 +469,14 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
         }
     }
 
-    static readonly Regex StrongsAttributes = new(@"_[GH][0-9]+", RegexOptions.Compiled);
-    static readonly Regex StrongsAttributeToken = new(@"(?<param>(?:z-|x-)?(?<sparam>strongs?|morph|lemma))\s*=\s*""(?<value>[^""]*)""", RegexOptions.Compiled);
-    static readonly Regex StrongsExtendedWordRegex= new(StrongsWord + "|" + StrongsExtendedWord, RegexOptions.Singleline | RegexOptions.Compiled);
+    [GeneratedRegex(@"(?<param>(?:z-|x-)?(?<sparam>strongs?|morph|lemma))\s*=\s*""(?<value>[^""]*)""")]
+    private static partial Regex StrongsAttributeToken();
+
+    const string StrongsExtendedWordPattern = StrongsWord + "|" + StrongsExtendedWord;
+
+    [GeneratedRegex(StrongsExtendedWordPattern, RegexOptions.Singleline)]
+    private static partial Regex StrongsExtendedWordRegex();
+
     /// <summary>
     /// A word (or phrase) with Strong's attributes, e.g. <c>beginning_H7225_&amp;lemma_%morph</c>: the run's text is the
     /// word without the attributes (other "_" become spaces), the numbers, lemma and morphology are kept on the run.
@@ -449,7 +484,7 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
     static Run ParseStrongsWord(string word, VersePosition position, Match m = null)
     {
         if (position?.Book?.BookText is { } booktext) booktext.HasStrongs = true;
-        var tokens = m ?? StrongsExtendedWordRegex.Match(word);
+        var tokens = m ?? StrongsExtendedWordRegex().Match(word);
         var text = m.Groups["sword"].Success ?
             tokens.Groups["sword"].Value.Replace('_', ' ') :
             tokens.Groups["secontent"].Value;
@@ -459,7 +494,7 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
         else
         {
             var seattr = m.Groups["seattr"].Value;
-            var parameters = StrongsAttributeToken.Matches(seattr).OfType<Match>();
+            var parameters = StrongsAttributeToken().Matches(seattr).OfType<Match>();
             foreach (var par in parameters)
             {
                 var val = par.Groups["value"].Value;
@@ -557,6 +592,27 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
         }
 
     }
+    // A text with verses (and at least one "@1"), and no heading of its own: a Bible book and not a plain text.
+    [GeneratedRegex(@"\A(?=[\s\S]*@\d)(?![\s\S]*^#[ \t]+(?!\d+[ \t]*\r?$))", RegexOptions.Multiline)]
+    private static partial Regex IsBibleRegex();
+
+    // The titles and the verses of a chapter.
+    [GeneratedRegex(@"((?<=^|\n)##\s+(?<title>.*?)\r?\n)|@(?<verseno>[0-9]+)(?=\s)(?<versebody>.*?)(?=@[0-9]+\s+|\r?\n#|$)", RegexOptions.Singleline)]
+    private static partial Regex ChapterParts();
+
+    [GeneratedRegex(@"/\*.*?\*/", RegexOptions.Singleline)]
+    private static partial Regex BlockComments();
+
+    [GeneratedRegex(@"(?<!:)//.*?\r?\n", RegexOptions.Singleline)]
+    private static partial Regex LineComments();
+
+    // ^a^ text ^a^[footnote]: the footnote comes in front of the text it belongs to (the balanced brackets are the footnote's).
+    [GeneratedRegex(@"\^(?<mark>[a-zA-Z]+)\^(?!\[)(?<text>.*?)(?:(?<own>^)?\^\k<mark>(?<footnote>\^\[(?>\[(?<c>)|[^\[\]]+|\](?<-c>))*(?(c)(?!))\]))[ \t]*(?(own)\r?\n?)", RegexOptions.Singleline)]
+    private static partial Regex Footnotes();
+
+    [GeneratedRegex(@"(^|\n)#\s+(?<chno>[0-9]+)\s*\r?\n(?<chbody>.*?)(?=\n#\s+[0-9]+\s*\r?\n|$)", RegexOptions.Singleline)]
+    private static partial Regex Chapters();
+
     static IEnumerable<Run> ParseChapter(Match chapter, VersePosition position)
     {
         var chapterText = chapter.Groups["chbody"].Value;
@@ -568,7 +624,7 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
             Chapter = chapterNumber,
             Position = position,
             Text = chapterText,
-            Runs = Regex.Matches(chapterText, @"((?<=^|\n)##\s+(?<title>.*?)\r?\n)|@(?<verseno>[0-9]+)(?=\s)(?<versebody>.*?)(?=@[0-9]+\s+|\r?\n#|$)", RegexOptions.Singleline)
+            Runs = ChapterParts().Matches(chapterText)
                 .SelectMany(verse => ParseVerse(verse, position))
                 .ToList()
         };
@@ -595,27 +651,35 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
     }
     public static IEnumerable<Run> ParseBibleBook(Book book)
     {
-        var start = DateTime.Now;
+        // TEMPORARY (the measuring): the time of each step, logged at the end
+        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         var markdown = book.Markdown;
+        long t1 = System.Diagnostics.Stopwatch.GetTimestamp(); // the file was read
         var first = true;
         // strip comments
-        markdown = Regex.Replace(markdown, @"/\*.*?\*/", "", RegexOptions.Singleline); // comments
-        markdown = Regex.Replace(markdown, @"(?<!:)//.*?\r?\n", "", RegexOptions.Singleline); // single line comments
+        markdown = BlockComments().Replace(markdown, ""); // comments
+        markdown = LineComments().Replace(markdown, ""); // single line comments
+        long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
         // Replace footnotes
         bool replaced;
+        int footnotePasses = 0;
         do
         {
             replaced = false;
-            markdown = Regex.Replace(markdown, @"\^(?<mark>[a-zA-Z]+)\^(?!\[)(?<text>.*?)(?:(?<own>^)?\^\k<mark>(?<footnote>\^\[(?>\[(?<c>)|[^\[\]]+|\](?<-c>))*(?(c)(?!))\]))[ \t]*(?(own)\r?\n?)", m =>
+            footnotePasses++;
+            markdown = Footnotes().Replace(markdown, m =>
             {
                 replaced = true;
                 return $"{m.Groups["footnote"].Value}{m.Groups["text"].Value}";
-            }, RegexOptions.Singleline);// ^^ footnotes
+            });// ^^ footnotes
         } while (replaced);
+        long t3 = System.Diagnostics.Stopwatch.GetTimestamp();
 
-        if (book.IsBible)
+        bool isBible = book.IsBible;
+        long t4 = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (isBible)
         {
-            var chapters = Regex.Matches(markdown, @"(^|\n)#\s+(?<chno>[0-9]+)\s*\r?\n(?<chbody>.*?)(?=\n#\s+[0-9]+\s*\r?\n|$)", RegexOptions.Singleline)
+            var chapters = Chapters().Matches(markdown)
                 .OfType<Match>();
             foreach (var chapter in chapters.SelectMany(chapter => ParseChapter(chapter, new VersePosition { Book = book })))
             {
@@ -631,7 +695,11 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
         {
             foreach (var run in ParseNormalBook(book)) yield return run;
         }
-        Debug.WriteLine($"ParseBook Time: {DateTime.Now - start}");
+        long t5 = System.Diagnostics.Stopwatch.GetTimestamp();
+        double ms(long a, long b) => (b - a) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        Console.WriteLine($"[PERF] ParseBibleBook '{book.Id}' ({markdown.Length} characters): read file {ms(t0, t1):0} ms, strip comments {ms(t1, t2):0} ms, " +
+            $"merge footnotes {ms(t2, t3):0} ms ({footnotePasses} passes), IsBible check {ms(t3, t4):0} ms, chapters and verses {ms(t4, t5):0} ms, " +
+            $"total {ms(t0, t5):0} ms");
     }
 
     public string Name { get; set; }

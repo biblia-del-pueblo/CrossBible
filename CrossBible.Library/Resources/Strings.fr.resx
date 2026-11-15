@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>Police :</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Police grecque :</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Police hébraïque :</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>Installer une police ...</value>
   </data>

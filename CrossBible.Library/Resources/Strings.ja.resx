@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>フォント:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>ギリシャ語フォント:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>ヘブライ語フォント:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>フォントをインストール ...</value>
   </data>

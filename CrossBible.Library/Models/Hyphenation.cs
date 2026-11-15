@@ -46,6 +46,13 @@ public static class Hyphenation
     private static readonly ConcurrentDictionary<string, Hyphenator?> Hyphenators = new();
     private static readonly ConcurrentDictionary<(string Language, string Word), string> Words = new();
 
+    // The words are worked out on a worker thread too (see Warm), while the UI thread may need others: one at a time, as the
+    // hyphenators were only ever used from one thread.
+    private static readonly object HyphenateLock = new();
+
+    // TEMPORARY, to measure what hyphenation costs: how many words were worked out (not found in the cache) and how long that took.
+    public static long PerfWords, PerfTicks;
+
     private static Hyphenator? HyphenatorOf(string language) => Hyphenators.GetOrAdd(language, code =>
     {
         if (!Languages.Contains(code)) return null;
@@ -96,7 +103,17 @@ public static class Hyphenation
             if (wordStart >= 0)
             {
                 string word = text[wordStart..i];
-                string hyphenated = word.Length < 6 ? word : Words.GetOrAdd((language, word), key => hyphenate(key.Word));
+                string hyphenated = word.Length < 6 ? word : Words.GetOrAdd((language, word), key =>
+                {
+                    lock (HyphenateLock)
+                    {
+                        long t0 = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
+                        var h = hyphenate(key.Word);
+                        System.Threading.Interlocked.Add(ref PerfTicks, System.Diagnostics.Stopwatch.GetTimestamp() - t0);
+                        System.Threading.Interlocked.Increment(ref PerfWords);
+                        return h;
+                    }
+                });
                 if (hyphenated != word)
                 {
                     result ??= new StringBuilder(text.Length + 16).Append(text, 0, wordStart);
@@ -108,6 +125,20 @@ public static class Hyphenation
             if (i < text.Length) result?.Append(text[i]);
         }
         return result?.ToString() ?? text;
+    }
+
+    /// <summary>
+    /// Works out the words of the runs and of their children, so they are in the cache when the text is flattened on the UI thread, where the
+    /// first time a word is seen is the slow part. Meant for a worker thread.
+    /// </summary>
+    public static void Warm(IEnumerable<BookText.Run>? runs, string language)
+    {
+        if (runs is null) return;
+        foreach (var run in runs)
+        {
+            if (!string.IsNullOrEmpty(run.Text)) Apply(run.Text, language);
+            Warm(run.Runs, language);
+        }
     }
 
     /// <summary>The language code (<c>"de"</c>) of the installed Bible of this name, or null if it is not known or has no patterns.</summary>

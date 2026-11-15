@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>Fon:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Fon Yunani:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Fon Ibrani:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>Pasang fon ...</value>
   </data>

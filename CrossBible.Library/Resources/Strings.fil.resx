@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>Font:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Font na Griyego:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Font na Hebreo:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>Mag-install ng font ...</value>
   </data>

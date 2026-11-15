@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>Carattere:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Carattere greco:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Carattere ebraico:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>Installa carattere ...</value>
   </data>

@@ -18,6 +18,7 @@ public partial class BibleView : UserControl
     public BibleView()
     {
         InitializeComponent();
+        StallMonitor.Start(); // TEMPORARY
         SizeChanged += (_, e) => ApplyColumns(e.NewSize);
         // Remember the open Bible, and open the remembered one when the view is first shown.
         Block.PropertyChanged += (_, e) =>

@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>Γραμματοσειρά:</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Ελληνική γραμματοσειρά:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Εβραϊκή γραμματοσειρά:</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>Εγκατάσταση γραμματοσειράς ...</value>
   </data>

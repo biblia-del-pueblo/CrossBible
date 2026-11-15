@@ -210,6 +210,12 @@
   <data name="Font" xml:space="preserve">
     <value>Տառատեսակ՝</value>
   </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Հունարեն տառատեսակ՝</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Եբրայերեն տառատեսակ՝</value>
+  </data>
   <data name="InstallFont" xml:space="preserve">
     <value>Տեղադրել տառատեսակ ...</value>
   </data>
