@@ -145,10 +145,12 @@ public partial class BibleToolbar : UserControl
         AddHandler(PointerPressedEvent, OnSwipePressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnSwipeMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnSwipeReleased, RoutingStrategies.Tunnel);
+        HistoryPopup.Closed += (_, _) => _historyClosedAt = DateTime.UtcNow;
         BookPopup.PlacementTarget = PositionButton; // a reference to a named sibling, set here rather than as a binding
         UpdateHistoryButtons(); // the history of the last session
         UpdateStrongsSelected();
         UpdateText();
+        UpdateIsWide();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -367,6 +369,17 @@ public partial class BibleToolbar : UserControl
         _historyLongPressed = false;
         _historyHoldTarget = sender as Control;
         _historyOpenOnRelease = false;
+        _historyRightPressed = false;
+        if (sender is Control pressed && e.GetCurrentPoint(pressed).Properties.IsRightButtonPressed)
+        {
+            // A right click lists the history, like a long press; it is no click. The list opens on release,
+            // since a popup that opens during a press is light-dismissed by it.
+            _historyHold?.Stop();
+            _backPending = null;
+            _historyRightPressed = true;
+            e.Handled = true;
+            return;
+        }
         if ((ReferenceEquals(sender, BackButton) || ReferenceEquals(sender, ForwardButton)) && e.ClickCount == 2)
         {
             _backPending = null; // the step back that waited does not happen
@@ -389,7 +402,19 @@ public partial class BibleToolbar : UserControl
         OpenHistoryPopup(_historyHoldTarget ?? PositionButton);
     }
 
-    private void OnHistoryReleased(object? sender, RoutedEventArgs e) => _historyHold?.Stop();
+    private bool _historyRightPressed;
+    private DateTime _historyClosedAt = DateTime.MinValue;
+
+    private void OnHistoryReleased(object? sender, RoutedEventArgs e)
+    {
+        _historyHold?.Stop();
+        if (!_historyRightPressed) return;
+        _historyRightPressed = false;
+        if (e is not PointerReleasedEventArgs || sender is not Control target || !target.IsEnabled) return;
+        // Pressing already light-dismissed an open list: this right click closes it, it does not open it again.
+        if ((DateTime.UtcNow - _historyClosedAt).TotalMilliseconds < 300) return;
+        OpenHistoryPopup(target);
+    }
 
     private const double SwipeDistance = 40;
     private Point _swipeStart;
@@ -776,12 +801,14 @@ public partial class BibleToolbar : UserControl
         else
         {
             var panel = new StackPanel() { Orientation = Avalonia.Layout.Orientation.Horizontal };
-            var svg = new ThemedSvg { Path = $"/Assets/{image}", Size = 18 }; // coloured for the theme, sized for the interface
+            var svg = new ThemedSvg { Path = $"/Assets/{image}", Size = 26 }; // coloured for the theme, sized for the interface
             panel.Children.Add(svg);
-            panel.Children.Add(new TextBlock() { Text = header, Margin = new Thickness(8, 0, 0, 0) });
+            panel.Children.Add(new TextBlock() { Text = header, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
             button = new Button { Content = panel };
         }
         button.Classes.Add("entry");
+        button.FontSize = 18;
+        button.MinHeight = 48;
         button.Click += async (_, _) =>
         {
             MenuPopup.IsOpen = false;
@@ -906,8 +933,8 @@ public partial class BibleToolbar : UserControl
         Target.Position = place;
     }
 
-    private static readonly FontFamily GreekFont = new("avares://CrossBible.Library/Assets#Cardo");
-    private static readonly FontFamily HebrewFont = new("avares://CrossBible.Library/Assets#Frank Ruehl CLM");
+    private static FontFamily GreekFont => SettingsView.GreekFamily;
+    private static FontFamily HebrewFont => SettingsView.HebrewFamily;
 
     /// <summary>Alpha, beta and aleph, bet: the language of the Strong's numbers of the testament that is read.</summary>
     private void UpdateStrongsLetters(BookText.Book? book)
@@ -967,8 +994,8 @@ public partial class BibleToolbar : UserControl
         // The Strongs button is only there for a Bible that has Strong's numbers (known once a book of it has been read).
         StrongsButton.IsVisible = book?.BookText?.HasStrongs == true;
         UpdateStrongsLetters(book);
-        BookName.Text = ShortenWithEllipsis(book?.Name ?? string.Empty, IsWide ? 35 : 30);
-        BibleName.Text = ShortenWithEllipsis(book?.BookText?.Name ?? string.Empty, IsWide ? 35 : 30);
+        BookName.Text = book?.Name ?? string.Empty;
+        BibleName.Text = book?.BookText?.Name ?? string.Empty;
         ReferenceText.Text = position is null ? "—"
             : position.Verse > 0 ? $"{position.Chapter}:{position.Verse}"
             : position.Chapter > 0 ? position.Chapter.ToString() : string.Empty;
@@ -979,8 +1006,8 @@ public partial class BibleToolbar : UserControl
         // The widths of the existing columns are changed: a Grid that is given a new ColumnDefinitions after it was
         // laid out can keep its old measure, which left the position button without any size in a wide bar.
         var width = IsWide ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
-        ToolbarGrid.ColumnDefinitions[3].Width = width; // the position button: the room that is left in a narrow bar
-        PositionGrid.ColumnDefinitions[0].Width = width; // its book and Bible name
+        //ToolbarGrid.ColumnDefinitions[3].Width = width; // the position button: the room that is left in a narrow bar
+        PositionGrid.ColumnDefinitions[0].Width = width;  // its book and Bible name
 
         // Tighter buttons in a narrow bar, where every pixel counts; roomier ones in a wide bar.
         var padding = IsWide ? new Thickness(4, 4) : new Thickness(2, 4);

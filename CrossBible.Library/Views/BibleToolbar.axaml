@@ -103,15 +103,13 @@
                         Background="Transparent"
                         Cursor="Hand"
                         Click="OnPositionClick">
-                    <Grid x:Name="PositionGrid" ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="5">
-                        <StackPanel Grid.Column="0">
+                    <StackPanel>
+                        <Grid x:Name="PositionGrid" ColumnDefinitions="Auto,Auto" ColumnSpacing="5">
                             <TextBlock x:Name="BookName" FontWeight="SemiBold" VerticalAlignment="Center" FontSize="{loc:Size 18}"/>
-                            <TextBlock x:Name="BibleName" FontWeight="SemiBold" VerticalAlignment="Center" FontSize="{loc:Size 12}"/>
-                        </StackPanel>
-                        <TextBlock x:Name="ReferenceText" Opacity="0.8" VerticalAlignment="Center" Grid.Column="1"/>
-                        <!-- Direct Svg tag -->
-                        <loc:ThemedSvg Path="/Assets/down-arrow.svg" Size="18" Grid.Column="2"/>
-                    </Grid>
+                            <TextBlock x:Name="ReferenceText" Opacity="0.8" VerticalAlignment="Center" Grid.Column="1" FontSize="{loc:Size 14}"/>
+                        </Grid>
+                        <TextBlock x:Name="BibleName" FontWeight="SemiBold" VerticalAlignment="Center" FontSize="{loc:Size 12}"/>
+                    </StackPanel>
                 </Button>
                 <!-- The installed Bibles: opens a list to choose the Bible to read. -->
                 <Button x:Name="BiblesButton"

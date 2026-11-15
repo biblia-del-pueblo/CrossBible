@@ -60,16 +60,29 @@ public partial class SettingsView : UserControl
         _ => new FontFamily(name),
     };
 
+    /// <summary>The font of Greek words, as chosen in the settings (Cardo until then).</summary>
+    public static FontFamily GreekFamily => FamilyOf(string.IsNullOrWhiteSpace(Settings.Current.GreekFontFamily) ? "Cardo" : Settings.Current.GreekFontFamily);
+
+    /// <summary>The font of Hebrew words, as chosen in the settings (Frank Ruehl CLM until then).</summary>
+    public static FontFamily HebrewFamily => FamilyOf(string.IsNullOrWhiteSpace(Settings.Current.HebrewFontFamily) ? "Frank Ruehl CLM" : Settings.Current.HebrewFontFamily);
+
     /// <summary>Lists the fonts: the ones that ship with the app, the installed ones and the system's.</summary>
     private void FillFonts()
     {
-        FontBox.ItemsSource = AssetFonts.Append(InterFont)
+        var fonts = AssetFonts.Append(InterFont)
             .Concat(UserFonts.Families)
             .Concat(FontManager.Current.SystemFonts.Select(f => f.Name))
             .Where(n => !string.IsNullOrWhiteSpace(n))
             .Distinct()
             .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
+        // Each box gets a list of its own, and keeps its selection when the list is filled again.
+        foreach (var box in new[] { FontBox, GreekFontBox, HebrewFontBox })
+        {
+            var selected = box.SelectedItem;
+            box.ItemsSource = fonts.ToList();
+            if (selected is not null) box.SelectedItem = selected;
+        }
     }
 
     /// <summary>Picks a font file or a zip of fonts and installs it into <see cref="UserFonts.Folder"/>.</summary>
@@ -132,6 +145,8 @@ public partial class SettingsView : UserControl
             FontSizeSlider.Value = size;
             FontSizeText.Text = size.ToString("0");
             FontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.FontFamily) ? EmbeddedFont : settings.FontFamily;
+            GreekFontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.GreekFontFamily) ? "Cardo" : settings.GreekFontFamily;
+            HebrewFontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.HebrewFontFamily) ? "Frank Ruehl CLM" : settings.HebrewFontFamily;
             JesusBox.IsChecked = settings.ShowWordsOfJesus ?? true;
             GreenVerseBox.IsChecked = settings.ShowVerseNumbersInGreen ?? false;
             HyphenateBox.IsChecked = settings.Hyphenate ?? true;
@@ -224,6 +239,22 @@ public partial class SettingsView : UserControl
         if (_loading || FontBox.SelectedItem is not string name || Settings.Current.FontFamily == name) return;
         Settings.Current.FontFamily = name;
         UpdateSample();
+        Save();
+        AppearanceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnGreekFontChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || GreekFontBox.SelectedItem is not string name || Settings.Current.GreekFontFamily == name) return;
+        Settings.Current.GreekFontFamily = name;
+        Save();
+        AppearanceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnHebrewFontChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || HebrewFontBox.SelectedItem is not string name || Settings.Current.HebrewFontFamily == name) return;
+        Settings.Current.HebrewFontFamily = name;
         Save();
         AppearanceChanged?.Invoke(this, EventArgs.Empty);
     }

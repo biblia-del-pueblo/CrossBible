@@ -64,6 +64,10 @@ namespace CrossBible.Library
         public double? WindowWidth { get; set; }
         public double? WindowHeight { get; set; }
         public string FontFamily { get; set; } = "Bible Roman";
+        /// <summary>The font of Greek words in the text and of the Greek Strong's letters.</summary>
+        public string GreekFontFamily { get; set; } = "Cardo";
+        /// <summary>The font of Hebrew words in the text and of the Hebrew Strong's letters.</summary>
+        public string HebrewFontFamily { get; set; } = "Frank Ruehl CLM";
         public string ConfigPath
         {
             get
@@ -197,6 +201,8 @@ namespace CrossBible.Library
                 Hyphenate = settings.Hyphenate;
                 FontSize = settings.FontSize;
                 FontFamily = settings.FontFamily;
+                GreekFontFamily = settings.GreekFontFamily;
+                HebrewFontFamily = settings.HebrewFontFamily;
                 ConfigPath = settings.ConfigPath;
                 Language = settings.Language;
                 UiSize = settings.UiSize;

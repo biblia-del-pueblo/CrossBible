@@ -590,6 +590,7 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
     }
     public static IEnumerable<Run> ParseBibleBook(Book book)
     {
+        var start = DateTime.Now;
         var markdown = book.Markdown;
         var first = true;
         // strip comments
@@ -625,6 +626,7 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
         {
             foreach (var run in ParseNormalBook(book)) yield return run;
         }
+        Debug.WriteLine($"ParseBook Time: {DateTime.Now - start}");
     }
 
     public string Name { get; set; }

@@ -80,6 +80,18 @@
                     </Button>
                 </Grid>
 
+                <!-- The fonts of the Greek and the Hebrew words in the text. -->
+                <StackPanel Spacing="16" Orientation="Horizontal">
+                    <TextBlock Text="{loc:Loc GreekFont}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <ComboBox x:Name="GreekFontBox" MinWidth="200" MaxWidth="400"
+                              SelectionChanged="OnGreekFontChanged" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Spacing="16" Orientation="Horizontal">
+                    <TextBlock Text="{loc:Loc HebrewFont}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <ComboBox x:Name="HebrewFontBox" MinWidth="200" MaxWidth="400"
+                              SelectionChanged="OnHebrewFontChanged" VerticalAlignment="Center" />
+                </StackPanel>
+
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                     <TextBlock Text="{loc:Loc FontSize}" Grid.Column="0" FontWeight="SemiBold"  VerticalAlignment="Center" />
                     <Slider x:Name="FontSizeSlider" Grid.Column="1" Minimum="12" Maximum="40" SmallChange="1" LargeChange="2"

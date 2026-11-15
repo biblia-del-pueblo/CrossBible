@@ -1745,8 +1745,15 @@ public class BibleTextBlock : Panel
     /// <param name="icon">The file of an icon in the Assets (for example "copy.svg"), shown before the text; none if null.</param>
     private static MenuItem CreateMenuItem(string header, Action action, string? icon = null)
     {
-        var item = new MenuItem { Header = header };
-        if (icon is not null) item.Icon = new ThemedSvg { Path = "/Assets/" + icon, Size = 16 };
+        var item = new MenuItem { Header = header, FontSize = UiScale.Size(18), MinHeight = UiScale.Size(52), Padding = new Thickness(12, 8) };
+        // Not MenuItem.Icon: the theme's template squeezes that into a 16x16 box, whatever the size of the icon.
+        if (icon is not null)
+        {
+            var panel = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 12 };
+            panel.Children.Add(new ThemedSvg { Path = "/Assets/" + icon, Size = UiScale.Size(24) });
+            panel.Children.Add(new TextBlock { Text = header, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            item.Header = panel;
+        }
         item.Click += (_, _) => action();
         return item;
     }
@@ -2921,9 +2928,10 @@ public class BibleTextBlock : Panel
     private static Pen StrongsPenOf(IBrush brush) =>
         new(brush, StrongsUnderlineThickness, new DashStyle(new double[] { 1, 2 }, 0), PenLineCap.Round);
 
-    // Greek text is set in Cardo and Hebrew in Frank Ruehl CLM, whatever font the reader chose for the rest.
-    private static readonly FontFamily GreekFont = new("avares://CrossBible.Library/Assets#Cardo");
-    private static readonly FontFamily HebrewFont = new("avares://CrossBible.Library/Assets#Frank Ruehl CLM");
+    // Greek and Hebrew text is set in the fonts chosen for them in the settings (Cardo and Frank Ruehl CLM until then),
+    // whatever font the reader chose for the rest.
+    private static FontFamily GreekFont => CrossBible.Library.UI.SettingsView.GreekFamily;
+    private static FontFamily HebrewFont => CrossBible.Library.UI.SettingsView.HebrewFamily;
     private const double HebrewScale = 1.5;
 
     /// <summary>
