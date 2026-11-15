@@ -157,12 +157,17 @@ public partial class BibleToolbar : UserControl
     {
         base.OnAttachedToVisualTree(e);
         CrossBible.Library.Downloads.StrongsDictionaries.AnyChanged += OnStrongsAnyChanged;
+        // The Bible lives as long as the app: while the bar is away it must not be held by the Bible's event.
+        if (_watchedBible is not null) { _watchedBible.PropertyChanged -= OnBiblePropertyChanged; _watchedBible.PropertyChanged += OnBiblePropertyChanged; }
         UpdateStrongsSelected(); // it may have changed while the bar was away
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         CrossBible.Library.Downloads.StrongsDictionaries.AnyChanged -= OnStrongsAnyChanged;
+        // Without this, every view that was made again (a change of language or size) stayed in memory, with all its
+        // controls and layout, because the Bible's event kept the bar alive.
+        if (_watchedBible is not null) _watchedBible.PropertyChanged -= OnBiblePropertyChanged;
         base.OnDetachedFromVisualTree(e);
     }
 

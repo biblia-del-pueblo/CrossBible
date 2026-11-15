@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace CrossBible.Library.Downloads;
 
 /// <summary>
-/// A cover for a book that has none (<see cref="InstallableBook.Image"/> is null): an SVG, as a <c>data:</c> address, with
+/// A cover for a book that has none: an SVG, made on demand (<see cref="Source"/>; the book's Image is just the <see cref="Marker"/>), with
 /// the name of the book over a background that fits its epoch, an ornament as the border and the origin at the bottom.
 /// The same book always gets the same cover: the epoch comes from the year in its name (a book without a year counts as 2000), the preset of the epoch from a stable hash of the name.
 /// </summary>
@@ -52,8 +52,27 @@ public static class CoverFallback
         new("#e9e2d0", "#cfc4a8", "#7a5c2e", "#2b2b2b"),
     };
 
-    /// <summary>The cover of the book as an address <c>data:image/svg+xml;base64,...</c>.</summary>
-    public static string Create(InstallableBook book)
+    /// <summary>
+    /// What <see cref="InstallableBook.Image"/> holds for a book whose cover is generated. The SVG itself is not kept (a list of a thousand
+    /// Bibles held tens of megabytes of them as strings): it is made by <see cref="Source"/> when a row shows it, and is always the same.
+    /// </summary>
+    public const string Marker = "generated:";
+
+    // The first version kept the SVG itself, as this kind of address, in Image; the settings of an installed Bible may still have one.
+    const string LegacyPrefix = "data:image/svg+xml;base64,";
+
+    /// <summary>
+    /// Whether the cover is a generated one: the <see cref="Marker"/>, or an address of the first version (which held the SVG; the book's
+    /// cover is made again, it is the same). <paramref name="image"/> is <see cref="InstallableBook.Image"/>.
+    /// </summary>
+    public static bool IsGenerated(string? image) =>
+        image == Marker || image?.StartsWith(LegacyPrefix, StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>The cover of the book is made when it is shown: this is what <see cref="InstallableBook.Image"/> is set to.</summary>
+    public static string Create(InstallableBook book) => Marker;
+
+    /// <summary>The SVG source of the generated cover of the book.</summary>
+    public static string Source(InstallableBook book)
     {
         var name = (book.Name ?? book.EnglishName ?? "").Trim();
         var hash = Hash(name);
@@ -71,16 +90,7 @@ public static class CoverFallback
         var preset = presets[hash % (uint)presets.Length];
         var ornament = (int)((hash >> 20) % 3);
 
-        var svg = Svg(name, book.Origin, year, preset, ornament, hash);
-        return "data:image/svg+xml;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(svg));
-    }
-
-    /// <summary>The SVG source of a data address made by <see cref="Create"/>; null if it is not one.</summary>
-    public static string? FromDataUri(string? uri)
-    {
-        const string prefix = "data:image/svg+xml;base64,";
-        if (uri == null || !uri.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return null;
-        return Encoding.UTF8.GetString(Convert.FromBase64String(uri.Substring(prefix.Length)));
+        return Svg(name, book.Origin, year, preset, ornament, hash);
     }
 
     /// <summary>A hash of the text that is the same in every run and on every machine (string.GetHashCode is not).</summary>

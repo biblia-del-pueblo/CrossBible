@@ -51,11 +51,28 @@ public partial class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
+    /// <summary>
+    /// Builds the texts or the sizes again after the language or the size of the interface changed: the view in the
+    /// activity is replaced by a new one. The activity is not made again with <c>Recreate()</c>: every activity that
+    /// was destroyed that way stayed in memory with its whole view (about 30 MB each), until the emulator froze.
+    /// Replacing <c>MainView</c> of the lifetime had no effect on the screen, so the activity's own Content is set.
+    /// </summary>
     private void OpenMainViewAgain()
     {
-        if (ApplicationLifetime is not ISingleViewApplicationLifetime single) return;
-        (single.MainView as BibleView)?.SaveStateNow();
-        single.MainView = CreateMainView();
+        if (MainActivity.Current is { } activity)
+        {
+            var old = activity.Content as BibleView;
+            old?.SaveStateNow();
+            bool settings = old?.ShowSettings ?? false; // the reader stays on the page they were on
+            var view = CreateMainView();
+            if (settings && view is BibleView bible) bible.ShowSettings = true;
+            activity.Content = view; // the old view leaves the visual tree: it stops its timers and lets go of the Bibles
+        }
+        else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
+        {
+            (single.MainView as BibleView)?.SaveStateNow();
+            single.MainView = CreateMainView(); // no activity (yet): nothing is shown that could be replaced
+        }
     }
 
     private static Control CreateMainView()
@@ -70,18 +87,6 @@ public partial class App : Application
     private static async Task OpenAsync(BibleView view)
     {
         string? directory = BibleDirectory; // found before the app started (see BibleApplication)
-        if (directory is null)
-        {
-            view.Content = new TextBlock
-            {
-                Text = "No Bible found. Add the Bible's .md files as assets (see CrossBible.Android.csproj) or push them to "
-                     + "the app's files folder: Android/data/<package>/files/Bible.",
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                Margin = new Thickness(24),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            return;
-        }
         await view.OpenAsync(directory);
     }
 }

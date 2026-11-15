@@ -42,8 +42,6 @@ public class BibleApplication : AvaloniaAndroidApplication<App>
         var external = GetExternalFilesDir(null)?.AbsolutePath;
         if (external is not null && Directory.Exists(external)) return external;
 
-        var target = Path.Combine(FilesDir.AbsolutePath, "CrossBible");
-        Directory.CreateDirectory(target);
-        return target;
+        return FilesDir.AbsolutePath;
     }
 }

@@ -60,8 +60,7 @@ public partial class BibleView : UserControl
     {
         base.OnAttachedToVisualTree(e);
         // The back button of Android (it is raised by the other platforms for their own back gestures, if they have any).
-        _backTopLevel = TopLevel.GetTopLevel(this);
-        if (_backTopLevel is not null) _backTopLevel.BackRequested += OnBackRequested;
+        _backTopLevel = TopLevel.GetTopLevel(this);        if (_backTopLevel is not null) _backTopLevel.BackRequested += OnBackRequested;
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -178,6 +177,21 @@ public partial class BibleView : UserControl
     }
 
     public async Task ShowBookAsync(int n)=> await Block.ShowBookAsync(n);
+
+    /// <summary>
+    /// Whether the settings page is shown instead of the text. A view that replaces this one (a change of language or
+    /// size) takes it over, so the reader stays on the settings page.
+    /// </summary>
+    public bool ShowSettings
+    {
+        get => Toolbar.ShowSettings;
+        set
+        {
+            Toolbar.ShowSettings = value;
+            // Once the view is in the tree: what it does when it is attached (opening the Bible) must not leave the page.
+            if (value) AttachedToVisualTree += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => Toolbar.ShowSettings = true, Avalonia.Threading.DispatcherPriority.Loaded);
+        }
+    }
 
     private void ApplyColumns(Size size)
     {

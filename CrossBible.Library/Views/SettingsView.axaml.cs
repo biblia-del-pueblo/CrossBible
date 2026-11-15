@@ -186,6 +186,7 @@ public partial class SettingsView : UserControl
         _uiSizeTimer?.Stop();
         Settings.Current.UiSize = null; // the size of the system
         Save();
+        UiSizeSlider.Value = 100;
         TakeUiSize();
     }
 

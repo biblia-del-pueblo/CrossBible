@@ -60,15 +60,18 @@ public partial class OnlineBibleItem : ObservableObject
     /// <summary>The width of the larger cover of the popup (three times the row).</summary>
     private const int PopupCoverWidth = 360;
 
-    private static Avalonia.Media.IImage? LoadCover(string? image, int width)
+    private static Avalonia.Media.IImage? LoadCover(InstallableBook bible, int width)
     {
         try
         {
-            var generated = CoverFallback.FromDataUri(image);
-            if (generated != null)
+            var image = bible.Image;
+            if (CoverFallback.IsGenerated(image))
             {
+                // Made now, and not stored: it is always the same for the same Bible. A long address from the settings of the first
+                // version is replaced by the marker, so the settings file gets smaller the next time it is saved.
+                bible.Image = CoverFallback.Marker;
                 AddFonts();
-                return new Avalonia.Svg.Skia.SvgImage { Source = Avalonia.Svg.Skia.SvgSource.LoadFromSvg(generated) };
+                return new Avalonia.Svg.Skia.SvgImage { Source = Avalonia.Svg.Skia.SvgSource.LoadFromSvg(CoverFallback.Source(bible)) };
             }
             if (string.IsNullOrEmpty(image) || !File.Exists(image)) return null;
             if (Path.GetExtension(image).Equals(".svg", StringComparison.OrdinalIgnoreCase))
@@ -80,7 +83,7 @@ public partial class OnlineBibleItem : ObservableObject
     }
 
     /// <summary>
-    /// The cover of the Bible (<see cref="InstallableBook.Image"/> is the path of its file or a data address), a bitmap decoded small or an SVG
+    /// The cover of the Bible (<see cref="InstallableBook.Image"/> is the path of its file, or <see cref="CoverFallback.Marker"/> for one that is generated), a bitmap decoded small or an SVG
     /// (drawn as vectors, so sharp at any size); null if there is none. It is loaded when the row first asks for it and only held weakly: the
     /// row on the screen holds it, and when the row has been scrolled away it can be collected (a list of over a thousand Bibles
     /// with all their covers in memory took over a gigabyte on a phone).
@@ -91,7 +94,7 @@ public partial class OnlineBibleItem : ObservableObject
         {
             if (_hasNoCover) return null;
             if (_coverRef is not null && _coverRef.TryGetTarget(out var held)) return held;
-            var cover = LoadCover(Bible.Image, RowCoverWidth);
+            var cover = LoadCover(Bible, RowCoverWidth);
             if (cover is null) _hasNoCover = true;
             else _coverRef = new WeakReference<Avalonia.Media.IImage>(cover);
             return cover;
@@ -99,7 +102,7 @@ public partial class OnlineBibleItem : ObservableObject
     }
 
     /// <summary>The cover for the popup, larger: made when the popup is shown, and not kept (see <see cref="LargeCoverImage"/>).</summary>
-    public Avalonia.Media.IImage? LargeCover => _hasNoCover ? null : LoadCover(Bible.Image, PopupCoverWidth);
+    public Avalonia.Media.IImage? LargeCover => _hasNoCover ? null : LoadCover(Bible, PopupCoverWidth);
 
     public string Description =>
         string.Join(" · ", new[] { Bible.LanguageEnglishName, Bible.Language, Bible.CountryName, Bible.Origin }
@@ -139,6 +142,9 @@ public partial class OnlineBibleItem : ObservableObject
             : Directory.EnumerateFiles(dir, "*.md").Any();
     }
 }
+
+/// <summary>The Bibles that are shown side by side in one row of the list (fewer than the columns in the last row).</summary>
+public sealed record OnlineBibleRow(IReadOnlyList<OnlineBibleItem> Items);
 
 /// <summary>
 /// The larger cover in the popup of a cover: it is read when the popup is shown (it is attached to the screen then) and let go when the popup
@@ -207,10 +213,96 @@ public partial class OnlineBiblesView : UserControl
             if (e.Property == ComboBox.TextProperty) ApplyFilter();
         };
         ClassPopup.PlacementTarget = ClassButton;
-        SizeChanged += (_, e) => IsWide = e.NewSize.Width > WideWidth;
+        SizeChanged += (_, e) =>
+        {
+            IsWide = e.NewSize.Width > WideWidth;
+            SetLanguageColumns(LanguageColumnsFor(e.NewSize.Width));
+            int columns = ColumnsFor(e.NewSize);
+            if (columns == _columns) return;
+            _columns = columns;
+            SetList(List, _shown);
+            SetList(InstalledList, _installedShown);
+        };
         AttachedToVisualTree += (_, _) => OnShown();
         // The page is kept while it is hidden, so what is installed may have changed since it was last shown.
         PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty && IsVisible) OnShown(); };
+    }
+
+    // The same rule as the columns of the text (BibleView): when the shorter side of the view is at least 600, as many columns
+    // of at least 350 with 32 between them as fit; narrower, one.
+    private const double TwoColumnsMinSize = 600, MinColumnWidth = 350, ColumnGap = 32, ListMargin = 24;
+    private int _columns = 1;
+    private IReadOnlyList<OnlineBibleItem> _shown = Array.Empty<OnlineBibleItem>();          // the filtered online list
+    private IReadOnlyList<OnlineBibleItem> _installedShown = Array.Empty<OnlineBibleItem>(); // the installed Bibles
+
+    private static int ColumnsFor(Size size) =>
+        Math.Min(size.Width, size.Height) >= TwoColumnsMinSize
+            ? Math.Max(1, (int)Math.Floor((size.Width - ListMargin + ColumnGap) / (MinColumnWidth + ColumnGap)))
+            : 1;
+
+    /// <summary>
+    /// Shows the Bibles in the list: one row each, or with several columns rows of that many. The list stays virtualised, which a
+    /// wrapping panel would not (every row of over a thousand would be made at once).
+    /// </summary>
+    private void SetList(ListBox box, IReadOnlyList<OnlineBibleItem> items)
+    {
+        var bibleRow = (Avalonia.Controls.Templates.IDataTemplate)Resources["BibleRow"]!;
+        _selectedItem = null; _selectedCell = null; // a list that is made again has no selection
+        box.Classes.Set("columns", _columns >= 2); // the style that hides the selection of a whole row
+        if (_columns < 2)
+        {
+            box.ItemTemplate = bibleRow;
+            box.ItemsSource = items;
+            return;
+        }
+        int columns = _columns;
+        // A row of equal cells; the last row has fewer Bibles, which keep the width of the others (the grid has all the columns).
+        // Made in code: the number of columns is not known in the AXAML.
+        box.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<OnlineBibleRow>((row, _) =>
+        {
+            // Called without data while the list replaces its items (and for a container that is recycled): nothing to show then.
+            if (row is null) return null;
+            var grid = new Avalonia.Controls.Primitives.UniformGrid { Columns = columns };
+            foreach (var item in row.Items)
+            {
+                var cell = new ContentControl { Content = item, ContentTemplate = bibleRow, Margin = new Thickness(8, 0) };
+                cell.Classes.Add("cell"); // hover and selection of this Bible alone: the list selects the whole row (see the styles)
+                if (ReferenceEquals(item, _selectedItem)) { cell.Classes.Add("selected"); _selectedCell = cell; } // made again as the list scrolled
+                cell.PointerPressed += (_, _) => SelectItem(item, cell); // not handled: the buttons of the row still get their clicks
+                grid.Children.Add(cell);
+            }
+            return grid;
+        });
+        box.ItemsSource = Enumerable.Range(0, (items.Count + columns - 1) / columns)
+            .Select(r => new OnlineBibleRow(items.Skip(r * columns).Take(columns).ToList()))
+            .ToList();
+    }
+
+    // The selected Bible of a list with several columns, and its cell on the screen (a cell is made again when its row is scrolled
+    // back into view, and then marks itself).
+    private int _languageColumns;
+
+    /// <summary>The columns of the language drop-down: three where the view is wide, two on a narrower screen (a phone).</summary>
+    private static int LanguageColumnsFor(double width) => width >= 540 ? 3 : 2;
+
+    private void SetLanguageColumns(int columns)
+    {
+        if (columns == _languageColumns) return;
+        _languageColumns = columns;
+        // Cells of equal width, in rows: a plain grid instead of the list that is virtualised, which is fine for a few hundred languages.
+        LanguageBox.ItemsPanel = new Avalonia.Controls.Templates.FuncTemplate<Avalonia.Controls.Panel?>(
+            () => new Avalonia.Controls.Primitives.UniformGrid { Columns = columns });
+    }
+
+    private OnlineBibleItem? _selectedItem;
+    private ContentControl? _selectedCell;
+
+    private void SelectItem(OnlineBibleItem item, ContentControl cell)
+    {
+        _selectedCell?.Classes.Set("selected", false);
+        _selectedItem = item;
+        _selectedCell = cell;
+        cell.Classes.Set("selected", true);
     }
 
     private bool _loadStarted;
@@ -281,7 +373,8 @@ public partial class OnlineBiblesView : UserControl
             .Select(b => new OnlineBibleItem(b, this))
             .ToList();
         _installed = items;
-        InstalledList.ItemsSource = items;
+        _installedShown = items;
+        SetList(InstalledList, items);
         InstalledHeader.Text = Localizer.Format("InstalledBiblesCount", items.Count);
         CanClose = !NoneInstalled;
     }
@@ -560,7 +653,8 @@ public partial class OnlineBiblesView : UserControl
         if (LanguageBox is null || SearchBox is null || StatusText is null) return; // during InitializeComponent
         if (!Settings.Current.InMyCountryThereIsNoPersecution)
         {
-            List.ItemsSource = Array.Empty<OnlineBibleItem>();
+            _shown = Array.Empty<OnlineBibleItem>();
+            SetList(List, _shown);
             StatusText.Text = Localizer.Format("PersecutionHint", Localizer.Get("NoPersecution"));
             return;
         }
@@ -589,7 +683,8 @@ public partial class OnlineBiblesView : UserControl
              (i.Bible.Name?.Contains(text, StringComparison.CurrentCultureIgnoreCase) ?? false) ||
              (i.Bible.EnglishName?.Contains(text, StringComparison.CurrentCultureIgnoreCase) ?? false)))
             .ToList();
-        List.ItemsSource = filtered;
+        _shown = filtered;
+        SetList(List, filtered);
         if (_items.Count > 0) StatusText.Text = Localizer.Format("ModulesCount", filtered.Count, _items.Count);
     }
 
@@ -633,29 +728,32 @@ public partial class OnlineBiblesView : UserControl
         }
     }
 
+    private Point? _coverPressedAt;
+
+    // The press is only noted (not handled: the list still scrolls and selects). The Tapped event is not used: inside a list item it is
+    // not raised reliably, so a tap is a release on the cover close to where the press began.
+    private void OnCoverPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e) =>
+        _coverPressedAt = sender is Avalonia.Controls.Image image && e.GetCurrentPoint(image).Properties.IsLeftButtonPressed ? e.GetPosition(image) : null;
+
     /// <summary>
-    /// Touching a cover shows it large (three times the size of the row, like the popup of a hover), in the middle of the list; a touch
-    /// anywhere closes it. Only for a touch: the mouse has the hover, and a click would show both.
+    /// Clicking or touching a cover shows it large (three times the size of the row, like the popup of a hover);
+    /// a click or touch anywhere closes it. It is shown beside the cover, as the tooltip of a hover is. A flyout opens it: a bare Popup made in code is not part of the visual tree, and is not reliable.
     /// </summary>
-    private void OnCoverTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    private void OnCoverReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
     {
-        if (e.Pointer?.Type != Avalonia.Input.PointerType.Touch || sender is not Avalonia.Controls.Image { DataContext: OnlineBibleItem item }) return;
+        if (sender is not Avalonia.Controls.Image { DataContext: OnlineBibleItem item } image || _coverPressedAt is not { } start) return;
+        _coverPressedAt = null;
+        var end = e.GetPosition(image);
+        // A drag (the list scrolling) or a release off the cover is no tap.
+        if (Math.Abs(end.X - start.X) > 10 || Math.Abs(end.Y - start.Y) > 10 || !new Rect(image.Bounds.Size).Contains(end)) return;
         e.Handled = true;
-        var popup = new Avalonia.Controls.Primitives.Popup
+        var flyout = new Avalonia.Controls.Flyout
         {
-            PlacementTarget = this,
-            Placement = Avalonia.Controls.PlacementMode.Center,
-            IsLightDismissEnabled = true,
-            Child = new Avalonia.Controls.Border
-            {
-                Padding = new Thickness(8),
-                CornerRadius = new CornerRadius(12),
-                BoxShadow = Avalonia.Media.BoxShadows.Parse("0 4 24 0 #60000000"),
-                Background = Avalonia.Media.Brushes.White,
-                Child = new LargeCoverImage { DataContext = item, Width = 240, Height = 336, Stretch = Avalonia.Media.Stretch.Uniform },
-            },
+            Placement = Avalonia.Controls.PlacementMode.Right, // next to the cover, like the tooltip of a hover
+            ShowMode = Avalonia.Controls.FlyoutShowMode.Transient, // light dismiss: any click or touch outside closes it
+            Content = new LargeCoverImage { DataContext = item, Width = 240, Height = 336, Stretch = Avalonia.Media.Stretch.Uniform },
         };
-        popup.IsOpen = true;
+        flyout.ShowAt(image); // beside the small cover; the popup moves aside by itself where there is no room
     }
 
     private async void OnInstallClick(object? sender, RoutedEventArgs e)

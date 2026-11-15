@@ -25,31 +25,24 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             desktop.MainWindow = new MainWindow();
 
-        // A change of language builds all the texts again: a new main window is opened (in the place of the old one,
-        // which is closed), and it opens the Bible where the reader was.
-        Localizer.LanguageChanged += (_, _) => Dispatcher.UIThread.Post(OpenMainWindowAgain);
-        UiScale.Changed += (_, _) => Dispatcher.UIThread.Post(OpenMainWindowAgain);
+        // A change of language or of the size of the interface builds all the texts and sizes again: the view in the main window is
+        // replaced by a new one, which opens the Bible where the reader was. The window itself stays (its place, size and state too),
+        // as the Android app does with the content of its activity.
+        Localizer.LanguageChanged += (_, _) => Dispatcher.UIThread.Post(OpenMainViewAgain);
+        UiScale.Changed += (_, _) => Dispatcher.UIThread.Post(OpenMainViewAgain);
 
         base.OnFrameworkInitializationCompleted();
     }
 
-    private void OpenMainWindowAgain()
+    private void OpenMainViewAgain()
     {
-        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop || desktop.MainWindow is not { } old) return;
-        old.FindControl<BibleView>("bibleView")?.SaveStateNow(); // the new window opens at the saved position
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }) return;
+        var old = window.Content as BibleView;
+        old?.SaveStateNow(); // the new view opens at the saved position
+        bool settings = old?.ShowSettings ?? false; // the reader stays on the page they were on
 
-        var window = new MainWindow
-        {
-            WindowStartupLocation = WindowStartupLocation.Manual,
-            Position = old.Position,
-            Width = old.ClientSize.Width,
-            Height = old.ClientSize.Height,
-        };
-        if (old.WindowState != WindowState.Minimized) window.WindowState = old.WindowState;
-
-        // The new window is the main window before the old one closes: the app ends with its last window.
-        desktop.MainWindow = window;
-        window.Show();
-        old.Close();
+        var view = new BibleView { Name = "bibleView" };
+        if (settings) view.ShowSettings = true;
+        window.Content = view; // the old view leaves the visual tree: it stops its timers and lets go of the Bibles
     }
 }

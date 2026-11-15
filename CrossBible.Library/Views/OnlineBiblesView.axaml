@@ -5,14 +5,45 @@
              x:Class="CrossBible.Library.UI.OnlineBiblesView"
              x:DataType="local:OnlineBiblesView">
 
+    <UserControl.Styles>
+        <!-- With several columns an item of the list is a row of Bibles: the row itself shows no selection or hover. Each Bible does
+             (OnlineBibleItem.IsSelected, see OnlineBiblesView.SetList). -->
+        <Style Selector="ListBox.columns ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.columns ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.columns ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ListBox.columns ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- One Bible of a row, with the colours that the list gives its own items: hover, selected (the accent colour of the system),
+             selected and hover. The background is transparent, not none, so a click anywhere in the cell is seen. -->
+        <Style Selector="ContentControl.cell">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="ContentControl.cell:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListLowBrush}" />
+        </Style>
+        <Style Selector="ContentControl.cell.selected">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentLowBrush}" />
+        </Style>
+        <Style Selector="ContentControl.cell.selected:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentMediumBrush}" />
+        </Style>
+    </UserControl.Styles>
+
     <UserControl.Resources>
         <!-- One row of a list of Bibles: used by the installed Bibles and by the online ones. -->
         <DataTemplate x:Key="BibleRow" x:DataType="local:OnlineBibleItem">
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="4">
                 <!-- The cover of the Bible, if one was found (BibliaLibreBible.GetImagesAsync). -->
-                <Image Source="{Binding Cover}" Width="80" Height="112" Stretch="Uniform" Margin="0,0,8,0" Tapped="OnCoverTapped"
+                <Image Source="{Binding Cover}" Width="80" Height="112" Stretch="Uniform" Margin="0,0,8,0" PointerPressed="OnCoverPressed" PointerReleased="OnCoverReleased"
                        VerticalAlignment="Center" IsVisible="{Binding Cover, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <!-- Hovering the cover pops it up at three times the size (80x112 -> 240x336); a touch has no hover, it taps (OnCoverTapped). -->
+                    <!-- Hovering the cover pops it up at three times the size (80x112 -> 240x336); a click or a touch (no hover) does too (OnCoverReleased). -->
                     <ToolTip.Tip>
                         <local:LargeCoverImage Width="240" Height="336" Stretch="Uniform" />
                     </ToolTip.Tip>
@@ -23,24 +54,25 @@
                     <TextBlock Text="{Binding Error}" FontSize="{loc:Size 12}" Foreground="OrangeRed"
                                IsVisible="{Binding HasError}" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
+                            VerticalAlignment="Bottom" HorizontalAlignment="Right">
                     <local:BusySpinner Width="20" Height="20" Thickness="3" IsVisible="{Binding IsBusy}" />
                     <!-- The check mark keeps the colours of its file. -->
                     <loc:ThemedSvg Path="/Assets/circle-check.svg" Size="18" ThemeColor="False" IsVisible="{Binding IsInstalled}"
-                                   ToolTip.Tip="{loc:Loc Installed}" />
+                        ToolTip.Tip="{loc:Loc Installed}" />
                     <TextBlock Text="{loc:Loc Installed}" Opacity="0.7" VerticalAlignment="Center"
-                               IsVisible="{Binding IsInstalledAndWide}" />
-                    <Button Click="OnInstallClick" IsVisible="{Binding CanInstall}">
+                                IsVisible="{Binding IsInstalledAndWide}" />
+                    <Button Click="OnInstallClick" IsVisible="{Binding CanInstall}" ToolTip.Tip="{loc:Loc Install}">
                         <StackPanel Orientation="Horizontal">
-                            <loc:ThemedSvg Path="/Assets/download.svg" Size="18" ToolTip.Tip="{loc:Loc Install}" />
+                            <loc:ThemedSvg Path="/Assets/download.svg" Size="18" />
                             <TextBlock Text="{loc:Loc Install}" Margin="4,0,0,0"
                                 IsVisible="{Binding $parent[local:OnlineBiblesView].IsWide}" />
                         </StackPanel>
                     </Button>
                     <Button Click="OnDeleteClick"
-                            IsVisible="{Binding CanDelete}">
+                            IsVisible="{Binding CanDelete}" ToolTip.Tip="{loc:Loc Delete}">
                         <StackPanel Orientation="Horizontal">
-                            <loc:ThemedSvg Path="/Assets/trash.svg" Size="18" ToolTip.Tip="{loc:Loc Delete}" />
+                            <loc:ThemedSvg Path="/Assets/trash.svg" Size="18" />
                             <TextBlock Text="{loc:Loc Delete}" Margin="4,0,0,0"
                                 IsVisible="{Binding $parent[local:OnlineBiblesView].IsWide}" />
                         </StackPanel>
@@ -79,7 +111,8 @@
         <!-- Filter bar for the online Bibles: language and free text. -->
         <StackPanel Grid.Row="1" Margin="12,8" Spacing="8">
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
-                <ComboBox x:Name="LanguageBox" MinWidth="120" IsEditable="True" SelectionChanged="OnLanguageChanged"
+                <!-- The drop-down has several columns (OnlineBiblesView.LanguageColumnsFor), there are many languages. -->
+                <ComboBox x:Name="LanguageBox" MinWidth="120" MaxDropDownHeight="400" IsEditable="True" SelectionChanged="OnLanguageChanged"
                     PlaceholderText="{loc:Loc LanguagePlaceholder}"/>
                 <!-- The filter icon is a button: it opens the list of the kinds of modules (InstallableBook.Classes). -->
                 <Button x:Name="ClassButton" Grid.Column="1" Padding="8,6" BorderThickness="0" Background="Transparent"

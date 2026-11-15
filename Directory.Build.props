@@ -4,4 +4,10 @@
     <PropertyGroup Condition="'$(Platform)' == 'x64' or '$(Platform)' == 'ARM64'">
         <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     </PropertyGroup>
+
+    <!-- BibleMarkdown is a library here, not the bibmark tool (an Exe, its default): a self-contained app such as the
+         Android app cannot reference an Exe (NETSDK1150). -->
+    <PropertyGroup>
+        <PackAsTool>false</PackAsTool>
+    </PropertyGroup>
 </Project>

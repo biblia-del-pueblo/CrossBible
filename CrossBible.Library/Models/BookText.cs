@@ -303,7 +303,9 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
     // Footnotes ^[...], small caps [...]{.smallcaps}, words of Jesus [...]{.wj} and links [...](url) may contain
     // nested [ and ]: a balancing group counts them (a "[" pushes onto the stack c, a "]" pops, and the construct only
     // ends at the "]" that finds the stack empty).
-    const string Balanced = @"(?>\[(?<c>)|[^\[\]]+|\](?<-c>))*(?(c)(?!))";
+    // A backslash escapes the next character (\[ \] \* \^ \\, as the importers write them): such a pair is text, not markup.
+    const string Escaped = @"\\[\[\]*^\\]";
+    const string Balanced = @"(?>\\[\s\S]|\[(?<c>)|[^\[\]\\]+|\](?<-c>)|\\)*(?(c)(?!))";
     const string SmallCapsEnd = @"\]\{\.smallcaps\}";
     const string WordsOfJesusEnd = @"\]\{\.wj\}";
     const string StrongsEnd = @"\]\{" + StrongsExtendedAttributes + @"\}";
@@ -333,9 +335,12 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
         @"\[(?<wordsofjesus>" + Balanced + @")" + WordsOfJesusEnd + "|" +
         @"\[(?<link>" + Balanced + @")\]\((?<linkurl>[a-zA-Z]+://.*?)\)|" +
         "(?<strongs>" + StrongsWord + "|" + StrongsExtendedWord + ")|" +
-        @"(?<normal>.*?(?=" + VerseMarker + "|" + TitleStart + "|" + StrongsWord + @"|" + StrongsExtendedWord + @"|\*\*.*?\*\*|\*.*?\*|\^\[" + Balanced + @"\]|" +
+        @"(?<normal>(?:" + Escaped + @"|.)*?(?=" + VerseMarker + "|" + TitleStart + "|" + StrongsWord + @"|" + StrongsExtendedWord + @"|\*\*.*?\*\*|\*.*?\*|\^\[" + Balanced + @"\]|" +
         @"\[" + Balanced + SmallCapsEnd + @"|\[" + Balanced + WordsOfJesusEnd + @"|\[" + Balanced + LinkEnd + @"|\z))",
         RegexOptions.Singleline | RegexOptions.Compiled);
+
+    /// <summary>Drops the backslash of an escaped <c>[ ] * ^ \</c>.</summary>
+    static string Unescape(string text) => text.Contains('\\') ? Regex.Replace(text, @"\\([\[\]*^\\])", "$1") : text;
 
     public static IEnumerable<Run> ParseText(string text, VersePosition position)
     {
@@ -423,7 +428,7 @@ public class BookText : System.ComponentModel.INotifyPropertyChanged
             else if (m.Groups["strongs"].Success)
                 yield return ParseStrongsWord(m.Groups["strongs"].Value, position, m);
             else if (m.Groups["normal"].Success)
-                foreach (var (part, partClass) in SplitScripts(m.Groups["normal"].Value))
+                foreach (var (part, partClass) in SplitScripts(Unescape(m.Groups["normal"].Value)))
                     yield return new Run
                     {
                         Class = partClass,

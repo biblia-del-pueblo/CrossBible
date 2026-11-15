@@ -200,7 +200,7 @@ public class BibliaLibreBible : InstallableBook
                 if (book.Image != null) break;
             }
 
-            // no cover found: one is made (an SVG as a data address), the same one for the same book
+            // no cover found: one is made when it is shown (only a marker is kept), the same one for the same book
             if (book.Image == null || Path.GetFileNameWithoutExtension(book.Image).StartsWith("-")) book.Image = CoverFallback.Create(book);
         }
     }
