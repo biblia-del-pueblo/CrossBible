@@ -202,7 +202,22 @@ public class BibleTextBlock : Panel
     public static void SetLayoutHeight(Control control, double value) => control.SetValue(LayoutHeightProperty, value);
 
     /// <param name="PageStart">The line follows a <see cref="PageBreak"/>: it starts a column.</param>
-    private readonly record struct PlacedLine(TextLine Line, Point Origin, bool PageStart = false);
+    /// <summary>
+    /// A line in its place. The line was formatted from the text of its chapter (its text positions count from the start of that), which is
+    /// <paramref name="Base"/> characters into the text of the window; <see cref="Start"/> and <see cref="Bounds"/> are in the text of the window.
+    /// So the lines of a chapter can be kept when the window is made again, and be moved in it.
+    /// </summary>
+    private readonly record struct PlacedLine(TextLine Line, Point Origin, bool PageStart = false, int Base = 0)
+    {
+        /// <summary>The first character of the line, in the text of the window.</summary>
+        public int Start => Base + Line.FirstTextSourceIndex;
+
+        /// <summary>The end of the line (behind its last character), in the text of the window.</summary>
+        public int End => Start + Line.Length;
+
+        /// <summary>The boxes of the characters from <paramref name="start"/> on (the text of the window).</summary>
+        public IReadOnlyList<TextBounds> Bounds(int start, int length) => Line.GetTextBounds(start - Base, length);
+    }
 
     /// <summary>Flattened-text index at which each line following a <see cref="PageBreak"/> starts.</summary>
     private HashSet<int> _breakStarts = new();
@@ -259,7 +274,7 @@ public class BibleTextBlock : Panel
         }
         if (top is not { } first) return;
 
-        int index = first.Line.FirstTextSourceIndex;
+        int index = first.Start;
         var best = _markers[0].Pos;
         foreach (var (at, pos) in _markers)
         {
@@ -300,7 +315,7 @@ public class BibleTextBlock : Panel
     private PlacedLine? LineAt(int index)
     {
         foreach (var pl in _lines)
-            if (pl.Line.FirstTextSourceIndex + pl.Line.Length > index) return pl;
+            if (pl.End > index) return pl;
         return null;
     }
 
@@ -690,7 +705,7 @@ public class BibleTextBlock : Panel
             if (vertical ? pl.Origin.Y + pl.Line.Height > _offsetY + 0.5 : LogicalColumn(pl.Origin.X) >= (_scrolling ? _firstColumn : 0)) { top = pl; break; }
         }
         if (top is not { } first) return null;
-        int at = first.Line.FirstTextSourceIndex;
+        int at = first.Start;
         var best = _markers[0];
         foreach (var marker in _markers)
         {
@@ -811,7 +826,7 @@ public class BibleTextBlock : Panel
         //    while flowing, on the line that contains that index (like CSS float).
         long flattenStart = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
         long flattenAlloc = GC.GetAllocatedBytesForCurrentThread();
-        var (text, segments, anchors, notes, breaks, markers, strongs) = Flatten();
+        var (text, segments, anchors, notes, breaks, markers, strongs) = FlattenCached();
         Console.WriteLine($"[PERF] Flatten on the UI thread: {(System.Diagnostics.Stopwatch.GetTimestamp() - flattenStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms ({text.Length} characters), " +
             $"allocated {(GC.GetAllocatedBytesForCurrentThread() - flattenAlloc) / 1024} KB");
         var pending = new List<(Control Child, Size Size, FloatSide Side, int Anchor)>();
@@ -859,7 +874,11 @@ public class BibleTextBlock : Panel
                 : fixedWidth ? Math.Max(1, (int)((availableSize.Width + spacing) / (width + spacing))) : columns;
             partialLines = Math.Clamp(screen * visibleColumns * 3, 120, 3000);
         }
-        var flow = GetFlow(key, input, partialLines, partialFrom);
+        // A window of several chapters is flowed by chapter, so the lines of the chapters that were there before are kept (see GetChunkedFlow).
+        var chunkStarts = breaks.Count == 0 ? ChunkStarts(text, markers) : null;
+        var flow = chunkStarts is { Count: > 1 }
+            ? GetChunkedFlow(key, chunkStarts, text, segments, pending, width, gap, cutting, justify, style, rtl)
+            : GetFlow(key, input, partialLines, partialFrom);
         if (flow is null)
         {
             awaiting = true;
@@ -1148,6 +1167,171 @@ public class BibleTextBlock : Panel
         _flowCache = (key, result);
         if (result.Complete) _flowRunning = null;
         InvalidateMeasure();
+    }
+
+    // ---- Flowing by chapter ---------------------------------------------------------------------------
+    // The window of chapters is made again every time the reader nears an edge of it, and most of its chapters were there before. Flowing the
+    // whole text again made 9-19 MB of garbage each time (the lines of the chapters that were already flowed too), and the collector then stopped
+    // the app for 40-50 ms. So the text is cut into chunks, one per chapter, and each chunk is flowed once: its lines are kept, and put one below
+    // the other, each moved down by the height of the chunks above it, when the window is laid out. A chunk begins at the start of a line and
+    // ends with a line break (the chapter before ends the line that the breaks of a title begin), so how it flows does not depend on its
+    // neighbours. Its lines count the text from the start of the chunk; PlacedLine.Base is where that is in the text of the window.
+
+    /// <summary>What decides how a chunk flows: equal keys give the same lines, whatever else is in the window.</summary>
+    private readonly record struct ChunkKey(int TextHash, int TextLength, int SegmentHash, int FloatHash, double Width, double FontSize,
+        FontFamily Family, IBrush? Foreground, bool Justify, double Gap, bool Rtl);
+
+    /// <summary>The lines of a chunk (counting from its start, from the top of it), where its floats go, and how tall it is.</summary>
+    private sealed record ChunkFlow(List<PlacedLine> Lines, List<Rect> FloatSlots, List<Rect> FloatRects, double Height);
+
+    /// <summary>A chunk of the text of the window.</summary>
+    private sealed record Chunk(int Start, int End, ChunkKey Key, List<(Control Child, Size Size, FloatSide Side, int Anchor)> Floats);
+
+    private readonly Dictionary<ChunkKey, ChunkFlow> _chunkCache = new();
+    private HashSet<ChunkKey> _chunkKeysBefore = new(); // the chunks of the window before this one: kept, the window often goes back to them
+
+    /// <summary>
+    /// Where the chunks of a text begin: at a chapter (verse 0 of a chapter), after the line break that precedes it. A title has its breaks after
+    /// the mark of the chapter: the first of them then goes to the chunk before, so that one ends with a line break.
+    /// </summary>
+    private static List<int> ChunkStarts(string text, List<(int Index, BookText.VersePosition Pos)> markers)
+    {
+        var starts = new List<int> { 0 };
+        foreach (var (index, pos) in markers)
+        {
+            if (pos.Verse != 0 || pos.Chapter < 1) continue;
+            int start = index;
+            if (start > 0 && text[start - 1] != '\n')
+            {
+                if (start < text.Length && text[start] == '\n') start++;
+                else continue; // not at the start of a line: no chunk here
+            }
+            if (start > starts[^1] && start < text.Length) starts.Add(start);
+        }
+        return starts;
+    }
+
+    private FlowResult? GetChunkedFlow(FlowKey key, List<int> starts, string text, List<Segment> segments,
+        List<(Control Child, Size Size, FloatSide Side, int Anchor)> pending, double width, double gap, bool cutting, bool justify, RunStyle style, bool rtl)
+    {
+        if (_flowCache is { } cached && cached.Key.Equals(key)) return cached.Result;
+        if (_flowRunning is { } running && running.Equals(key)) return null;
+        _flowCts?.Cancel();
+        _flowCache = null;
+        _flowRunning = null;
+
+        // Describe the chunks, and find the ones that were not flowed yet.
+        var chunks = new List<Chunk>();
+        var missing = new List<(ChunkKey Key, FlowInput Input)>();
+        for (int c = 0; c < starts.Count; c++)
+        {
+            int start = starts[c], end = c + 1 < starts.Count ? starts[c + 1] : text.Length;
+            var floats = new List<(Control Child, Size Size, FloatSide Side, int Anchor)>();
+            foreach (var f in pending)
+                if (f.Anchor >= start && (f.Anchor < end || (c == starts.Count - 1 && f.Anchor <= end))) floats.Add(f);
+            var local = new List<Segment>();
+            int first = FindSegment(segments, start);
+            for (int s = Math.Max(0, first); s < segments.Count && segments[s].Start < end; s++)
+            {
+                var seg = segments[s];
+                if (seg.End <= start) continue;
+                local.Add(new Segment(Math.Max(seg.Start, start) - start, Math.Min(seg.End, end) - start, seg.Style));
+            }
+            var segmentHash = new HashCode();
+            foreach (var s in local) { segmentHash.Add(s.Start); segmentHash.Add(s.End); segmentHash.Add(s.Style); }
+            var floatHash = new HashCode(); // not the controls themselves (they are made again with each window), only what decides the flow
+            foreach (var f in floats) { floatHash.Add(f.Size); floatHash.Add(f.Side); floatHash.Add(f.Anchor - start); }
+            var chunkKey = new ChunkKey(string.GetHashCode(text.AsSpan(start, end - start)), end - start, segmentHash.ToHashCode(), floatHash.ToHashCode(),
+                width, FontSize, FontFamily, style.Foreground, justify, gap, rtl);
+            var chunk = new Chunk(start, end, chunkKey, floats);
+            chunks.Add(chunk);
+            if (_chunkCache.ContainsKey(chunkKey) || missing.Any(m => m.Key.Equals(chunkKey))) continue;
+            var localFloats = floats.Select(f => (f.Child, f.Size, f.Side, f.Anchor - start)).ToList();
+            missing.Add((chunkKey, new FlowInput(text.Substring(start, end - start), local, localFloats, new HashSet<int>(), width, gap, cutting, FontSize, style, justify, rtl)));
+        }
+
+        if (missing.Count == 0) return ComposeChunks(key, text, chunks, gap);
+
+        int missingChars = missing.Sum(m => m.Input.Text.Length);
+        if (missingChars < AsyncFlowChars || _flowFailed)
+        {
+            foreach (var (chunkKey, input) in missing) _chunkCache[chunkKey] = FlowChunk(input);
+            return ComposeChunks(key, text, chunks, gap);
+        }
+
+        var cts = _flowCts = new CancellationTokenSource();
+        var token = cts.Token;
+        _flowRunning = key;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                long start = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
+                long allocated = GC.GetAllocatedBytesForCurrentThread();
+                foreach (var (chunkKey, input) in missing)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var flowed = FlowChunk(input, token);
+                    Dispatcher.UIThread.Post(() => _chunkCache[chunkKey] = flowed); // kept even when the window has changed meanwhile: the next one may need it
+                }
+                Console.WriteLine($"[PERF] flow of {missing.Count} of {chunks.Count} chunks ({missingChars} characters) on a worker: " +
+                    $"{(System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms, allocated {(GC.GetAllocatedBytesForCurrentThread() - allocated) / 1024} KB");
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (token.IsCancellationRequested) return;
+                    _flowRunning = null;
+                    InvalidateMeasure();
+                });
+            }
+            catch (OperationCanceledException) { }
+            catch
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (token.IsCancellationRequested) return;
+                    _flowFailed = true;
+                    _flowRunning = null;
+                    InvalidateMeasure();
+                });
+            }
+        });
+        return null;
+    }
+
+    /// <summary>Flows one chunk (from the top of it, as the whole text of its own) and notes how tall it is.</summary>
+    private static ChunkFlow FlowChunk(FlowInput input, CancellationToken cancel = default)
+    {
+        var flow = RunFlow(input, int.MaxValue, cancel);
+        double floatsBottom = flow.FloatRects.Count == 0 ? 0 : flow.FloatRects.Max(r => r.Bottom - input.Gap);
+        return new ChunkFlow(flow.Lines, flow.Placed.Select(p => p.Slot).ToList(), flow.FloatRects, Math.Max(flow.TextBottom, floatsBottom));
+    }
+
+    /// <summary>Puts the chunks one below the other: the kept lines, moved down, with the controls of the floats that the window has now.</summary>
+    private FlowResult ComposeChunks(FlowKey key, string text, List<Chunk> chunks, double gap)
+    {
+        var lines = new List<PlacedLine>();
+        var placed = new List<(Control Child, Rect Slot)>();
+        var floatRects = new List<Rect>();
+        double top = 0;
+        var used = new HashSet<ChunkKey>();
+        foreach (var chunk in chunks)
+        {
+            var flowed = _chunkCache[chunk.Key];
+            used.Add(chunk.Key);
+            foreach (var pl in flowed.Lines)
+                lines.Add(new PlacedLine(pl.Line, new Point(pl.Origin.X, pl.Origin.Y + top), pl.PageStart, chunk.Start));
+            // The k-th float of the chunk is the k-th one that was flowed; the controls are the ones of the window that is laid out now.
+            for (int k = 0; k < chunk.Floats.Count && k < flowed.FloatSlots.Count; k++)
+                placed.Add((chunk.Floats[k].Child, flowed.FloatSlots[k].Translate(new Vector(0, top))));
+            foreach (var r in flowed.FloatRects) floatRects.Add(r.Translate(new Vector(0, top)));
+            top += flowed.Height;
+        }
+        // The chunks of the window before stay for a while (the window goes back to them), the older ones go.
+        foreach (var stale in _chunkCache.Keys.Where(k => !used.Contains(k) && !_chunkKeysBefore.Contains(k)).ToList()) _chunkCache.Remove(stale);
+        _chunkKeysBefore = used;
+        var result = new FlowResult(lines, placed, floatRects, top, text.Length, true);
+        _flowCache = (key, result);
+        return result;
     }
 
     /// <summary>
@@ -1963,7 +2147,7 @@ public class BibleTextBlock : Panel
             double x = point.X - pl.Origin.X;
             if (x < 0 || x > line.WidthIncludingTrailingWhitespace) continue; // another column's line may match
 
-            int index = HitFromDistance(line, x).FirstCharacterIndex;
+            int index = HitFromDistance(pl, x).FirstCharacterIndex;
             int lo = 0, hi = _strongs.Count - 1;
             while (lo <= hi)
             {
@@ -1974,9 +2158,9 @@ public class BibleTextBlock : Panel
                 else
                 {
                     // the part of the word on this line (a phrase may go on in the next one)
-                    int start = Math.Max(word.Start, line.FirstTextSourceIndex);
-                    int end = Math.Min(word.End, line.FirstTextSourceIndex + line.Length);
-                    var rects = end > start ? line.GetTextBounds(start, end - start) : [];
+                    int start = Math.Max(word.Start, pl.Start);
+                    int end = Math.Min(word.End, pl.End);
+                    var rects = end > start ? pl.Bounds(start, end - start) : [];
                     bounds = rects.Count > 0
                         ? rects[0].Rectangle.Translate(new Vector(pl.Origin.X, pl.Origin.Y))
                         : new Rect(point, new Size(1, line.Height));
@@ -2001,11 +2185,11 @@ public class BibleTextBlock : Panel
             if (x < 0 || x > line.WidthIncludingTrailingWhitespace) continue; // another column's line may match
 
             // Character indices from TextLine are absolute indices into the flattened text.
-            int index = HitFromDistance(line, x).FirstCharacterIndex;
+            int index = HitFromDistance(pl, x).FirstCharacterIndex;
             foreach (var n in _notes)
             {
                 if (index < n.Start || index >= n.End) continue;
-                var rects = line.GetTextBounds(n.Start, n.End - n.Start);
+                var rects = pl.Bounds(n.Start, n.End - n.Start);
                 bounds = rects.Count > 0
                     ? rects[0].Rectangle.Translate(new Vector(pl.Origin.X, pl.Origin.Y))
                     : new Rect(point, new Size(1, line.Height));
@@ -2033,12 +2217,12 @@ public class BibleTextBlock : Panel
         {
             var line = pl.Line;
             if (point.Y < pl.Origin.Y - TouchSlop || point.Y >= pl.Origin.Y + line.Height + TouchSlop) continue;
-            int first = line.FirstTextSourceIndex, end = first + line.Length;
+            int first = pl.Start, end = pl.End;
             foreach (var n in _notes)
             {
                 int start = Math.Max(n.Start, first), stop = Math.Min(n.End, end);
                 if (stop <= start) continue; // the marker is not on this line
-                var rects = line.GetTextBounds(start, stop - start);
+                var rects = pl.Bounds(start, stop - start);
                 if (rects.Count == 0) continue;
                 var rect = rects[0].Rectangle.Translate(new Vector(pl.Origin.X, pl.Origin.Y));
                 if (!rect.Inflate(TouchSlop).Contains(point)) continue;
@@ -2070,12 +2254,12 @@ public class BibleTextBlock : Panel
         if (_appliedVertical)
         {
             foreach (var pl in _lines)
-                if (pl.Origin.Y + pl.Line.Height > _offsetY + 0.5) return pl.Line.FirstTextSourceIndex;
+                if (pl.Origin.Y + pl.Line.Height > _offsetY + 0.5) return pl.Start;
             return null;
         }
         int column = _scrolling ? _firstColumn : 0;
         foreach (var pl in _lines)
-            if (LogicalColumn(pl.Origin.X) >= column) return pl.Line.FirstTextSourceIndex;
+            if (LogicalColumn(pl.Origin.X) >= column) return pl.Start;
         return null;
     }
     private int _anchor, _caret; // selection is [min, max) in flattened-text indices
@@ -2207,9 +2391,9 @@ public class BibleTextBlock : Panel
 
         var line = b.Line;
         double x = Math.Clamp(point.X - b.Origin.X, 0, line.WidthIncludingTrailingWhitespace);
-        var hit = HitFromDistance(line, x);
+        var hit = HitFromDistance(b, x);
         int index = hit.FirstCharacterIndex + hit.TrailingLength;
-        int first = line.FirstTextSourceIndex;
+        int first = b.Start;
         return Math.Clamp(index, first, first + line.Length - line.NewLineLength);
     }
 
@@ -2220,9 +2404,10 @@ public class BibleTextBlock : Panel
     /// back). The hit is on the character whose bounds hold the distance (the nearest one beyond the line); its trailing edge is the one
     /// at the end in the direction of the text, as with Avalonia.
     /// </summary>
-    private CharacterHit HitFromDistance(TextLine line, double x)
+    private CharacterHit HitFromDistance(PlacedLine placed, double x)
     {
-        int first = line.FirstTextSourceIndex, last = first + line.Length - line.NewLineLength;
+        var line = placed.Line;
+        int first = placed.Start, last = first + line.Length - line.NewLineLength;
         int best = -1, bestLength = 1;
         bool bestTrailing = false;
         double bestDistance = double.MaxValue;
@@ -2231,7 +2416,7 @@ public class BibleTextBlock : Panel
             if (IsPartOfCharacter(_text[i])) continue; // part of the character before it: a mark or the second half of a surrogate pair
             int length = 1;
             while (i + length < last && i + length < _text.Length && IsPartOfCharacter(_text[i + length])) length++;
-            foreach (var box in line.GetTextBounds(i, length))
+            foreach (var box in placed.Bounds(i, length))
             {
                 var rect = box.Rectangle;
                 double distance = x < rect.X ? rect.X - x : x > rect.Right ? x - rect.Right : 0;
@@ -2415,7 +2600,7 @@ public class BibleTextBlock : Panel
         {
             if (!IsInView(pl)) continue;
             var line = pl.Line;
-            int first = line.FirstTextSourceIndex, last = first + line.Length - line.NewLineLength;
+            int first = pl.Start, last = first + line.Length - line.NewLineLength;
 
             // the first word that ends after the start of the line (the words are in order and do not overlap)
             int lo = 0, hi = _strongs.Count;
@@ -2432,7 +2617,7 @@ public class BibleTextBlock : Panel
                 int start = Math.Max(_strongs[i].Start, first), end = Math.Min(_strongs[i].End, last);
                 if (end <= start) continue;
                 var wordPen = StrongsPenFor(_strongs[i].Foreground);
-                foreach (var box in line.GetTextBounds(start, end - start))
+                foreach (var box in pl.Bounds(start, end - start))
                 {
                     var r = box.Rectangle;
                     context.DrawLine(wordPen, new Point(pl.Origin.X + r.Left, y), new Point(pl.Origin.X + r.Right, y));
@@ -2447,10 +2632,10 @@ public class BibleTextBlock : Panel
         foreach (var pl in _lines)
         {
             if (!IsInView(pl)) continue;
-            int first = pl.Line.FirstTextSourceIndex;
+            int first = pl.Start;
             int start = Math.Max(SelStart, first), end = Math.Min(SelEnd, first + pl.Line.Length - pl.Line.NewLineLength);
             if (end <= start) continue;
-            foreach (var box in pl.Line.GetTextBounds(start, end - start))
+            foreach (var box in pl.Bounds(start, end - start))
                 context.DrawRectangle(SelectionBrush, null, box.Rectangle.Translate(new Vector(pl.Origin.X, pl.Origin.Y)));
         }
     }
@@ -2777,8 +2962,11 @@ public class BibleTextBlock : Panel
     bool NewChapter = false;
     private readonly HashSet<Control> _ownedFloats = new();
 
+    private int _inlinesVersion; // counts the changes of the inlines: what was made from them is kept until it changes (see FlattenCached)
+
     private void OnInlinesChanged()
     {
+        _inlinesVersion++;
         var current = new HashSet<Control>();
         foreach (var inline in Inlines) Collect(inline);
 
@@ -2870,6 +3058,7 @@ public class BibleTextBlock : Panel
         _buildChapterHeight = ChapterFloatHeight();
         var content = new List<Inline>();
         var clock = System.Diagnostics.Stopwatch.StartNew();
+        var inlineKey = new InlineKey(size, _buildWordsOfJesus, _buildGreenVerses, _buildChapterHeight);
 
         async Task AddAsync(IEnumerable<Inline> inlines)
         {
@@ -2882,9 +3071,22 @@ public class BibleTextBlock : Panel
             }
         }
 
-        await AddAsync(ToInlines(book, first, last, size, upperCase: false));
+        await AddAsync(ToInlines(book, first, last, size, upperCase: false, _inlineCache, inlineKey));
+        // The inlines of the chapters of this window and of the one before stay (the window moves by a chapter or two, and goes back); the rest go.
+        var (before, firstBefore, lastBefore) = _inlineCacheRange;
+        int keepFrom = ReferenceEquals(before, book) ? Math.Min(first, firstBefore) : first, keepTo = ReferenceEquals(before, book) ? Math.Max(last, lastBefore) : last;
+        foreach (var stale in _inlineCache.Keys.Where(k => !ReferenceEquals(k.Book, book) || k.Chapter < keepFrom || k.Chapter > keepTo).ToList()) _inlineCache.Remove(stale);
+        _inlineCacheRange = (book, first, last);
         return content;
     }
+
+    /// <summary>What the inlines of a chapter depend on (besides the chapter): if it is another, they are made again.</summary>
+    private readonly record struct InlineKey(double Size, bool WordsOfJesus, bool GreenVerses, double ChapterHeight);
+
+    // The inlines of the chapters, kept while the window moves: the chapters that stay in it are the larger part of every new window, and making
+    // their inlines again (about 3.5 KB for each of the thousands) was the largest part of what a move of the window allocated on the UI thread.
+    private readonly Dictionary<(BookText.Book Book, int Chapter), (InlineKey Key, List<Inline> Inlines)> _inlineCache = new();
+    private (BookText.Book? Book, int First, int Last) _inlineCacheRange;
 
     /// <summary>Replaces the content with built inlines (see <see cref="BuildContentAsync"/>).</summary>
     private void SetContent(List<Inline> content)
@@ -2913,7 +3115,8 @@ public class BibleTextBlock : Panel
     /// title (and its start mark), the others are the chapters alone. A text that is not a Bible book, and has no chapters, is shown whole,
     /// with its title.
     /// </summary>
-    private static IEnumerable<Inline> ToInlines(BookText.Book book, int first, int last, double size, bool upperCase)
+    private static IEnumerable<Inline> ToInlines(BookText.Book book, int first, int last, double size, bool upperCase,
+        Dictionary<(BookText.Book Book, int Chapter), (InlineKey Key, List<Inline> Inlines)>? cache = null, InlineKey key = default)
     {
         var chapters = ChaptersOf(book);
         if (first <= 0 || chapters.Count == 0)
@@ -2935,8 +3138,22 @@ public class BibleTextBlock : Panel
         }
         first = Math.Clamp(first, 0, chapters.Count - 1);
         last = Math.Clamp(last, first, chapters.Count - 1);
-        // The chapters after the first are parted by a line break, the first of the window does not start with one.
-        foreach (var inline in ToInlines(chapters.GetRange(first, last - first + 1), size, upperCase, breakBeforeFirst: false)) yield return inline;
+        // Each chapter is the same text wherever it is in the window, which is what lets its lines be kept when the window is made again (see
+        // GetChunkedFlow): it ends with a line break (also the last of the window), and the line breaks that a title brings in front of it are
+        // reduced by the one that ends the chapter before. (A chapter that ends with a break of its own gets none added.)
+        for (int i = first; i <= last; i++)
+        {
+            List<Inline> inlines;
+            if (cache is not null && cache.TryGetValue((book, i), out var kept) && kept.Key.Equals(key)) inlines = kept.Inlines;
+            else
+            {
+                inlines = ToInlines(chapters[i], size, upperCase).ToList();
+                if (i > 0 && inlines.Count > 1 && inlines[0] is VerseRun && inlines[1] is LineBreak) inlines.RemoveAt(1);
+                if (inlines.Count == 0 || inlines[^1] is not LineBreak) inlines.Add(new LineBreak());
+                if (cache is not null) cache[(book, i)] = (key, inlines);
+            }
+            foreach (var inline in inlines) yield return inline;
+        }
     }
 
     private static IEnumerable<Inline> ToInlines(IEnumerable<BookText.Run>? runs, double size, bool upperCase, bool breakBeforeFirst = true)
@@ -3203,6 +3420,23 @@ public class BibleTextBlock : Panel
         if (inline.TextDecorations is { } d) r = r with { Decorations = d };
         if (inline.IsSet(Inline.BaselineAlignmentProperty)) r = r with { Baseline = inline.BaselineAlignment };
         return r;
+    }
+
+    // The result of Flatten, with what it was made from: a layout is made several times for one text (when the lines have been flowed, when a
+    // scroll bar appears), and each pass allocated the same 0.5-0.7 MB again.
+    private (int Version, double Size, FontFamily Family, IBrush? Foreground, string? Hyphenation, string? Text) _flatKey;
+    private (string Text, List<Segment> Segments, Dictionary<Control, int> Anchors, List<NoteRange> Notes,
+        HashSet<int> Breaks, List<(int Index, BookText.VersePosition Pos)> Markers, List<StrongsRange> Strongs)? _flatResult;
+
+    private (string Text, List<Segment> Segments, Dictionary<Control, int> Anchors, List<NoteRange> Notes,
+        HashSet<int> Breaks, List<(int Index, BookText.VersePosition Pos)> Markers, List<StrongsRange> Strongs) FlattenCached()
+    {
+        var key = (_inlinesVersion, FontSize, FontFamily, Foreground, HyphenationLanguage, Text);
+        if (_flatResult is { } kept && _flatKey.Equals(key)) return kept;
+        var result = Flatten();
+        _flatKey = key;
+        _flatResult = result;
+        return result;
     }
 
     /// <summary>
