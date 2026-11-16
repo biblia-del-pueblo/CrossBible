@@ -163,7 +163,9 @@ public partial class BibleTextBlock
 
     private static Control MakeFloat(FloatSpec spec)
     {
-        var visual = new SelectableTextBlock { TextWrapping = TextWrapping.Wrap, Text = spec.Text, FontSize = spec.Size, FontWeight = FontWeight.Bold };
+        // Not hit-testable: a touch that starts on the chapter number must pan the text (and a tap on it open a footnote near it) like a touch anywhere else.
+        // As a control that selects text it took the touch, and a swipe that began on the number at a chapter start did not move the text.
+        var visual = new SelectableTextBlock { TextWrapping = TextWrapping.Wrap, Text = spec.Text, FontSize = spec.Size, FontWeight = FontWeight.Bold, IsHitTestVisible = false };
         SetLayoutHeight(visual, spec.Height);
         SetSide(visual, FloatSide.Left);
         return visual;

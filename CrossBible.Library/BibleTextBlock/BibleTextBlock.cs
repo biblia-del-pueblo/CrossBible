@@ -270,7 +270,7 @@ public partial class BibleTextBlock : Panel
         {
             int column = _scrolling ? _firstColumn : 0;
             foreach (var pl in _lines)
-                if (LogicalColumn(pl.Origin.X) >= column) { top = pl; break; }
+                if (LogicalColumn(pl) >= column) { top = pl; break; }
         }
         if (top is not { } first) return;
 
@@ -364,7 +364,7 @@ public partial class BibleTextBlock : Panel
         try
         {
             if (Orientation == Orientation.Vertical) { if (_vScrolling) SetOffsetY(line.Origin.Y); }
-            else if (_scrolling && _pitch > 0) ScrollToColumn(LogicalColumn(line.Origin.X));
+            else if (_scrolling && _pitch > 0) ScrollToColumn(LogicalColumn(line));
         }
         finally { _programmatic = false; }
         return true;
@@ -666,6 +666,13 @@ public partial class BibleTextBlock : Panel
 
     private const double SideScreens = 2, TotalScreens = 5;
 
+    /// <summary>
+    /// A chapter goes only when that leaves this many screens on its side, more than the SideScreens that make the window grow on that side again:
+    /// with the same number every small shift of the position (the columns are cut again when the window changes, which moves the first column by one) made
+    /// the window grow and shrink at every step.
+    /// </summary>
+    private const double TrimScreens = 3;
+
     /// <summary>Asks for a check of the window, when the text was laid out and when it was scrolled (a check at a time, once the UI is free).</summary>
     private void RequestWindowCheck()
     {
@@ -739,10 +746,10 @@ public partial class BibleTextBlock : Panel
             if (starts.Count == shown) // one mark for each chapter of the window (else it is not known which chapter is where)
             {
                 if (!wantBehind)
-                    for (int k = 0; k + 1 < starts.Count && starts[k + 1] <= pos - SideScreens * unit; k++)
+                    for (int k = 0; k + 1 < starts.Count && starts[k + 1] <= pos - TrimScreens * unit; k++)
                         startShift = k + 1;
                 if (!wantAhead)
-                    for (int k = starts.Count - 1; k >= 1 && starts[k] >= pos + unit + SideScreens * unit; k--)
+                    for (int k = starts.Count - 1; k >= 1 && starts[k] >= pos + unit + TrimScreens * unit; k--)
                         endShift = -(shown - k);
             }
         }
@@ -759,7 +766,7 @@ public partial class BibleTextBlock : Panel
         {
             if (pos.Verse != 0 || pos.Chapter < 1) continue; // the chapter marks are verse 0 of the chapter
             if (LineAt(index) is not { } line) continue;
-            starts.Add(vertical ? line.Origin.Y : LogicalColumn(line.Origin.X));
+            starts.Add(vertical ? line.Origin.Y : LogicalColumn(line));
         }
         return starts;
     }
@@ -775,7 +782,7 @@ public partial class BibleTextBlock : Panel
         PlacedLine? top = null;
         foreach (var pl in _lines)
         {
-            if (vertical ? pl.Origin.Y + pl.Line.Height > _offsetY + 0.5 : LogicalColumn(pl.Origin.X) >= (_scrolling ? _firstColumn : 0)) { top = pl; break; }
+            if (vertical ? pl.Origin.Y + pl.Line.Height > _offsetY + 0.5 : LogicalColumn(pl) >= (_scrolling ? _firstColumn : 0)) { top = pl; break; }
         }
         if (top is not { } first) return null;
         int at = first.Start;
@@ -1101,7 +1108,7 @@ public partial class BibleTextBlock : Panel
                 _readingAnchor = null;
                 if (!vertical) _columnAnchor = (reading.Pos, reading.CharDelta);
                 var startLine = !vertical && LineAt(same.Index + reading.CharDelta) is { } exact ? exact : sameLine; // the line that was at the top of the first column
-                _pendingAnchor ??= vertical ? sameLine.Origin.Y + reading.Delta + (_offsetY - reading.Offset) : Math.Floor((startLine.Origin.X + 1) / pitch);
+                _pendingAnchor ??= vertical ? sameLine.Origin.Y + reading.Delta + (_offsetY - reading.Offset) : Math.Floor((startLine.Origin.X + 1) / pitch) + (_firstColumn - (int)Math.Round(reading.Offset)); // and the columns the reader turned meanwhile
             }
             else if (!partial && !_loadingBook) _readingAnchor = null;
         }
@@ -1873,6 +1880,14 @@ public partial class BibleTextBlock : Panel
         return _rtl ? Math.Max(0, _totalColumns - 1 - c) : c;
     }
 
+    /// <summary>
+    /// The column (in the order of the text) of a line: the one its middle is in. Not its left edge: a line of a text from right to left is placed
+    /// from its right edge, and one that is wider than the column (it counts its trailing space) starts a little left of the column, where the left
+    /// edge belongs to the next column. The first line of a column then counted as a line of the next one, and a window that was made around the reader
+    /// started the first column a column too early: a key press or a swipe was lost.
+    /// </summary>
+    private int LogicalColumn(PlacedLine line) => LogicalColumn(line.Origin.X + line.Line.WidthIncludingTrailingWhitespace / 2 - 1);
+
     /// <summary>Shows column <paramref name="column"/> as the first visible one (snapped to a whole column).</summary>
     private void ApplyColumn(int column, bool force = false)
     {
@@ -2370,7 +2385,7 @@ public partial class BibleTextBlock : Panel
         }
         int column = _scrolling ? _firstColumn : 0;
         foreach (var pl in _lines)
-            if (LogicalColumn(pl.Origin.X) >= column) return pl.Start;
+            if (LogicalColumn(pl) >= column) return pl.Start;
         return null;
     }
     private int _anchor, _caret; // selection is [min, max) in flattened-text indices
