@@ -99,6 +99,14 @@
                     <TextBlock x:Name="FontSizeText" Grid.Column="2" Opacity="0.7"  VerticalAlignment="Center" />
                 </Grid>
 
+                <!-- How strong the text is: its opacity (the colour is black in the light theme and white in the dark one, see TextColor). -->
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <TextBlock Text="{loc:Loc TextColor}" Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <Slider x:Name="TextOpacitySlider" Grid.Column="1" Minimum="30" Maximum="100" SmallChange="1" LargeChange="10"
+                            TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TextOpacityText" Grid.Column="2" Opacity="0.7" VerticalAlignment="Center" />
+                </Grid>
+
                 <!-- The size of the interface (its texts); the main window is made again in the size that is chosen. -->
                 <StackPanel Spacing="8">
                     <TextBlock Text="{loc:Loc UiSize}" Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" />

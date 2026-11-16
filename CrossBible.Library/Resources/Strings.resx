@@ -354,6 +354,9 @@
   <data name="UiSize" xml:space="preserve">
     <value>Interface size:</value>
   </data>
+  <data name="TextColor" xml:space="preserve">
+    <value>Text color</value>
+  </data>
   <data name="UiSizeReset" xml:space="preserve">
     <value>Reset to the system size</value>
   </data>

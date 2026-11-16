@@ -60,6 +60,8 @@ namespace CrossBible.Library
         /// <summary>Split words at the end of a line (see <see cref="Hyphenation"/>); on when null.</summary>
         public bool? Hyphenate { get; set; }
         public double? FontSize { get; set; }
+        /// <summary>The opacity of the text of the Bible in percent (30 to 100); null for the default of the theme (see <see cref="TextColor"/>).</summary>
+        public double? TextOpacity { get; set; }
         /// <summary>The size of the main window of the desktop app when it was closed (not maximized), in device-independent units; null before the first close.</summary>
         public double? WindowWidth { get; set; }
         public double? WindowHeight { get; set; }
@@ -90,8 +92,6 @@ namespace CrossBible.Library
         [JsonIgnore]
         public static Settings Current { get; private set; } = new Settings();
 
-        // A semaphore, not a lock: the asynchronous write waits inside it.
-        private static readonly System.Threading.SemaphoreSlim WriteGate = new(1, 1);
         private static int _requested, _written;
 
         AsyncLock SaveLock = new AsyncLock();
@@ -200,6 +200,7 @@ namespace CrossBible.Library
                 ShowVerseNumbersInGreen = settings.ShowVerseNumbersInGreen;
                 Hyphenate = settings.Hyphenate;
                 FontSize = settings.FontSize;
+                TextOpacity = settings.TextOpacity;
                 FontFamily = settings.FontFamily;
                 GreekFontFamily = settings.GreekFontFamily;
                 HebrewFontFamily = settings.HebrewFontFamily;

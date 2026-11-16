@@ -32,7 +32,11 @@ public partial class BibleView : UserControl
         // A chapter or a verse picked in the popup of a number goes through the toolbar: it is in the history and the position indicator shows it.
         Block.PlaceRequested += (_, e) => Toolbar.GoTo(e.Place);
         AttachedToVisualTree += (_, _) => { RestoreBible(); Toolbar.ShowWhatIsThere(); UpdateNoBible(); UpdateNoBibleFill(); };
-        ActualThemeVariantChanged += (_, _) => UpdateNoBibleFill();
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            UpdateNoBibleFill();
+            Block.Foreground = TextColor.Brush(Settings.Current); // black or white with the theme, at the opacity that the reader chose
+        };
         // The sign follows what is shown (the text, or the list of the online Bibles that replaces it) and whether a Bible is open.
         Toolbar.PropertyChanged += (_, e) =>
         {
@@ -227,6 +231,7 @@ public partial class BibleView : UserControl
     {
         var settings = Settings.Current;
         Block.FontSize = settings.FontSize ?? SettingsView.DefaultFontSize;
+        Block.Foreground = TextColor.Brush(settings);
         Block.FontFamily = SettingsView.FamilyOf(settings.FontFamily);
         Block.ShowWordsOfJesus = settings.ShowWordsOfJesus ?? true;
         Block.ShowVerseNumbersInGreen = settings.ShowVerseNumbersInGreen ?? false;

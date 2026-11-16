@@ -40,6 +40,9 @@ public partial class SettingsView : UserControl
         FillFonts();
         UiSizeSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnUiSizeChanged(); };
         FontSizeSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnFontSizeChanged(); };
+        TextOpacitySlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnTextOpacityChanged(); };
+        // The colour of the text is black or white with the theme, and the default opacity of the two themes differs: the slider and the sample follow.
+        ActualThemeVariantChanged += (_, _) => Reload();
         AttachedToVisualTree += (_, _) => Reload();
         PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty && IsVisible) Reload(); };
     }
@@ -144,6 +147,8 @@ public partial class SettingsView : UserControl
             double size = settings.FontSize ?? DefaultFontSize;
             FontSizeSlider.Value = size;
             FontSizeText.Text = size.ToString("0");
+            TextOpacitySlider.Value = TextColor.Opacity(settings);
+            TextOpacityText.Text = $"{TextOpacitySlider.Value:0}%";
             FontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.FontFamily) ? EmbeddedFont : settings.FontFamily;
             GreekFontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.GreekFontFamily) ? "Cardo" : settings.GreekFontFamily;
             HebrewFontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.HebrewFontFamily) ? "Frank Ruehl CLM" : settings.HebrewFontFamily;
@@ -235,6 +240,18 @@ public partial class SettingsView : UserControl
         AppearanceChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private void OnTextOpacityChanged()
+    {
+        if (_loading) return;
+        double percent = Math.Round(TextOpacitySlider.Value);
+        TextOpacityText.Text = $"{percent:0}%";
+        if (Settings.Current.TextOpacity == percent) return;
+        Settings.Current.TextOpacity = percent;
+        UpdateSample();
+        Save();
+        AppearanceChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     private void OnFontChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_loading || FontBox.SelectedItem is not string name || Settings.Current.FontFamily == name) return;
@@ -302,6 +319,7 @@ public partial class SettingsView : UserControl
         var settings = Settings.Current;
         SampleText.FontFamily = FamilyOf(settings.FontFamily);
         SampleText.FontSize = settings.FontSize ?? DefaultFontSize;
+        SampleText.Foreground = TextColor.Brush(settings);
         SetColor(VerseNumberRun, settings.ShowVerseNumbersInGreen ?? false ? Color.Parse("#2E8B57") : null);
         SetColor(JesusRun, settings.ShowWordsOfJesus ?? true ? Color.Parse("#B22222") : null);
     }
