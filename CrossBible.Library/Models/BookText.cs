@@ -229,10 +229,20 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
         public string Markdown { get => field ??= System.IO.File.ReadAllText(File, System.Text.Encoding.UTF8); set => field = value; }
         bool? isBible = null;
         public bool IsBible => isBible ??= BookText.IsBibleRegex().IsMatch(Markdown);
+        private List<Run>? _runs;
+        private readonly object _parseLock = new();
+        /// <summary>The parsed text. Parsed on first use, once: a second thread that asks while it is parsed (the reader caught up with the preload) waits for it.</summary>
         public List<Run> Runs {
-            get => field ??= BookText.ParseBibleBook(this).ToList();
-            set => field = value;
+            get
+            {
+                if (_runs is { } parsed) return parsed;
+                lock (_parseLock) return _runs ??= BookText.ParseBibleBook(this).ToList();
+            }
+            set { _runs = value; _chapters = null; }
         }
+        private List<Run>? _chapters;
+        /// <summary>The chapters of the book (its runs of the class chapter); none for a text that is not a Bible book.</summary>
+        public List<Run> Chapters => _chapters ??= Runs.Where(r => r.Class == Run.Classes.Chapter).ToList();
     }
     public class VersePosition
     {
@@ -651,32 +661,24 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
     }
     public static IEnumerable<Run> ParseBibleBook(Book book)
     {
-        // TEMPORARY (the measuring): the time of each step, logged at the end
-        long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         var markdown = book.Markdown;
-        long t1 = System.Diagnostics.Stopwatch.GetTimestamp(); // the file was read
         var first = true;
         // strip comments
         markdown = BlockComments().Replace(markdown, ""); // comments
         markdown = LineComments().Replace(markdown, ""); // single line comments
-        long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
         // Replace footnotes
         bool replaced;
-        int footnotePasses = 0;
         do
         {
             replaced = false;
-            footnotePasses++;
             markdown = Footnotes().Replace(markdown, m =>
             {
                 replaced = true;
                 return $"{m.Groups["footnote"].Value}{m.Groups["text"].Value}";
             });// ^^ footnotes
         } while (replaced);
-        long t3 = System.Diagnostics.Stopwatch.GetTimestamp();
 
         bool isBible = book.IsBible;
-        long t4 = System.Diagnostics.Stopwatch.GetTimestamp();
         if (isBible)
         {
             var chapters = Chapters().Matches(markdown)
@@ -695,11 +697,6 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
         {
             foreach (var run in ParseNormalBook(book)) yield return run;
         }
-        long t5 = System.Diagnostics.Stopwatch.GetTimestamp();
-        double ms(long a, long b) => (b - a) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-        Console.WriteLine($"[PERF] ParseBibleBook '{book.Id}' ({markdown.Length} characters): read file {ms(t0, t1):0} ms, strip comments {ms(t1, t2):0} ms, " +
-            $"merge footnotes {ms(t2, t3):0} ms ({footnotePasses} passes), IsBible check {ms(t3, t4):0} ms, chapters and verses {ms(t4, t5):0} ms, " +
-            $"total {ms(t0, t5):0} ms");
     }
 
     public string Name { get; set; }

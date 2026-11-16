@@ -44,7 +44,7 @@ public enum FloatSide
 /// Every child is a float; set <see cref="SideProperty"/> (FloatTextBlock.Side) on it to choose the side.
 /// Floats on the same side stack vertically; text lines are narrowed to whatever space the floats leave.
 /// </summary>
-public class BibleTextBlock : Panel
+public partial class BibleTextBlock : Panel
 {
     public static readonly StyledProperty<string?> TextProperty =
         AvaloniaProperty.Register<BibleTextBlock, string?>(nameof(Text));
@@ -320,9 +320,18 @@ public class BibleTextBlock : Panel
     }
 
     /// <summary>Whether the chapters that are shown (their text, as it is laid out) include the chapter of <paramref name="pos"/>.</summary>
-    private bool WindowHolds(BookText.VersePosition pos) =>
-        Books is { } books && BookIndex < books.Count && ReferenceEquals(books[BookIndex], pos.Book)
-        && ((pos.Chapter >= _shownChapterNumber && pos.Chapter <= _shownLastChapterNumber) || (pos.Chapter <= 1 && ChapterIndex == 0));
+    private bool WindowHolds(BookText.VersePosition pos)
+    {
+        if (Books is not { } books || pos.Book is null) return false;
+        int book = -1;
+        for (int i = BookIndex; i <= _lastBookIndex && i < books.Count; i++)
+            if (ReferenceEquals(books[i], pos.Book)) { book = i; break; }
+        if (book < 0) return false;
+        // The first book is shown from its chapter ChapterIndex on (all of it, with its title, when that is the first), the last one up to _lastChapterIndex.
+        bool fromOk = book > BookIndex || ChapterIndex == 0 || pos.Chapter >= _shownChapterNumber;
+        bool toOk = book < _lastBookIndex || pos.Chapter <= _shownLastChapterNumber;
+        return fromOk && toOk;
+    }
 
     private void ScrollToPosition(BookText.VersePosition? pos)
     {
@@ -404,6 +413,7 @@ public class BibleTextBlock : Panel
             _pendingPosition = null;
             _switchingBible = false;
             UpdateBusy();
+            if (_flat is not null) { _flat = null; OnInlinesChanged(); }
             Inlines.Clear();
             return;
         }
@@ -457,11 +467,20 @@ public class BibleTextBlock : Panel
     /// <summary>The books to scroll through; use <see cref="ShowBookAsync"/> to start at one.</summary>
     public IReadOnlyList<BookText.Book>? Books { get; set; }
 
-    /// <summary>Index in <see cref="Books"/> of the book that is shown (one chapter of it).</summary>
+    /// <summary>Index in <see cref="Books"/> of the book the shown text starts with (the text goes on into the books after it).</summary>
     public int BookIndex { get; private set; }
 
-    /// <summary>Index in <see cref="Books"/> of the book that is shown: the same as <see cref="BookIndex"/>, as only one chapter is shown at a time.</summary>
-    public int CurrentBookIndex => BookIndex;
+    /// <summary>Index in <see cref="Books"/> of the book the reader is in: the book of <see cref="Position"/>.</summary>
+    public int CurrentBookIndex
+    {
+        get
+        {
+            if (Position?.Book is { } book && Books is { } books)
+                for (int i = Math.Max(0, BookIndex); i < books.Count; i++)
+                    if (ReferenceEquals(books[i], book)) return i;
+            return BookIndex;
+        }
+    }
 
     /// <summary>
     /// The chapter that is shown, as an index into the chapters of the book (0 is the first chapter, which comes with the title of the
@@ -477,8 +496,11 @@ public class BibleTextBlock : Panel
 
     private bool _loadingBook;
     private int _totalColumns;
-    private int _chapterCount = 1;       // the chapters of the shown book (a text without chapters counts as one)
+    // The window is the chapters from (BookIndex, ChapterIndex) to (_lastBookIndex, _lastChapterIndex): it goes over the border of books, so the text
+    // goes on from the end of one book into the next (see CheckWindow).
+    private int _lastBookIndex;          // the book of the last chapter that is shown
     private int _lastChapterIndex;       // the last chapter that is shown: the window is several chapters (see CheckWindow)
+    private int _windowSlots = 1;        // how many chapters the window holds (a text without chapters counts as one)
     private int _shownChapterNumber;     // the number of the first shown chapter (0 for a text without chapters)
     private int _shownLastChapterNumber; // and of the last one
     private bool _checkQueued;           // a check of the window is waiting (see RequestWindowCheck)
@@ -488,7 +510,13 @@ public class BibleTextBlock : Panel
     /// Where the reader is in the text, when the window of chapters is made again around it (see CheckWindow): the verse at the top of the screen,
     /// how far into its line the screen starts, and the scroll position then. The new text is laid out in the same place, so nothing seems to move.
     /// </summary>
-    private (BookText.VersePosition Pos, double Delta, double Offset)? _readingAnchor;
+    private (BookText.VersePosition Pos, double Delta, double Offset, int CharDelta)? _readingAnchor;
+
+    // In columns: the line that starts the first visible column, as a verse mark and the characters after it. The columns are cut from the top of the
+    // window, so when the window grows or shrinks at its start the greedy cut would end the columns somewhere else and the page would change under
+    // the reader; this line is kept as the start of a column instead (see SplitColumns), and everything after it is cut as it was.
+    private (BookText.VersePosition Pos, int CharDelta)? _columnAnchor;
+    private int _forcedColumnStart = -1;
     private double? _pendingAnchor;    // scroll position to restore once the new chapter is laid out (see EndOfChapter)
     private readonly System.Diagnostics.Stopwatch _boundaryClock = System.Diagnostics.Stopwatch.StartNew();
     private TimeSpan _lastBoundary = TimeSpan.FromSeconds(-10);
@@ -511,8 +539,42 @@ public class BibleTextBlock : Panel
     }
 
     /// <summary>The chapters of a book (parsing the book, if that has not happened): none for a text that is not a Bible book.</summary>
-    private static List<BookText.Run> ChaptersOf(BookText.Book book) =>
-        book.Runs.Where(r => r.Class == BookText.Run.Classes.Chapter).ToList();
+    private static List<BookText.Run> ChaptersOf(BookText.Book book) => book.Chapters;
+
+    /// <summary>How many places a book takes in the window: its chapters (a text without chapters is one). Parses the book if that has not happened.</summary>
+    private static int SlotCountOf(BookText.Book book) => Math.Max(1, ChaptersOf(book).Count);
+
+    /// <summary>
+    /// The chapter <paramref name="n"/> places on from <paramref name="at"/> (before it when negative), counted over the border of books, as far as there are
+    /// books. Parses the books it passes: meant for a worker.
+    /// </summary>
+    private static (int Book, int Chapter) StepSlots(IReadOnlyList<BookText.Book> books, (int Book, int Chapter) at, int n)
+    {
+        var (b, c) = at;
+        for (; n > 0; n--)
+        {
+            if (c + 1 < SlotCountOf(books[b])) c++;
+            else if (b + 1 < books.Count) { b++; c = 0; }
+            else break;
+        }
+        for (; n < 0; n++)
+        {
+            if (c > 0) c--;
+            else if (b > 0) { b--; c = SlotCountOf(books[b]) - 1; }
+            else break;
+        }
+        return (b, c);
+    }
+
+    /// <summary>The places (book index and chapter index) of a window, in the order of the text.</summary>
+    private static IEnumerable<(int Book, int Chapter)> SlotsOf(IReadOnlyList<BookText.Book> books, int firstBook, int first, int lastBook, int last)
+    {
+        for (int b = firstBook; b <= lastBook; b++)
+        {
+            int from = b == firstBook ? first : 0, to = b == lastBook ? last : SlotCountOf(books[b]) - 1;
+            for (int c = from; c <= to; c++) yield return (b, c);
+        }
+    }
 
     /// <summary>The index of the wanted chapter in <paramref name="chapters"/>; the first when a number is not found (the last when it is beyond the end).</summary>
     private static int ResolveChapter(List<BookText.Run> chapters, ChapterRequest request)
@@ -539,77 +601,61 @@ public class BibleTextBlock : Panel
         await SwitchWindowAsync(books, index, ChapterRequest.First, null);
     }
 
-    /// <param name="count">How many chapters, from the wanted one on (see <see cref="CheckWindow"/>).</param>
+    /// <param name="count">How many chapters, from the first one of the window on, over the border of books (see <see cref="CheckWindow"/>).</param>
     /// <param name="keepReading">True when the window is only made larger or smaller around the reader: the text stays where it is on the screen.</param>
+    /// <param name="shift">The window starts this many chapters after the wanted one (before it when negative).</param>
     private async Task SwitchWindowAsync(IReadOnlyList<BookText.Book> books, int bookIndex, ChapterRequest request, double? anchor,
-        int count = 1, bool keepReading = false)
+        int count = 1, bool keepReading = false, int shift = 0)
     {
         _loadingBook = true;
         UpdateBusy();
         try
         {
-            // The book's Runs are read and parsed lazily, so ask for them off the UI thread. So are the hyphenation patterns of the words of
-            // the chapters: flattening the text (on the UI thread) then only finds them in the cache.
-            string? language = HyphenationLanguage;
-            var (book, first, last, firstNumber, lastNumber, chapterCount) = await Task.Run(() =>
+            // The books' Runs are read and parsed lazily, so ask for them off the UI thread. The text of the chapters is made from the runs on the worker too
+            // (see BuildWindow): nothing but the chapter numerals is made on the UI thread.
+            var cx = MakeFlatContext();
+            var (firstBook, first, lastBook, last, firstNumber, lastNumber, slots, content) = await Task.Run(() =>
             {
-                long t0 = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
-                var shown = books[bookIndex];
-                var chapters = ChaptersOf(shown); // reading and parsing the markdown is the slow part (once per book)
-                int index = ResolveChapter(chapters, request);
-                int end = chapters.Count == 0 ? 0 : Math.Min(index + Math.Max(1, count) - 1, chapters.Count - 1);
-                long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
-                long words0 = Hyphenation.PerfWords, ticks0 = Hyphenation.PerfTicks;
-                if (language is not null) Hyphenation.Warm(chapters.Count == 0 ? shown.Runs : chapters.GetRange(index, end - index + 1), language);
-                long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
-                double ms(long ticks) => ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
-                Console.WriteLine($"[PERF] chapters {index + 1}-{end + 1} of '{shown.Name}': parse {ms(t1 - t0):0} ms, hyphenation pass {ms(t2 - t1):0} ms " +
-                    $"(language {language ?? "none"}; {Hyphenation.PerfWords - words0} new words, {ms(Hyphenation.PerfTicks - ticks0):0} ms inside the hyphenator)");
-                return (shown, index, end, chapters.Count == 0 ? 0 : chapters[index].Chapter, chapters.Count == 0 ? 0 : chapters[end].Chapter,
-                    Math.Max(1, chapters.Count));
+                var start = (Book: bookIndex, Chapter: ResolveChapter(ChaptersOf(books[bookIndex]), request)); // reading and parsing the markdown is the slow part (once per book)
+                if (shift != 0) start = StepSlots(books, start, shift);
+                var end = StepSlots(books, start, Math.Max(1, count) - 1);
+                var window = BuildWindow(cx, books, start.Book, start.Chapter, end.Book, end.Chapter);
+                int firstNumber = ChaptersOf(books[start.Book]) is { Count: > 0 } a ? a[start.Chapter].Chapter : 0;
+                int lastNumber = ChaptersOf(books[end.Book]) is { Count: > 0 } z ? z[end.Chapter].Chapter : 0;
+                return (start.Book, start.Chapter, end.Book, end.Chapter, firstNumber, lastNumber, SlotsOf(books, start.Book, start.Chapter, end.Book, end.Chapter).Count(), window);
             });
-            // Creating the inlines is UI-thread work: done in slices, so the app keeps answering meanwhile.
-            long allocBefore = GC.GetTotalAllocatedBytes(false); // TEMPORARY (the measuring)
-            var content = await BuildContentAsync(book, first, last);
-            Console.WriteLine($"[PERF] allocated while building the inlines (all threads): {(GC.GetTotalAllocatedBytes(false) - allocBefore) / 1024} KB for {content.Count} inlines");
-            BookIndex = bookIndex;
+            PrunePieceCache(books, firstBook, first, lastBook, last);
+            BookIndex = firstBook;
             ChapterIndex = first;
+            _lastBookIndex = lastBook;
             _lastChapterIndex = last;
+            _windowSlots = slots;
             _shownChapterNumber = firstNumber;
             _shownLastChapterNumber = lastNumber;
-            _chapterCount = chapterCount;
             _pendingAnchor = anchor;
             // Taken now, from the text that is shown (not when the work began: the reader may have scrolled on since).
             _readingAnchor = keepReading ? CaptureReading() : null;
-            long setStart = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
+            if (!keepReading) _columnAnchor = null;
             SetContent(content);
-            Console.WriteLine($"[PERF] SetContent of {content.Count} inlines: {(System.Diagnostics.Stopwatch.GetTimestamp() - setStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms (keepReading {keepReading})");
             BookChanged?.Invoke(this, EventArgs.Empty);
-            // Near the end or the start of the book the book that follows or comes before may be next: have it parsed, so that moving on only has to lay out.
-            _ = Task.Run(() =>
-            {
-                if (last >= chapterCount - 2 && bookIndex + 1 < books.Count) _ = books[bookIndex + 1].Runs;
-                if (first <= 1 && bookIndex > 0) _ = books[bookIndex - 1].Runs;
-            });
+            PrefetchNeighbours(books);
         }
         finally { _loadingBook = false; UpdateBusy(); }
     }
 
     /// <summary>
-    /// The reader pushed against the end (<paramref name="delta"/> 1) or the start (-1) of the loaded text. Within a book the window of
-    /// chapters grows by itself (see <see cref="CheckWindow"/>); only at the end of a book does this go on to the first chapter of the next
-    /// book, or at the start of a book to the last chapter of the previous one (at its end, so the reading goes on backwards).
+    /// The reader pushed against the end (<paramref name="delta"/> 1) or the start (-1) of the loaded text, faster than the check of the window
+    /// (see <see cref="CheckWindow"/>) made it grow: it grows by a chapter now, also into the next book or the one before. The text stays where it is
+    /// on the screen, and goes on as soon as the new chapter is ready.
     /// </summary>
     private void MoveChapter(int delta)
     {
         if (_loadingBook || Books is not { } books) return;
-        int index = delta > 0 ? _lastChapterIndex + 1 : ChapterIndex - 1;
-        if (index >= 0 && index < _chapterCount)
-            RequestWindowCheck(); // the book goes on: the window grows to it (it was not there yet, as the reader was faster than the check)
-        else if (delta > 0 && BookIndex + 1 < books.Count)
-            _ = SwitchWindowAsync(books, BookIndex + 1, ChapterRequest.First, 0); // the anchor 0 keeps the old text where it is until the new is laid out
-        else if (delta < 0 && BookIndex > 0)
-            _ = SwitchWindowAsync(books, BookIndex - 1, ChapterRequest.LastOne, EndOfChapter);
+        bool more = delta > 0
+            ? _lastBookIndex + 1 < books.Count || _lastChapterIndex + 1 < SlotCountOf(books[_lastBookIndex])
+            : BookIndex > 0 || ChapterIndex > 0;
+        if (!more) return;
+        _ = SwitchWindowAsync(books, BookIndex, ChapterRequest.ByIndex(ChapterIndex), null, _windowSlots + 1, keepReading: true, shift: delta > 0 ? 0 : -1);
     }
 
     // ---- The window of chapters ----------------------------------------------------------------------
@@ -623,30 +669,55 @@ public class BibleTextBlock : Panel
     /// <summary>Asks for a check of the window, when the text was laid out and when it was scrolled (a check at a time, once the UI is free).</summary>
     private void RequestWindowCheck()
     {
-        ScrollGc.Activity(); // every scrolling and every layout comes through here: no collection until the text is at rest
         if (_checkQueued || Books is null) return;
         _checkQueued = true;
         Dispatcher.UIThread.Post(CheckWindow, DispatcherPriority.Background);
+    }
+
+    /// <summary>How many chapters before the end (or after the start) of a book the book next to it is parsed, so that it is ready long before the reader gets there.</summary>
+    private const int PrefetchChapters = 4;
+
+    private BookText.Book? _prefetchedNext, _prefetchedPrevious;
+
+    /// <summary>
+    /// Near the end or the start of the book the book that follows or comes before may be next: it is parsed on a worker now (the parsing takes
+    /// about a second on a phone), so that moving on to it only has to lay out.
+    /// </summary>
+    private void PrefetchNeighbours(IReadOnlyList<BookText.Book> books)
+    {
+        if (_lastBookIndex + 1 < books.Count && _lastChapterIndex >= SlotCountOf(books[_lastBookIndex]) - 1 - PrefetchChapters && !ReferenceEquals(_prefetchedNext, books[_lastBookIndex + 1]))
+        {
+            var next = _prefetchedNext = books[_lastBookIndex + 1];
+            _ = Task.Run(() => next.Runs);
+        }
+        if (BookIndex > 0 && ChapterIndex <= PrefetchChapters && !ReferenceEquals(_prefetchedPrevious, books[BookIndex - 1]))
+        {
+            var previous = _prefetchedPrevious = books[BookIndex - 1];
+            _ = Task.Run(() => previous.Runs);
+        }
     }
 
     private void CheckWindow()
     {
         _checkQueued = false;
         if (_loadingBook || _dirty || !_hasLayout || _flowRunning is not null || _lines.Count == 0 || _screenHeight <= 0
-            || Books is not { } books || BookIndex >= books.Count) return;
+            || Books is not { } books || BookIndex >= books.Count || _lastBookIndex >= books.Count) return;
+        PrefetchNeighbours(books);
         bool vertical = Orientation == Orientation.Vertical;
         // The sizes are in the unit of the scrolling: pixels, or columns when the text is in columns.
         double unit = vertical ? _screenHeight : Math.Max(1, _visibleColumns);
         double pos = vertical ? _offsetY : _firstColumn;
         double total = vertical ? _contentHeight : _totalColumns;
         double ahead = Math.Max(0, total - (pos + unit)), behind = pos;
-        bool canAhead = _lastChapterIndex + 1 < _chapterCount, canBehind = ChapterIndex > 0;
-        int shown = _lastChapterIndex - ChapterIndex + 1;
+        // The text goes on over the border of books: only the first chapter of the first book and the last of the last book end it.
+        bool canAhead = _lastBookIndex + 1 < books.Count || _lastChapterIndex + 1 < SlotCountOf(books[_lastBookIndex]);
+        bool canBehind = BookIndex > 0 || ChapterIndex > 0;
+        int shown = _windowSlots;
         double average = Math.Max(1, total / shown); // how large a chapter is, as far as the shown ones tell
 
         bool wantAhead = canAhead && ahead < SideScreens * unit;
         bool wantBehind = canBehind && behind < SideScreens * unit;
-        // The five screens in all, however near the reader is to an edge of the book: the other side makes up for it.
+        // The five screens in all, however near the reader is to an edge of the text: the other side makes up for it.
         double missing = TotalScreens * unit - total;
         if (missing > 0 && !wantAhead && !wantBehind)
         {
@@ -654,39 +725,41 @@ public class BibleTextBlock : Panel
             else if (canBehind) wantBehind = true;
         }
 
-        int first = ChapterIndex, last = _lastChapterIndex;
+        // How the window changes, in chapters: where its start moves to (before it when negative) and its end (before it when negative).
+        int startShift = 0, endShift = 0;
         if (wantAhead)
-            last = Math.Min(_chapterCount - 1, last + Math.Clamp((int)Math.Ceiling(Math.Max(SideScreens * unit - ahead, missing) / average), 1, 6));
+            endShift = Math.Clamp((int)Math.Ceiling(Math.Max(SideScreens * unit - ahead, missing) / average), 1, 6);
         if (wantBehind)
-            first = Math.Max(0, first - Math.Clamp((int)Math.Ceiling(Math.Max(SideScreens * unit - behind, missing) / average), 1, 6));
+            startShift = -Math.Clamp((int)Math.Ceiling(Math.Max(SideScreens * unit - behind, missing) / average), 1, 6);
 
         // Chapters that are far enough away go, as long as that leaves the two screens on that side (so the window does not grow again at once).
         if (!wantBehind || !wantAhead)
         {
-            var starts = ChapterStarts(books[BookIndex], vertical);
-            if (!wantBehind)
-                for (int k = 0; k + 1 < starts.Count && starts[k + 1].Start <= pos - SideScreens * unit; k++)
-                    first = starts[k + 1].Chapter;
-            if (!wantAhead)
-                for (int k = starts.Count - 1; k >= 1 && starts[k].Start >= pos + unit + SideScreens * unit; k--)
-                    last = starts[k].Chapter - 1;
+            var starts = ChapterStarts(vertical);
+            if (starts.Count == shown) // one mark for each chapter of the window (else it is not known which chapter is where)
+            {
+                if (!wantBehind)
+                    for (int k = 0; k + 1 < starts.Count && starts[k + 1] <= pos - SideScreens * unit; k++)
+                        startShift = k + 1;
+                if (!wantAhead)
+                    for (int k = starts.Count - 1; k >= 1 && starts[k] >= pos + unit + SideScreens * unit; k--)
+                        endShift = -(shown - k);
+            }
         }
 
-        if (first == ChapterIndex && last == _lastChapterIndex) return;
-        _ = SwitchWindowAsync(books, BookIndex, ChapterRequest.ByIndex(first), null, last - first + 1, keepReading: true);
+        if (startShift == 0 && endShift == 0) return;
+        _ = SwitchWindowAsync(books, BookIndex, ChapterRequest.ByIndex(ChapterIndex), null, shown - startShift + endShift, keepReading: true, shift: startShift);
     }
 
-    /// <summary>Where each chapter of the window starts (its index in the book, and its place in pixels, or in columns), in the order of the text.</summary>
-    private List<(int Chapter, double Start)> ChapterStarts(BookText.Book book, bool vertical)
+    /// <summary>Where each chapter of the window starts (in pixels, or in columns), in the order of the text.</summary>
+    private List<double> ChapterStarts(bool vertical)
     {
-        var chapters = ChaptersOf(book);
-        var starts = new List<(int, double)>();
+        var starts = new List<double>();
         foreach (var (index, pos) in _markers)
         {
             if (pos.Verse != 0 || pos.Chapter < 1) continue; // the chapter marks are verse 0 of the chapter
-            int chapter = chapters.FindIndex(r => r.Chapter == pos.Chapter);
-            if (chapter < 0 || LineAt(index) is not { } line) continue;
-            starts.Add((chapter, vertical ? line.Origin.Y : LogicalColumn(line.Origin.X)));
+            if (LineAt(index) is not { } line) continue;
+            starts.Add(vertical ? line.Origin.Y : LogicalColumn(line.Origin.X));
         }
         return starts;
     }
@@ -695,7 +768,7 @@ public class BibleTextBlock : Panel
     /// Where the reader is, so a new window can be laid out with the text in the same place: the last verse mark at or before the first line on
     /// the screen (as <see cref="UpdatePosition"/> finds it), how far into its line the screen starts, and the scroll position now.
     /// </summary>
-    private (BookText.VersePosition Pos, double Delta, double Offset)? CaptureReading()
+    private (BookText.VersePosition Pos, double Delta, double Offset, int CharDelta)? CaptureReading()
     {
         if (_markers.Count == 0 || _lines.Count == 0) return null;
         bool vertical = Orientation == Orientation.Vertical;
@@ -713,7 +786,7 @@ public class BibleTextBlock : Panel
             best = marker;
         }
         if (LineAt(best.Index) is not { } markLine) return null;
-        return (best.Pos, vertical ? _offsetY - markLine.Origin.Y : 0, vertical ? _offsetY : _firstColumn);
+        return (best.Pos, vertical ? _offsetY - markLine.Origin.Y : 0, vertical ? _offsetY : _firstColumn, first.Start - best.Index);
     }
 
     private void RaiseBoundary(bool atEnd)
@@ -824,11 +897,7 @@ public class BibleTextBlock : Panel
 
         // 1. Measure floats. Each one is anchored at the text index where it was declared and gets placed
         //    while flowing, on the line that contains that index (like CSS float).
-        long flattenStart = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
-        long flattenAlloc = GC.GetAllocatedBytesForCurrentThread();
         var (text, segments, anchors, notes, breaks, markers, strongs) = FlattenCached();
-        Console.WriteLine($"[PERF] Flatten on the UI thread: {(System.Diagnostics.Stopwatch.GetTimestamp() - flattenStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms ({text.Length} characters), " +
-            $"allocated {(GC.GetAllocatedBytesForCurrentThread() - flattenAlloc) / 1024} KB");
         var pending = new List<(Control Child, Size Size, FloatSide Side, int Anchor)>();
         foreach (var child in Children.OfType<Control>().Where(c => c != _layer && c != _popup && c != _scrollBar && c != _vBar && c != _tail
                 && (_currentFloats.Contains(c) || !_ownedFloats.Contains(c)))) // not the floats of replaced content
@@ -919,6 +988,11 @@ public class BibleTextBlock : Panel
         double floatsBottom = _floatRects.Count == 0 ? 0 : _floatRects.Max(r => r.Bottom - gap);
         double flowHeight = Math.Max(textBottom, floatsBottom);
 
+        // While the columns follow the finger, carry on after it lifted, or ease to a column, the offset is in pixels of the layout that is replaced here:
+        // where it was, as a column of the old layout, so it can be put at the same place of the text in the new one.
+        int firstColumnBefore = _firstColumn;
+        double? movingAt = !vertical && _scrolling && _pitch > 0 && (_panning || _anim is { IsEnabled: true }) ? ColumnAtOffset(_offsetX) : null;
+
         // 3. Cut the tall column into `columns` columns.
         double pitch = width + spacing;
         // With a fixed column width and a bounded size only the columns that fit are shown; the rest are
@@ -974,6 +1048,13 @@ public class BibleTextBlock : Panel
             return (used, height);
         }
 
+        _forcedColumnStart = -1;
+        if (paged && !vertical && (_readingAnchor is not null || _columnAnchor is not null))
+        {
+            var (anchorPos, charDelta) = _readingAnchor is { } r ? (r.Pos, r.CharDelta) : _columnAnchor!.Value;
+            if (WindowHolds(anchorPos) && ResolveMarker(anchorPos, markers) is { } at && at.Pos.Chapter == anchorPos.Chapter && at.Pos.Verse == anchorPos.Verse)
+                _forcedColumnStart = at.Index + charDelta;
+        }
         var (usedColumns, contentHeight) = Cut(heightFinite ? availableSize.Height : flowHeight / columns);
         double barHeight = 0;
         if (paged && usedColumns > visible)
@@ -1018,7 +1099,9 @@ public class BibleTextBlock : Panel
                 && same.Pos.Chapter == reading.Pos.Chapter && same.Pos.Verse == reading.Pos.Verse && LineAt(same.Index) is { } sameLine)
             {
                 _readingAnchor = null;
-                _pendingAnchor ??= vertical ? sameLine.Origin.Y + reading.Delta + (_offsetY - reading.Offset) : Math.Floor((sameLine.Origin.X + 1) / pitch);
+                if (!vertical) _columnAnchor = (reading.Pos, reading.CharDelta);
+                var startLine = !vertical && LineAt(same.Index + reading.CharDelta) is { } exact ? exact : sameLine; // the line that was at the top of the first column
+                _pendingAnchor ??= vertical ? sameLine.Origin.Y + reading.Delta + (_offsetY - reading.Offset) : Math.Floor((startLine.Origin.X + 1) / pitch);
             }
             else if (!partial && !_loadingBook) _readingAnchor = null;
         }
@@ -1041,6 +1124,15 @@ public class BibleTextBlock : Panel
         // An animation in progress keeps its current offset (it heads for the new target by itself).
         if (!_scrolling) StopAnimation();
         if (_anim is not { IsEnabled: true } && !_panning) _offsetX = OffsetOf(_firstColumn);
+        else if (movingAt is { } moving && _scrolling)
+        {
+            // The window changed: the first column may be another one of the text now (it changed at its start), and in a text from right to left the
+            // offset of every column changes when columns are added at its end (the columns are counted from the right, the offset from the left).
+            // The motion goes on from the same place of the text.
+            double shifted = OffsetOfColumn(moving + (_firstColumn - firstColumnBefore)) - _offsetX;
+            _offsetX += shifted;
+            _animFrom += shifted;
+        }
 
         double contentWidth = fixedWidth ? _visibleColumns * width + (_visibleColumns - 1) * spacing : totalWidth;
         _viewWidth = contentWidth;
@@ -1139,11 +1231,7 @@ public class BibleTextBlock : Panel
                     Dispatcher.UIThread.Post(() => FlowDelivered(key, first, token));
                     if (first.Complete) return;
                 }
-                long flowStart = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
-                long flowAlloc = GC.GetAllocatedBytesForCurrentThread();
                 var all = RunFlow(input, int.MaxValue, token);
-                Console.WriteLine($"[PERF] flow of {input.Text.Length} characters on a worker: {(System.Diagnostics.Stopwatch.GetTimestamp() - flowStart) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms, " +
-                    $"allocated {(GC.GetAllocatedBytesForCurrentThread() - flowAlloc) / 1024} KB for {all.Lines.Count} lines");
                 Dispatcher.UIThread.Post(() => FlowDelivered(key, all, token));
             }
             catch (OperationCanceledException) { }
@@ -1199,7 +1287,7 @@ public class BibleTextBlock : Panel
         var starts = new List<int> { 0 };
         foreach (var (index, pos) in markers)
         {
-            if (pos.Verse != 0 || pos.Chapter < 1) continue;
+            if (pos.Verse != 0 || pos.Chapter < 0) continue; // the start of a book (chapter 0, its title) and of a chapter
             int start = index;
             if (start > 0 && text[start - 1] != '\n')
             {
@@ -1266,16 +1354,12 @@ public class BibleTextBlock : Panel
         {
             try
             {
-                long start = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
-                long allocated = GC.GetAllocatedBytesForCurrentThread();
                 foreach (var (chunkKey, input) in missing)
                 {
                     token.ThrowIfCancellationRequested();
                     var flowed = FlowChunk(input, token);
                     Dispatcher.UIThread.Post(() => _chunkCache[chunkKey] = flowed); // kept even when the window has changed meanwhile: the next one may need it
                 }
-                Console.WriteLine($"[PERF] flow of {missing.Count} of {chunks.Count} chunks ({missingChars} characters) on a worker: " +
-                    $"{(System.Diagnostics.Stopwatch.GetTimestamp() - start) * 1000.0 / System.Diagnostics.Stopwatch.Frequency:0} ms, allocated {(GC.GetAllocatedBytesForCurrentThread() - allocated) / 1024} KB");
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (token.IsCancellationRequested) return;
@@ -1776,6 +1860,8 @@ public class BibleTextBlock : Panel
 
     // The scroll offset is where the view starts in the (mirrored) strip of the columns: the offset of a column and the column at an offset
     // are the same in a text that runs from left to right, and turned around in one that does not.
+    private double OffsetOfColumn(double column) => _rtl ? Math.Max(0, _totalColumns - column - _visibleColumns) * _pitch : column * _pitch;
+
     private double OffsetOf(int column) => _rtl ? Math.Max(0, _totalColumns - column - _visibleColumns) * _pitch : column * _pitch;
 
     private double ColumnAtOffset(double offset) => _rtl ? (_totalColumns - _visibleColumns) - offset / _pitch : offset / _pitch;
@@ -1922,15 +2008,40 @@ public class BibleTextBlock : Panel
     /// <summary>
     /// Greedily breaks the flowed lines into at most <paramref name="columns"/> columns of height
     /// <paramref name="height"/>. Returns each column's start offset in flow coordinates, or null if it doesn't fit.
+    /// When the reader's first column must keep its first line (<see cref="_forcedColumnStart"/>), the columns from that line on are cut
+    /// from it, and the columns before it are cut backwards from it, so each of them is full (only the first column of the window, at its
+    /// very top, may be shorter). A short column just before it would show when the reader scrolls back.
     /// </summary>
     private List<double>? SplitColumns(double height, int columns)
     {
         var starts = new List<double> { 0 };
-        foreach (var pl in _lines)
+        int from = 0;
+        if (_forcedColumnStart >= 0 && columns == int.MaxValue)
         {
-            if (pl.PageStart)
+            int forced = _lines.FindIndex(l => l.Start == _forcedColumnStart);
+            if (forced > 0 && _lines[forced].Origin.Y > 0.01)
             {
-                // A page break puts this line at the top of the next column.
+                var before = new List<double>(); // the starts of the columns before it, last to first
+                double bottom = _lines[forced - 1].Origin.Y + _lines[forced - 1].Line.Height;
+                for (int j = forced - 1; j >= 0; j--)
+                {
+                    var line = _lines[j];
+                    if (bottom - line.Origin.Y <= height + 0.01) continue;
+                    before.Add(_lines[j + 1].Origin.Y); // line j does not fit with the lines below it: its column starts under it
+                    bottom = line.Origin.Y + line.Line.Height;
+                }
+                before.Reverse();
+                starts.AddRange(before);
+                starts.Add(_lines[forced].Origin.Y);
+                from = forced;
+            }
+        }
+        for (int i = from; i < _lines.Count; i++)
+        {
+            var pl = _lines[i];
+            if (pl.PageStart || pl.Start == _forcedColumnStart)
+            {
+                // A page break puts this line at the top of the next column (so does the line that the reader's first column starts with).
                 if (pl.Origin.Y <= starts[^1] + 0.01) continue; // it already is the first line of its column
                 // With a fixed number of columns a break that has no room is ignored (a taller column can't help).
                 if (starts.Count < columns)
@@ -2193,7 +2304,7 @@ public class BibleTextBlock : Panel
                 bounds = rects.Count > 0
                     ? rects[0].Rectangle.Translate(new Vector(pl.Origin.X, pl.Origin.Y))
                     : new Rect(point, new Size(1, line.Height));
-                return n.Note;
+                return NoteOf(n);
             }
         }
         return null;
@@ -2211,7 +2322,7 @@ public class BibleTextBlock : Panel
     {
         bounds = default;
         if (_notes.Count == 0) return null;
-        Footnote? best = null;
+        NoteRange? best = null;
         double bestDistance = double.MaxValue;
         foreach (var pl in _lines)
         {
@@ -2228,12 +2339,12 @@ public class BibleTextBlock : Panel
                 if (!rect.Inflate(TouchSlop).Contains(point)) continue;
                 double distance = Math.Abs(rect.Center.X - point.X) + Math.Abs(rect.Center.Y - point.Y);
                 if (distance >= bestDistance) continue;
-                best = n.Note;
+                best = n;
                 bestDistance = distance;
                 bounds = rect;
             }
         }
-        return best;
+        return best is { } hit ? NoteOf(hit) : null;
     }
 
     private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
@@ -2967,6 +3078,7 @@ public class BibleTextBlock : Panel
     private void OnInlinesChanged()
     {
         _inlinesVersion++;
+        _flat = null; // the content was replaced by inlines
         var current = new HashSet<Control>();
         foreach (var inline in Inlines) Collect(inline);
 
@@ -3039,63 +3151,23 @@ public class BibleTextBlock : Panel
             _pendingPosition = position;
             _keepPosition = true;
         }
-        await SwitchWindowAsync(books, BookIndex, ChapterRequest.ByIndex(ChapterIndex), null, _lastChapterIndex - ChapterIndex + 1);
+        await SwitchWindowAsync(books, BookIndex, ChapterRequest.ByIndex(ChapterIndex), null, _windowSlots);
     }
 
-    /// <summary>How long the content is built before the UI gets a turn (input, drawing) in between.</summary>
-    private const int BuildSliceMs = 8;
-
-    /// <summary>
-    /// Turns the chapters <paramref name="first"/> to <paramref name="last"/> of a book into inlines. Inlines are Avalonia objects, so this has
-    /// to happen on the UI thread; it is done in short slices, with the UI free in between, and the inlines are not attached to the control
-    /// until they are all built.
-    /// </summary>
-    private async Task<List<Inline>> BuildContentAsync(BookText.Book book, int first, int last)
+    /// <summary>Replaces the content with the text made from the runs of the window (see <see cref="BuildWindow"/>).</summary>
+    private void SetContent(FlatWindow content)
     {
-        double size = FontSize;
-        _buildGreenVerses = ShowVerseNumbersInGreen;
-        _buildWordsOfJesus = ShowWordsOfJesus; // read by the static ToInlines; building happens on the UI thread only
-        _buildChapterHeight = ChapterFloatHeight();
-        var content = new List<Inline>();
-        var clock = System.Diagnostics.Stopwatch.StartNew();
-        var inlineKey = new InlineKey(size, _buildWordsOfJesus, _buildGreenVerses, _buildChapterHeight);
-
-        async Task AddAsync(IEnumerable<Inline> inlines)
+        // A window that is made larger or smaller around the reader (_readingAnchor) must not stop what the reader is doing: a finger that pans, a flick that
+        // carries on, or an ease to a column go on (the offset is moved with the text when the new lines are laid out). Stopping a flick here left the
+        // columns between two columns, and they then snapped back to the one they came from: the swipe moved a little and went back.
+        if (_readingAnchor is null)
         {
-            foreach (var inline in inlines) // the work happens while this enumerates
-            {
-                content.Add(inline);
-                if (clock.ElapsedMilliseconds < BuildSliceMs) continue;
-                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background); // pending input and drawing go first
-                clock.Restart();
-            }
+            StopAnimation();
+            _panning = false;
+            _inertia = false;
+            _touchSelecting = false;
+            StopHoldTimer();
         }
-
-        await AddAsync(ToInlines(book, first, last, size, upperCase: false, _inlineCache, inlineKey));
-        // The inlines of the chapters of this window and of the one before stay (the window moves by a chapter or two, and goes back); the rest go.
-        var (before, firstBefore, lastBefore) = _inlineCacheRange;
-        int keepFrom = ReferenceEquals(before, book) ? Math.Min(first, firstBefore) : first, keepTo = ReferenceEquals(before, book) ? Math.Max(last, lastBefore) : last;
-        foreach (var stale in _inlineCache.Keys.Where(k => !ReferenceEquals(k.Book, book) || k.Chapter < keepFrom || k.Chapter > keepTo).ToList()) _inlineCache.Remove(stale);
-        _inlineCacheRange = (book, first, last);
-        return content;
-    }
-
-    /// <summary>What the inlines of a chapter depend on (besides the chapter): if it is another, they are made again.</summary>
-    private readonly record struct InlineKey(double Size, bool WordsOfJesus, bool GreenVerses, double ChapterHeight);
-
-    // The inlines of the chapters, kept while the window moves: the chapters that stay in it are the larger part of every new window, and making
-    // their inlines again (about 3.5 KB for each of the thousands) was the largest part of what a move of the window allocated on the UI thread.
-    private readonly Dictionary<(BookText.Book Book, int Chapter), (InlineKey Key, List<Inline> Inlines)> _inlineCache = new();
-    private (BookText.Book? Book, int First, int Last) _inlineCacheRange;
-
-    /// <summary>Replaces the content with built inlines (see <see cref="BuildContentAsync"/>).</summary>
-    private void SetContent(List<Inline> content)
-    {
-        StopAnimation();
-        _panning = false;
-        _inertia = false;
-        _touchSelecting = false;
-        StopHoldTimer();
         _overscroll = 0;
         // When a position is already known (the next or previous chapter, or a verse is wanted) the shown layout stays exactly
         // where it is until the new lines are flowed, and the position is then set from the anchor. Only a plain start from the top
@@ -3106,17 +3178,19 @@ public class BibleTextBlock : Panel
             _offsetX = _offsetY = 0;
         }
         _anchor = _caret = 0;
-        // One change notification each: every one walks all the inlines.
-        Inlines.Clear();
-        Inlines.AddRange(content);
+        Inlines.Clear(); // (a change notification: it forgets the content that was made from runs)
+        _flat = content;
+        AttachFloats(content);
+        _inlinesVersion++;
+        MarkDirty();
     }
+
     /// <summary>
     /// The inlines of the chapters <paramref name="first"/> to <paramref name="last"/> of a book: the first chapter of the book comes with its
     /// title (and its start mark), the others are the chapters alone. A text that is not a Bible book, and has no chapters, is shown whole,
     /// with its title.
     /// </summary>
-    private static IEnumerable<Inline> ToInlines(BookText.Book book, int first, int last, double size, bool upperCase,
-        Dictionary<(BookText.Book Book, int Chapter), (InlineKey Key, List<Inline> Inlines)>? cache = null, InlineKey key = default)
+    private static IEnumerable<Inline> ToInlines(BookText.Book book, int first, int last, double size, bool upperCase)
     {
         var chapters = ChaptersOf(book);
         if (first <= 0 || chapters.Count == 0)
@@ -3125,7 +3199,7 @@ public class BibleTextBlock : Panel
             yield return new VerseRun { Position = new BookText.VersePosition { Book = book, Chapter = 0, Verse = 0 } };
             yield return new Run(book.Name)
             {
-                FontSize = size * 2.4,
+                FontSize = size * BookTitleScale,
                 FontWeight = FontWeight.Bold,
             };
             yield return new LineBreak();
@@ -3143,15 +3217,9 @@ public class BibleTextBlock : Panel
         // reduced by the one that ends the chapter before. (A chapter that ends with a break of its own gets none added.)
         for (int i = first; i <= last; i++)
         {
-            List<Inline> inlines;
-            if (cache is not null && cache.TryGetValue((book, i), out var kept) && kept.Key.Equals(key)) inlines = kept.Inlines;
-            else
-            {
-                inlines = ToInlines(chapters[i], size, upperCase).ToList();
-                if (i > 0 && inlines.Count > 1 && inlines[0] is VerseRun && inlines[1] is LineBreak) inlines.RemoveAt(1);
-                if (inlines.Count == 0 || inlines[^1] is not LineBreak) inlines.Add(new LineBreak());
-                if (cache is not null) cache[(book, i)] = (key, inlines);
-            }
+            var inlines = ToInlines(chapters[i], size, upperCase).ToList();
+            if (i > 0 && inlines.Count > 1 && inlines[0] is VerseRun && inlines[1] is LineBreak) inlines.RemoveAt(1);
+            if (inlines.Count == 0 || inlines[^1] is not LineBreak) inlines.Add(new LineBreak());
             foreach (var inline in inlines) yield return inline;
         }
     }
@@ -3327,6 +3395,9 @@ public class BibleTextBlock : Panel
         if (lineAfter) yield return new LineBreak();
     }
 
+    /// <summary>The title of a book is this much larger than the text: large enough to be the heading, small enough for a long name (DEUTERONOMIO) to fit a line of a phone without being split.</summary>
+    private const double BookTitleScale = 1.5;
+
     private const double SmallCapsScale = 0.85;
 
     // The dotted underline of words that have a Strong's number is drawn by the text layer (see DrawStrongsUnderlines),
@@ -3392,7 +3463,7 @@ public class BibleTextBlock : Panel
         return sb.ToString();
     }
 
-    private readonly record struct NoteRange(int Start, int End, Footnote Note);
+    private readonly record struct NoteRange(int Start, int End, Footnote? Note, BookText.Run? Source = null);
 
     /// <summary>Where a word with Strong's numbers is in the flattened text, and the foreground of its span, which its underline is drawn in.</summary>
     private readonly record struct StrongsRange(int Start, int End, string Strong, IBrush Foreground);
@@ -3444,8 +3515,9 @@ public class BibleTextBlock : Panel
     /// per-run styles. Whitespace is collapsed like HTML so indented XAML text doesn't show its indentation.
     /// </summary>
     private (string Text, List<Segment> Segments, Dictionary<Control, int> Anchors, List<NoteRange> Notes,
-        HashSet<int> Breaks, List<(int Index, BookText.VersePosition Pos)> Markers, List<StrongsRange> Strongs) Flatten()
+        HashSet<int> Breaks, List<(int Index, BookText.VersePosition Pos)> Markers, List<StrongsRange> Strongs) Flatten(IEnumerable<Inline>? source = null)
     {
+        if (source is null && _flat is { } window && Inlines.Count == 0) return FlattenWindow(window); // the window was made from runs
         var sb = new StringBuilder();
         var segs = new List<Segment>();
         var anchors = new Dictionary<Control, int>();
@@ -3550,7 +3622,8 @@ public class BibleTextBlock : Panel
             }
         }
 
-        if (Inlines.Count > 0) Walk(Inlines, root);
+        if (source is not null) Walk(source, root);
+        else if (Inlines.Count > 0) Walk(Inlines, root);
         else if (!string.IsNullOrEmpty(Text)) Append(Text, root);
 
         // Trim one trailing collapsed space.

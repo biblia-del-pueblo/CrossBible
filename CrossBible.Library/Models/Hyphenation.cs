@@ -50,9 +50,6 @@ public static class Hyphenation
     // hyphenators were only ever used from one thread.
     private static readonly object HyphenateLock = new();
 
-    // TEMPORARY, to measure what hyphenation costs: how many words were worked out (not found in the cache) and how long that took.
-    public static long PerfWords, PerfTicks;
-
     private static Hyphenator? HyphenatorOf(string language) => Hyphenators.GetOrAdd(language, code =>
     {
         if (!Languages.Contains(code)) return null;
@@ -107,11 +104,7 @@ public static class Hyphenation
                 {
                     lock (HyphenateLock)
                     {
-                        long t0 = System.Diagnostics.Stopwatch.GetTimestamp(); // TEMPORARY (the measuring)
-                        var h = hyphenate(key.Word);
-                        System.Threading.Interlocked.Add(ref PerfTicks, System.Diagnostics.Stopwatch.GetTimestamp() - t0);
-                        System.Threading.Interlocked.Increment(ref PerfWords);
-                        return h;
+                        return hyphenate(key.Word);
                     }
                 });
                 if (hyphenated != word)
