@@ -48,8 +48,11 @@
     <!-- Theme brushes (not fixed colours): the bar and its popup follow light/dark mode, including live switches. -->
     <Border Padding="8,2"
             BorderThickness="0,0,0,1"
-            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <!-- The accent colour of the system: it follows the theme and the accent the user chose. -->
+        <Border.Background>
+            <SolidColorBrush Color="{DynamicResource SystemAccentColor}" />
+        </Border.Background>
         <Grid>
             <Grid x:Name="ToolbarGrid" ColumnDefinitions ="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="0">
                 <Button x:Name="MenuButton"
