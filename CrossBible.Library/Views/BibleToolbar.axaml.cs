@@ -1006,11 +1006,19 @@ public partial class BibleToolbar : UserControl
     private void SelectChapter(BookText.Book book, int chapter)
     {
         BookPopup.IsOpen = false;
-        ShowOnlineBibles = false; // a chapter is read in the text, not in the online list
+        // Verse 0 is the start of the chapter; the text block loads the book if it is not shown yet.
+        GoTo(new BookText.VersePosition { Book = book, Chapter = chapter, Verse = 0 });
+    }
+
+    /// <summary>
+    /// Takes the reader to a place of the Bible that is shown, as the book and chapter buttons do: the place is noted in the history (the back and forward
+    /// buttons, and the list of places) and the position indicator names it. Used by the text block when a chapter number or a verse number was picked.
+    /// </summary>
+    public void GoTo(BookText.VersePosition place)
+    {
+        ShowOnlineBibles = false; // a place is read in the text, not in the online list
         ShowSettings = false;
         if (Target is null) return;
-        // Verse 0 is the start of the chapter; the text block loads the book if it is not shown yet.
-        var place = new BookText.VersePosition { Book = book, Chapter = chapter, Verse = 0 };
         PushHistory(place);
         Target.Position = place;
     }

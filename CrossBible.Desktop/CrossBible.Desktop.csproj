@@ -25,6 +25,11 @@
         <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
         <SelfContained>true</SelfContained>
     </PropertyGroup>
+    <!-- Precompiled (ReadyToRun) for the Store packages: the app starts faster, as the code does not have to be compiled when it runs. Native AOT is not
+         an option here: Newtonsoft.Json and LiteDB need reflection and dynamic code. -->
+    <PropertyGroup Condition="'$(Platform)' == 'x64' or '$(Platform)' == 'ARM64'">
+        <PublishReadyToRun>true</PublishReadyToRun>
+    </PropertyGroup>
 
     <ItemGroup>
         <None Remove="Assets\CrossBible-logo.ico" />

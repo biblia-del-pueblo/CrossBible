@@ -8,6 +8,12 @@ using Avalonia.Threading;
 
 namespace CrossBible.Library.UI;
 
+/// <summary>The place that the reader picked in the popup of a chapter number or of a verse number.</summary>
+public sealed class PlaceRequestedEventArgs(BookText.VersePosition place) : EventArgs
+{
+    public BookText.VersePosition Place { get; } = place;
+}
+
 // Chapter numbers and verse numbers are buttons: one opens a popup with the numbers of all chapters of the book (or all verses of the chapter),
 // and the number that is picked is scrolled to.
 public partial class BibleTextBlock
@@ -109,11 +115,23 @@ public partial class BibleTextBlock
         return false;
     }
 
+    /// <summary>
+    /// The reader picked a chapter or a verse in the popup of a number. The owner (the toolbar) takes the reader there, so that the place is noted in its
+    /// history and in its position indicator; without a handler the text goes there by itself.
+    /// </summary>
+    public event EventHandler<PlaceRequestedEventArgs>? PlaceRequested;
+
+    private void GoToPlace(BookText.VersePosition place)
+    {
+        if (PlaceRequested is { } handler) handler(this, new PlaceRequestedEventArgs(place));
+        else ScrollToPosition(place);
+    }
+
     private void ShowChapters(BookText.Book book, Rect bounds)
     {
         var numbers = ChaptersOf(book).Where(c => c.Chapter >= 1).Select(c => c.Chapter).Distinct().ToList();
         int current = Position?.Book is { } shown && ReferenceEquals(shown, book) ? Position.Chapter : -1;
-        ShowNumbers(numbers, current, bounds, n => ScrollToPosition(new BookText.VersePosition { Book = book, Chapter = n, Verse = 0 }));
+        ShowNumbers(numbers, current, bounds, n => GoToPlace(new BookText.VersePosition { Book = book, Chapter = n, Verse = 0 }));
     }
 
     private void ShowVerses(BookText.VersePosition at, Rect bounds)
@@ -121,7 +139,7 @@ public partial class BibleTextBlock
         var numbers = _markers
             .Where(m => ReferenceEquals(m.Pos.Book, at.Book) && m.Pos.Chapter == at.Chapter && m.Pos.Verse >= 1)
             .Select(m => m.Pos.Verse).Distinct().OrderBy(v => v).ToList();
-        ShowNumbers(numbers, at.Verse, bounds, n => ScrollToPosition(new BookText.VersePosition { Book = at.Book, Chapter = at.Chapter, Verse = n }));
+        ShowNumbers(numbers, at.Verse, bounds, n => GoToPlace(new BookText.VersePosition { Book = at.Book, Chapter = at.Chapter, Verse = n }));
     }
 
     /// <summary>A popup with a button for each number; a click closes it and calls <paramref name="pick"/>. The number <paramref name="current"/> is in bold.</summary>

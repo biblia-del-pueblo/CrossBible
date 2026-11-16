@@ -11,12 +11,12 @@
   IgnorableNamespaces="uap rescap uap18">
 
   <Identity
-    Name="EstrellasDeEsperanza.CrossBible"
+    Name="EstrellasdeEsperanza.358954F0087BC"
     Publisher="CN=Estrellas de Esperanza"
-    Version="1.0.0.0" />
+    Version="0.8.0.0" />
 
   <Properties>
-    <DisplayName>CrossBible</DisplayName>
+    <DisplayName>Cross Bible</DisplayName>
     <PublisherDisplayName>Estrellas de Esperanza</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
@@ -31,6 +31,9 @@
     <Resource Language="da" />
     <Resource Language="de" />
     <Resource Language="el" />
+    <!-- The language of the resources of the package (DefaultLanguage in the project, en-US): the manifest must list it with its region,
+         a plain "en" does not match it and the package cannot be made (MakeAppx: "at least one Resource element with a Language attribute"). -->
+    <Resource Language="en-US" />
     <Resource Language="en" />
     <Resource Language="es" />
     <Resource Language="fa" />
@@ -53,6 +56,7 @@
     <Resource Language="ro" />
     <Resource Language="bg" />
     <Resource Language="hr" />
+    <Resource Language="sr" />
     <Resource Language="sr-Latn" />
     <Resource Language="sq" />
     <Resource Language="cs" />
@@ -76,8 +80,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$" uap18:RuntimeBehavior="windowsApp" uap18:TrustLevel="mediumIL">
       <uap:VisualElements
-        DisplayName="CrossBible"
-        Description="CrossBible is a cross platform bible reader. It runs on Windows, Linux, macOS, Android and iOS. It can download a lot of free bibles for many languages from ebible.org and crosswire.com. It displays the bible text in columns for easier reading, as your print bible does."
+        DisplayName="Cross Bible"
+        Description="CrossBible is a cross platform bible reader. It runs on Windows, Linux, macOS, Android and iOS. It can download a lot of free bibles for many languages from ebible.org and crosswire.org. It displays the bible text in columns for easier reading, as your print bible does."
         BackgroundColor="#B97D1A"
         Square150x150Logo="Images\Square150x150Logo.png"
         Square44x44Logo="Images\Square44x44Logo.png">

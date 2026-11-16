@@ -29,6 +29,8 @@ public partial class BibleView : UserControl
             Settings.Current.CurrentBible = id;
             try { Settings.Current.Save(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not save the settings: {ex}"); }
         };
+        // A chapter or a verse picked in the popup of a number goes through the toolbar: it is in the history and the position indicator shows it.
+        Block.PlaceRequested += (_, e) => Toolbar.GoTo(e.Place);
         AttachedToVisualTree += (_, _) => { RestoreBible(); Toolbar.ShowWhatIsThere(); UpdateNoBible(); UpdateNoBibleFill(); };
         ActualThemeVariantChanged += (_, _) => UpdateNoBibleFill();
         // The sign follows what is shown (the text, or the list of the online Bibles that replaces it) and whether a Bible is open.

@@ -3,6 +3,20 @@
              xmlns:loc="using:CrossBible.Library"
              x:Class="CrossBible.Library.UI.BibleToolbar">
 
+    <!-- The colour of the bar for each theme (it follows live switches of light and dark). -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ToolbarBackgroundBrush" Color="#80A000" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ToolbarBackgroundBrush" Color="#608800" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <UserControl.Styles>
         <!-- A cell of the book / chapter grid (the buttons are added in code). -->
         <Style Selector="Button.cell">
@@ -49,9 +63,8 @@
     <Border Padding="8,2"
             BorderThickness="0,0,0,1"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-        <!-- The accent colour of the system: it follows the theme and the accent the user chose. -->
         <Border.Background>
-            <SolidColorBrush Color="{DynamicResource SystemAccentColor}" />
+            <DynamicResource ResourceKey="ToolbarBackgroundBrush" />
         </Border.Background>
         <Grid>
             <Grid x:Name="ToolbarGrid" ColumnDefinitions ="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="0">
