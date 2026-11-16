@@ -2,6 +2,7 @@
 using BibleMarkdown;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -16,6 +17,14 @@ namespace CrossBible.Library.Downloads
     {
         public string File { get; set; }
         public override string Origin => "Local File";
+        
+        public BookArchive(string file) { this.File = file; Language = ""; LanguageEnglishName = ""; }
+        public BookArchive(BookArchive source): base(source)
+        {
+            File = source.File;
+        }
+
+        public override InstallableBook Upgrade() => Class == Classes.Dictionary ? new BibliaLibreDictionary(this) : this;
 
         // Words in capitals (LORD, GOD) become small caps. A word with Strong's attributes is matched as a whole, so its
         // attributes are not mistaken for words in capitals (the morphology "HR/Ncmsa" has capitals): either as
@@ -30,7 +39,7 @@ namespace CrossBible.Library.Downloads
 
         static readonly Regex StrongsAttributePart = new(@"^[GH][0-9]+$", RegexOptions.Compiled);
 
-        static bool IsRomanNumberOrIsbn(string word) => Regex.IsMatch(word, "^(?:[IVXCD]+|ISBN)$", RegexOptions.Singleline);
+        static bool IsRomanNumberOrIsbn(string word) => Regex.IsMatch(word, "^(?:[IVXCD]+|ISBN|BC|AC)$", RegexOptions.Singleline);
 
         /// <summary>The first letter of the word and the rest in lower case: "LORD" becomes "Lord".</summary>
         static string Capitalize(string word) => word.Length < 2 ? word : word[0] + word[1..].ToLowerInvariant();
@@ -84,14 +93,17 @@ namespace CrossBible.Library.Downloads
         {
             if (string.IsNullOrEmpty(File)) throw new InvalidOperationException("File is not set.");
 
+            var name = IO.Path.GetFileNameWithoutExtension(File);
+            EnglishName = Name = name;
             var path = ConfigPath;
+
             var src = IO.Path.Combine(path, "src");
             Directory.CreateDirectory(src);
 
             var ext = IO.Path.GetExtension(File).ToLower();
             if (ext == ".zip" || ext == ".7z")
             {
-                Directory.Delete(src);
+                Directory.Delete(src, true);
                 Zip.UnzipZipFile(File, src);
             }
             else IO.File.Copy(File, IO.Path.Combine(src, IO.Path.GetFileName(File)), true);
@@ -101,11 +113,63 @@ namespace CrossBible.Library.Downloads
                     var transform = new Transform(path, src);
                     transform.Import.Postprocess = PostprocessMarkdownSmallCaps;
                     transform.Import.All();
+                    try
+                    {
+                        var info = transform.Import.ReadInfo(path);
+                        if (info != null)
+                        {
+                            var oldpath = ConfigPath;
+                            LanguageCode = info.LanguageCode;
+                            Language = info.Language;
+                            LanguageEnglishName = info.LanguageEnglishName;
+                            Class = (CrossBible.Library.InstallableBook.Classes)info.Class;
+                            CountryCode = info.CountryCode;
+                            CountryName = info.CountryName;
+                            EnglishName = info.EnglishName;
+                            Name = info.Name ?? "";
+                            var newpath = ConfigPath;
+                            if (oldpath != newpath) Directory.Move(oldpath, newpath);
+                        }
+                    } catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Cannot read info.json: {ex}");
+                    }
                     transform.Index.Create(LanguageCode);
                     Directory.Delete(src, true);
                 });
             }
             finally { }
         }
+    }
+
+    public class BookArchiveDictionary: BookArchive, IStrongDictionary
+    {
+        public override Classes Class => Classes.Dictionary;
+        public BookArchiveDictionary(BookArchive source) : base(source) { }
+        string DatabaseFile => IO.Path.Combine(ConfigPath, StrongsDatabase.FileName);
+        StrongsDatabase database = null;
+        StrongsDatabase Database
+        {
+            get => database ??= StrongsDatabase.Open(DatabaseFile);
+            set => database = value;
+        }
+        public bool IsEnabled { get; set; }
+        protected bool IsImported => IO.File.Exists(DatabaseFile);
+
+        public override async Task Install()
+        {
+            await base.Install();
+            IsEnabled = true; // an installed dictionary is used at once; it is switched off in the Strongs list
+        }
+
+        public string? LookupStrong(string strong) => Database.Get(strong);
+        public override async Task Uninstall()
+        {
+            IsEnabled = false; // a dictionary that is removed is switched off first, so Any is told
+            Dispose();
+            await base.Uninstall();
+        }
+
+        public void Dispose() => database?.Dispose();
     }
 }

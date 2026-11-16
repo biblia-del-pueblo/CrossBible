@@ -24,9 +24,9 @@ public partial class BibleView : UserControl
         {
             if (e.Property == BibleTextBlock.PositionProperty) { SavePositionSoon(); return; }
             if (e.Property != BibleTextBlock.BookTextProperty) return;
-            var name = (e.NewValue as BookText)?.EnglishName;
-            if (Settings.Current.CurrentBible == name) return;
-            Settings.Current.CurrentBible = name;
+            var id = (e.NewValue as BookText)?.Id;
+            if (Settings.Current.CurrentBible == id) return;
+            Settings.Current.CurrentBible = id;
             try { Settings.Current.Save(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not save the settings: {ex}"); }
         };
         AttachedToVisualTree += (_, _) => { RestoreBible(); Toolbar.ShowWhatIsThere(); UpdateNoBible(); UpdateNoBibleFill(); };
@@ -126,7 +126,7 @@ public partial class BibleView : UserControl
         if (Block.IsBusy) { if (!force) SavePositionSoon(); return; } // still opening: the position is not the reader's yet
         if (Block.BookText is null || Block.Position is not { Book: { } book } position) return;
         var settings = Settings.Current;
-        if (settings.CurrentBible != Block.BookText.EnglishName) return; // the Bible is being switched
+        if (settings.CurrentBible != Block.BookText.Id) return; // the Bible is being switched
         if (settings.CurrentBookIndex == book.Index && settings.CurrentChapter == position.Chapter && settings.CurrentVerse == position.Verse) return;
         settings.CurrentBookIndex = book.Index;
         settings.CurrentChapter = position.Chapter;
@@ -142,8 +142,8 @@ public partial class BibleView : UserControl
         ApplyAppearance(); // before the first Bible is opened below, so its text is built with these
         // With no Bible to read, the list of the online Bibles is what the reader needs first.
         if (Block.BookText is null && OnlineBiblesView.NoneInstalled) { Toolbar.ShowOnlineBibles = true; return; }
-        if (Block.BookText is not null || Settings.Current.CurrentBible is not { Length: > 0 } name) return;
-        if (Settings.Current.Books?.FirstOrDefault(b => b.EnglishName == name) is not { } bible) return;
+        if (Block.BookText is not null || Settings.Current.CurrentBible is not { Length: > 0 } id) return;
+        if (Settings.Current.Books?.FirstOrDefault(b => b.Id == id) is not { } bible) return;
         var settings = Settings.Current;
         Block.OpenNextAt(settings.CurrentBookIndex, settings.CurrentChapter, settings.CurrentVerse);
         Toolbar.BookText = bible; // the text block follows, and opens at the saved position

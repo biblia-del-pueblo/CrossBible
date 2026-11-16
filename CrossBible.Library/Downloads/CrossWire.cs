@@ -46,7 +46,7 @@ namespace CrossBible.Library
             var modules = new List<T>();
             foreach (var table in html.DocumentNode.Descendants("table").Where(t => t.HasClass("moddisp")))
             {
-                var language = LanguageOf(table);
+                var language = LanguageCodeOf(table);
                 foreach (var row in table.Descendants("tr"))
                 {
                     var cells = row.Elements("td").ToList(); // the header row has th cells
@@ -60,7 +60,8 @@ namespace CrossBible.Library
                     var module = create();
                     module.EnglishName = name;
                     module.Name = Text(cells[2]) is { Length: > 0 } description ? description : name;
-                    module.Language = language;
+                    module.LanguageCode = language;
+                    module.Language = LanguageNativeName(language);
                     module.LanguageEnglishName = EnglishLanguageName(language);
                     module.DetailsUrl = info.Length > 0 ? Absolute(info, "/sword/modules/") : null;
                     module.CrossWireModuleUrl = Absolute(download, "/sword/modules/");
@@ -83,7 +84,7 @@ namespace CrossBible.Library
             : Host + folder + href;
 
         /// <summary>The language code of the table: from the heading ("Language: de") that comes before it.</summary>
-        static string LanguageOf(HtmlNode table)
+        static string LanguageCodeOf(HtmlNode table)
         {
             for (var node = table.PreviousSibling; node != null; node = node.PreviousSibling)
             {
@@ -106,6 +107,16 @@ namespace CrossBible.Library
             catch (CultureNotFoundException) { return code; }
         }
 
+        static string LanguageNativeName(string code)
+        {
+            if (code.Length == 0) return code;
+            try
+            {
+                var name = CultureInfo.GetCultureInfo(code).NativeName;
+                return name.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase) ? code : name;
+            }
+            catch (CultureNotFoundException) { return code; }
+        }
         /// <summary>
         /// Downloads the module (a zip with the folders mods.d and modules) into the src folder of the module, and
         /// imports it: a Bible is converted to markdown books, a Strong's dictionary to the database of its entries.

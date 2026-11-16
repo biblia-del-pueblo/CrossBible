@@ -157,6 +157,8 @@ public partial class BibleToolbar : UserControl
     {
         base.OnAttachedToVisualTree(e);
         CrossBible.Library.Downloads.StrongsDictionaries.AnyChanged += OnStrongsAnyChanged;
+        CrossBible.Library.Downloads.StrongsDictionaries.Refreshed += OnStrongsRefreshed;
+        UpdateText(); // a dictionary may have been installed or deleted while the bar was away
         // The Bible lives as long as the app: while the bar is away it must not be held by the Bible's event.
         if (_watchedBible is not null) { _watchedBible.PropertyChanged -= OnBiblePropertyChanged; _watchedBible.PropertyChanged += OnBiblePropertyChanged; }
         UpdateStrongsSelected(); // it may have changed while the bar was away
@@ -165,6 +167,7 @@ public partial class BibleToolbar : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         CrossBible.Library.Downloads.StrongsDictionaries.AnyChanged -= OnStrongsAnyChanged;
+        CrossBible.Library.Downloads.StrongsDictionaries.Refreshed -= OnStrongsRefreshed;
         // Without this, every view that was made again (a change of language or size) stayed in memory, with all its
         // controls and layout, because the Bible's event kept the bar alive.
         if (_watchedBible is not null) _watchedBible.PropertyChanged -= OnBiblePropertyChanged;
@@ -173,6 +176,9 @@ public partial class BibleToolbar : UserControl
 
     // Raised when a dictionary is switched on or off, installed or deleted, possibly on another thread.
     private void OnStrongsAnyChanged(object? sender, EventArgs e) => Avalonia.Threading.Dispatcher.UIThread.Post(UpdateStrongsSelected);
+
+    // Raised when a dictionary was installed, deleted, or switched on or off: the Strongs button is there only while a dictionary is installed.
+    private void OnStrongsRefreshed(object? sender, EventArgs e) => Avalonia.Threading.Dispatcher.UIThread.Post(UpdateText);
 
     /// <summary>The Strongs button is selected while <see cref="Settings.ShowStrongs"/> is on.</summary>
     private void UpdateStrongsSelected() =>
@@ -509,7 +515,9 @@ public partial class BibleToolbar : UserControl
         var bibles = Settings.Current.Books ?? new List<BookText>();
         string? current = Position?.Book?.BookText?.Name;
         // Strong's dictionaries are not read like a Bible: they are switched on and off in the Strongs list.
-        foreach (var bible in bibles.Where(b => !string.IsNullOrEmpty(b.EnglishName) && b is not IStrongDictionary))
+        foreach (var bible in bibles.Where(b => !string.IsNullOrEmpty(b.EnglishName) && b is not IStrongDictionary)
+            .OrderBy(b => b is InstallableBook ibook ? ibook.LanguageCode : "")
+            .ThenBy(b => b.Name ?? b.EnglishName ?? ""))
         {
             var chosen = bible;
             var button = new Button { Content = ShortenWithEllipsis(chosen.Name ?? chosen.EnglishName, 40) };
@@ -728,19 +736,75 @@ public partial class BibleToolbar : UserControl
     {
         if (e.Key != Key.Enter) return;
         e.Handled = true;
-        _ = SearchAsync();
+        _ = SearchAsync(false);
     }
 
-    private void OnSearchGoClick(object? sender, RoutedEventArgs e) => _ = SearchAsync();
+    private void OnSearchGoClick(object? sender, RoutedEventArgs e) => _ = SearchAsync(false);
+
+    private Avalonia.Threading.DispatcherTimer? _typingTimer;
+    private bool _settingSearchText;
+
+    /// <summary>Search as the reader types: a short pause after the last key press runs the search, with the matching words on top.</summary>
+    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (_settingSearchText) return;
+        _typingTimer ??= new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _typingTimer.Tick -= OnTyped;
+        _typingTimer.Tick += OnTyped;
+        _typingTimer.Stop();
+        _typingTimer.Start();
+    }
+
+    private void OnTyped(object? sender, EventArgs e)
+    {
+        _typingTimer?.Stop();
+        _ = SearchAsync(true);
+    }
+
+    private static readonly Regex LastWordRx = new(@"[\p{L}\p{M}\p{Nd}]+$", RegexOptions.Compiled);
+
+    /// <summary>The words that contain the last word typed, each with how often it occurs, as buttons that wrap over the width.</summary>
+    private Control WordsList(List<(string Word, int Count)> words, string typed)
+    {
+        var panel = new WrapPanel();
+        foreach (var (word, count) in words)
+        {
+            var chosen = word;
+            var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4 };
+            content.Children.Add(new TextBlock { Text = chosen, FontSize = UiScale.Size(14) });
+            content.Children.Add(new TextBlock { Text = count.ToString(), Opacity = 0.6, FontSize = UiScale.Size(12), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            var button = new Button { Content = content, Padding = new Thickness(6, 2), Margin = new Thickness(0, 0, 4, 4) };
+            button.Click += (_, _) =>
+            {
+                // the last word typed becomes the chosen one, and the search runs
+                _typingTimer?.Stop();
+                _settingSearchText = true;
+                SearchBox.Text = typed[..^LastWordRx.Match(typed).Length] + chosen;
+                _settingSearchText = false;
+                SearchBox.CaretIndex = SearchBox.Text.Length;
+                _ = SearchAsync(false);
+            };
+            panel.Children.Add(button);
+        }
+        return panel;
+    }
 
     /// <summary>
     /// Searches the Bible that is shown for the words in the box (<see cref="InstallableBook.Search"/>) and lists the
     /// verses, the best match first, with the words in bold. Choosing a verse goes to it.
     /// </summary>
-    private async Task SearchAsync()
+    private async Task SearchAsync(bool showWords)
     {
-        var phrase = SearchBox.Text?.Trim();
-        if (string.IsNullOrEmpty(phrase)) return;
+        _typingTimer?.Stop(); // Enter or the button: the search that is due now replaces the one that waited
+        var typed = SearchBox.Text ?? "";
+        var phrase = typed.Trim();
+        if (string.IsNullOrEmpty(phrase))
+        {
+            _searchRunning = null;
+            SearchResults.Children.Clear();
+            SearchStatus.IsVisible = false;
+            return;
+        }
         SearchStatus.IsVisible = true;
 
         var shown = Position?.Book?.BookText ?? BookText;
@@ -752,10 +816,17 @@ public partial class BibleToolbar : UserControl
             ?? new InstallableBook { EnglishName = shown.EnglishName ?? shown.Name, Name = shown.Name };
 
         var running = _searchRunning = new object();
-        SearchResults.Children.Clear();
+        if (!showWords) SearchResults.Children.Clear(); // while typing, the old list stays until the new one is ready (no flicker)
         SearchStatus.Text = Localizer.Get("Searching");
         List<InstallableBook.SearchResult> results;
-        try { results = await searchable.Search(phrase); }
+        List<(string Word, int Count)> words = new();
+        try
+        {
+            var lastWord = typed.Length > 0 && !char.IsWhiteSpace(typed[^1]) ? LastWordRx.Match(typed).Value : "";
+            var wordsTask = showWords && lastWord.Length > 0 ? searchable.WordsContaining(lastWord) : Task.FromResult(words);
+            results = await searchable.Search(phrase);
+            words = await wordsTask;
+        }
         catch (Exception ex)
         {
             if (ReferenceEquals(running, _searchRunning)) SearchStatus.Text = Localizer.Format("SearchFailed", ex.Message);
@@ -764,6 +835,8 @@ public partial class BibleToolbar : UserControl
         if (!ReferenceEquals(running, _searchRunning)) return;
 
         SearchStatus.Text = results.Count == 0 ? Localizer.Get("NoVersesFound") : Localizer.Format("VersesFound", results.Count);
+        SearchResults.Children.Clear();
+        if (words.Count > 0) SearchResults.Children.Add(WordsList(words, typed)); // at the top of the results
         foreach (var result in results)
         {
             var found = result;
@@ -1000,8 +1073,9 @@ public partial class BibleToolbar : UserControl
         var book = NamedBook(position);
         WatchBible(book?.BookText);
         BackButton.IsVisible = ForwardButton.IsVisible = IsWide;
-        // The Strongs button is only there for a Bible that has Strong's numbers (known once a book of it has been read).
-        StrongsButton.IsVisible = book?.BookText?.HasStrongs == true;
+        // The Strongs button is only there for a Bible that has Strong's numbers (known once a book of it has been read), and while a Strong's
+        // dictionary is installed (without one the button has nothing to switch on).
+        StrongsButton.IsVisible = book?.BookText?.HasStrongs == true && StrongsDictionariesInstalled().Count > 0;
         UpdateStrongsLetters(book);
         BookName.Text = book?.Name ?? string.Empty;
         BibleName.Text = book?.BookText?.Name ?? string.Empty;

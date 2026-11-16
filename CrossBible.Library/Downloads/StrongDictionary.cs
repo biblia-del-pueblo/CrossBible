@@ -44,9 +44,15 @@ namespace CrossBible.Library.Downloads
         public static void Refresh()
         {
             var now = Compute();
-            if (any == now) return;
-            any = now;
-            AnyChanged?.Invoke(null, EventArgs.Empty);
+            if (any != now)
+            {
+                any = now;
+                AnyChanged?.Invoke(null, EventArgs.Empty);
+            }
+            Refreshed?.Invoke(null, EventArgs.Empty);
         }
+
+        /// <summary>Raised by every <see cref="Refresh"/>, also when <see cref="Any"/> stayed as it was: what is installed may have changed (possibly on another thread than the UI).</summary>
+        public static event EventHandler? Refreshed;
     }
 }

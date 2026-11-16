@@ -213,7 +213,7 @@
                         BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
                     <StackPanel Spacing="6">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                            <TextBox x:Name="SearchBox" PlaceholderText="{loc:Loc SearchBible}" KeyDown="OnSearchKeyDown" />
+                            <TextBox x:Name="SearchBox" PlaceholderText="{loc:Loc SearchBible}" KeyDown="OnSearchKeyDown" TextChanged="OnSearchTextChanged" />
                             <Button Grid.Column="1" Click="OnSearchGoClick" ToolTip.Tip="{loc:Loc Search}">
                                 <loc:ThemedSvg Path="/Assets/magnifying-glass.svg" Size="16" />
                             </Button>

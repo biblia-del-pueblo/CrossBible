@@ -699,8 +699,8 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
         }
     }
 
-    public string Name { get; set; }
-    public string EnglishName { get; set; }
+    public string Name { get; set; } = "";
+    public string? EnglishName { get; set; }
     public virtual string Origin => GetType().Name;
     public string Id => WebUtility.UrlEncode(Origin + "." + (!string.IsNullOrEmpty(EnglishName) ? EnglishName : Name));
     [Newtonsoft.Json.JsonIgnore] // Settings are saved with Newtonsoft; the books are read from the folder

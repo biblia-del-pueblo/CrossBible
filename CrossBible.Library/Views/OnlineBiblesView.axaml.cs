@@ -26,8 +26,8 @@ public partial class OnlineBibleItem : ObservableObject
     }
 
     OnlineBiblesView View { get; set; }
-    public InstallableBook Bible { get; }
-
+    public InstallableBook Bible { get; private set; }
+    public void Upgrade() => Bible = Bible.Upgrade();
     private WeakReference<Avalonia.Media.IImage>? _coverRef; // the cover, as long as a row on the screen holds it
     private bool _hasNoCover;
     private static bool _fontsAdded;
@@ -138,8 +138,8 @@ public partial class OnlineBibleItem : ObservableObject
         var dir = bible.ConfigPath;
         if (!Directory.Exists(dir)) return false;
         // A Strong's dictionary has no books: it is installed when its database is.
-        return bible is IStrongDictionary ? File.Exists(Path.Combine(dir, BibleMarkdown.StrongsDatabase.FileName))
-            : Directory.EnumerateFiles(dir, "*.md").Any();
+        return bible is BookArchive || (bible is IStrongDictionary ? File.Exists(Path.Combine(dir, BibleMarkdown.StrongsDatabase.FileName))
+            : Directory.EnumerateFiles(dir, "*.md").Any());
     }
 }
 
@@ -236,8 +236,8 @@ public partial class OnlineBiblesView : UserControl
     private IReadOnlyList<OnlineBibleItem> _installedShown = Array.Empty<OnlineBibleItem>(); // the installed Bibles
 
     private static int ColumnsFor(Size size) =>
-        Math.Min(size.Width, size.Height) >= TwoColumnsMinSize
-            ? Math.Max(1, (int)Math.Floor((size.Width - ListMargin + ColumnGap) / (MinColumnWidth + ColumnGap)))
+        size.Width >= TwoColumnsMinSize
+            ?Math.Max(1, (int)Math.Floor((size.Width - ListMargin + ColumnGap) / (MinColumnWidth + ColumnGap)))
             : 1;
 
     /// <summary>
@@ -249,6 +249,8 @@ public partial class OnlineBiblesView : UserControl
         var bibleRow = (Avalonia.Controls.Templates.IDataTemplate)Resources["BibleRow"]!;
         _selectedItem = null; _selectedCell = null; // a list that is made again has no selection
         box.Classes.Set("columns", _columns >= 2); // the style that hides the selection of a whole row
+        // Empty first: a list that keeps its row containers would go on showing the old number of columns after the template changed.
+        box.ItemsSource = null;
         if (_columns < 2)
         {
             box.ItemTemplate = bibleRow;
@@ -406,9 +408,6 @@ public partial class OnlineBiblesView : UserControl
             if (files.Count == 0) return;
             var file = files[0];
 
-            var name = await AskNameAsync(Path.GetFileNameWithoutExtension(file.Name));
-            if (name is null) return;
-
             // Some platforms (Android) give a content address instead of a path: copy that to a temporary file.
             var path = file.TryGetLocalPath();
             if (path is null)
@@ -421,12 +420,30 @@ public partial class OnlineBiblesView : UserControl
             }
 
             LoadSpinner.IsVisible = true;
+
+            var name = Path.GetFileNameWithoutExtension(file.Name);
             StatusText.Text = Localizer.Format("Installing", name);
-            bible = new BookArchive { File = path, Name = name, EnglishName = name, Language = "", LanguageEnglishName = "" };
+            bible = new BookArchive(path);
             await bible.Install();
+            bible = bible.Upgrade() as BookArchive;
+            if (string.IsNullOrEmpty(bible.Name) && string.IsNullOrEmpty(bible.EnglishName))
+            {
+                var oldpath = bible.ConfigPath;
+                name = await AskNameAsync(name);
+                if (name is null) {
+                    await bible.Uninstall();
+                    return;
+                }
+                if (string.IsNullOrEmpty(bible.Name)) bible.Name = name;
+                if (string.IsNullOrEmpty(bible.EnglishName)) bible.EnglishName = name;
+                var newpath = bible.ConfigPath;
+                if (oldpath != newpath) Directory.Move(oldpath, newpath);
+            }
             if (!Directory.EnumerateFiles(bible.ConfigPath, "*.md").Any() &&
                 !Directory.EnumerateFiles(bible.ConfigPath, "*.db").Any())
                 throw new InvalidDataException(Localizer.Get("NoBooksImported"));
+
+            await BibliaLibreBible.GetImagesAsync(bible);
 
             var settings = Settings.Current;
             settings.Books ??= new List<BookText>();
@@ -764,6 +781,7 @@ public partial class OnlineBiblesView : UserControl
         try
         {
             await item.Bible.Install();
+            item.Upgrade();
             item.IsInstalled = true;
             var settings = Settings.Current;
             settings.Books ??= new List<BookText>();

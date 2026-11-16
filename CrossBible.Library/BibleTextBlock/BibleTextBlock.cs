@@ -745,11 +745,14 @@ public partial class BibleTextBlock : Panel
             var starts = ChapterStarts(vertical);
             if (starts.Count == shown) // one mark for each chapter of the window (else it is not known which chapter is where)
             {
+                // Never trim below the TotalScreens in all: at the very start or end of the Bible the other side cannot make up for it, and the window
+                // would grow and shrink again and again (the scroll bar flickered).
+                double keep = TotalScreens * unit;
                 if (!wantBehind)
-                    for (int k = 0; k + 1 < starts.Count && starts[k + 1] <= pos - TrimScreens * unit; k++)
+                    for (int k = 0; k + 1 < starts.Count && starts[k + 1] <= pos - TrimScreens * unit && total - starts[k + 1] >= keep; k++)
                         startShift = k + 1;
                 if (!wantAhead)
-                    for (int k = starts.Count - 1; k >= 1 && starts[k] >= pos + unit + TrimScreens * unit; k--)
+                    for (int k = starts.Count - 1; k >= 1 && starts[k] >= pos + unit + TrimScreens * unit && starts[k] >= keep; k--)
                         endShift = -(shown - k);
             }
         }
@@ -1786,6 +1789,10 @@ public partial class BibleTextBlock : Panel
             e.Handled = true;
             Dispatcher.UIThread.Post(() => ShowFootnote(note, bounds), DispatcherPriority.Background);
         }
+        else if (TryOpenNumbers(ToContent(position), touch: true))
+        {
+            e.Handled = true;
+        }
         else if (HitStrongs(ToContent(position), out var wordBounds) is { } strong)
         {
             wordBounds = wordBounds.Translate(new Vector(-_offsetX, -_offsetY));
@@ -2789,7 +2796,8 @@ public partial class BibleTextBlock : Panel
             UpdateAutoScroll(position);
             return;
         }
-        Cursor = HitFootnote(point, out _) is not null || HitStrongs(point, out _) is not null ? HandCursor : IsOverText(point) ? IBeamCursor : null;
+        Cursor = HitFootnote(point, out _) is not null || HitStrongs(point, out _) is not null
+            || HitChapterNumber(point, 0, out _) is not null || HitVerseNumber(point, VerseSlopMouse, out _) is not null ? HandCursor : IsOverText(point) ? IBeamCursor : null;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -2831,6 +2839,7 @@ public partial class BibleTextBlock : Panel
             Dispatcher.UIThread.Post(() => ShowFootnote(note, bounds), DispatcherPriority.Background);
             return;
         }
+        if (TryOpenNumbers(point, touch: false)) { e.Handled = true; return; }
 
         _pressedStrong = e.ClickCount == 1 && HitStrongs(point, out var wordBounds) is { } strong ? (strong, wordBounds) : null;
 
@@ -2971,6 +2980,8 @@ public partial class BibleTextBlock : Panel
         var text = new SelectableTextBlock // selectable so the text can be copied
         {
             TextWrapping = TextWrapping.Wrap,
+            Padding = new Thickness(10, 8),
+            Background = Brushes.Transparent, // a control without a background is not hit between its letters: a press there selected nothing
             FontSize = FontSize * FootnoteScale,
             FontFamily = FontFamily, // a popup is its own visual root: it would not inherit the font from this control
             // Nor the direction: a footnote of a Hebrew or Arabic text is written from right to left. It is decided by the text of the
@@ -2979,14 +2990,160 @@ public partial class BibleTextBlock : Panel
         };
         foreach (var inline in items) text.Inlines!.Add(inline);
         text[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SystemControlForegroundBaseHighBrush");
+        SelectWholeWords(text, () => text.Text is { Length: > 0 } shown ? shown : PlainText(items));
+        var contextMenu = text.ContextMenu = new ContextMenu
+        {
+            ItemsSource = new[]
+            {
+                CreateMenuItem("Copy", () => text.Copy(), "copy.svg"),
+                CreateMenuItem("Select all", text.SelectAll, "select-all.svg"),
+            },
+        };
+        // The control asks for its menu by itself too: when a finger stays on the text (a long press, which is how a word is selected by touch) and when
+        // the mouse is right-clicked. Only the right click and the tap on a selection (below) may open it, else it flashed up while the reader was selecting.
+        bool menuWanted = false, rightPressed = false;
+        contextMenu.Opening += (_, e) => { if (!menuWanted && !rightPressed) e.Cancel = true; };
+        // The control also has a context flyout of its own (Copy, shown for any long press, with or without a selection), which it puts there when it
+        // is attached: taken away, whenever it is put there.
+        text.ContextFlyout = null;
+        text.AttachedToVisualTree += (_, _) => text.ContextFlyout = null;
+        text.PropertyChanged += (_, e) => { if (e.Property == Control.ContextFlyoutProperty && text.ContextFlyout is not null) text.ContextFlyout = null; };
+        void OpenMenu()
+        {
+            menuWanted = true;
+            try { contextMenu.Open(text); }
+            finally { menuWanted = false; }
+        }
+        // A tap on the selection offers Copy and Select all, as it does in the text of the Bible (the context menu opens from a right click as well).
+        // A press on the selection would put it away (and start a new one) before the tap is known: the control does not get that press (the selection
+        // stays as it is, without a flicker), and the menu opens when the finger or the button is lifted without having moved. A press elsewhere is the
+        // control's own, as it was.
+        Point? pressedOn = null;
+        bool pressDown = false; // a press that began on the selection is down (and the control did not see it)
+        // The menu waits a moment after the lift: a second press (a double click that selects a word, or the start of another selection) comes first
+        // when the reader is selecting, and the menu must not flash up then.
+        DispatcherTimer? menuTimer = null;
+        void StopMenuTimer() { menuTimer?.Stop(); menuTimer = null; }
+        text.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            StopMenuTimer();
+            pressedOn = null;
+            pressDown = false;
+            rightPressed = e.Pointer.Type == PointerType.Mouse && e.GetCurrentPoint(text).Properties.IsRightButtonPressed;
+            if (text.SelectionStart == text.SelectionEnd || !e.GetCurrentPoint(text).Properties.IsLeftButtonPressed || e.ClickCount > 1) return;
+            int low = Math.Min(text.SelectionStart, text.SelectionEnd), high = Math.Max(text.SelectionStart, text.SelectionEnd);
+            var at = e.GetPosition(text);
+            int index = text.TextLayout.HitTestPoint(at - new Point(text.Padding.Left, text.Padding.Top)).TextPosition;
+            if (index < low || index > high) return;
+            pressedOn = at;
+            pressDown = true;
+            e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        text.AddHandler(InputElement.PointerMovedEvent, (_, e) =>
+        {
+            if (!pressDown) return;
+            if (pressedOn is { } from && Math.Abs(e.GetPosition(text).X - from.X) + Math.Abs(e.GetPosition(text).Y - from.Y) > 10) pressedOn = null; // a drag, not a tap
+            // The control moves the end of its selection with every move while a button is down, whether it saw the press or not: the small
+            // moves of a finger that taps the selection resized it. The moves of a press that began on the selection are not its.
+            e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        text.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
+        {
+            bool swallowed = pressDown;
+            pressDown = false;
+            if (pressedOn is null) { if (swallowed) e.Handled = true; return; }
+            pressedOn = null;
+            StopMenuTimer();
+            var timer = menuTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+            timer.Tick += (_, _) =>
+            {
+                StopMenuTimer();
+                if (text.SelectionStart != text.SelectionEnd && !contextMenu.IsOpen) OpenMenu();
+            };
+            timer.Start();
+            e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        ShowCard(text, bounds);
+    }
 
+    /// <summary>
+    /// Makes the selection of the text of a popup always cover whole words, as it does in the text of the Bible: whenever it changes, its start
+    /// moves back to the start of its word and its end on to the end of its word.
+    /// </summary>
+    private static void SelectWholeWords(SelectableTextBlock block, Func<string> getText)
+    {
+        bool snapping = false;
+        static bool InWord(string s, int i) =>
+            i >= 0 && i < s.Length && (char.IsLetterOrDigit(s[i]) || char.GetUnicodeCategory(s[i]) is System.Globalization.UnicodeCategory.NonSpacingMark
+                or System.Globalization.UnicodeCategory.SpacingCombiningMark || s[i] == '­'
+                || ((s[i] == '\'' || s[i] == '’') && InWord(s, i - 1) && InWord(s, i + 1)));
+        bool queued = false;
+        // The control sets the start and the end one after the other (the end is still the old one while the start is new): the selection is
+        // looked at once both are set, from a posted callback, not from the change of one of them.
+        block.PropertyChanged += (_, e) =>
+        {
+            if (snapping || queued || (e.Property != SelectableTextBlock.SelectionStartProperty && e.Property != SelectableTextBlock.SelectionEndProperty)) return;
+            queued = true;
+            Dispatcher.UIThread.Post(() => { queued = false; Snap(); }, DispatcherPriority.Send); // before the next frame is drawn, so the raw selection is never seen
+        };
+        void Snap()
+        {
+            int start = Math.Min(block.SelectionStart, block.SelectionEnd), end = Math.Max(block.SelectionStart, block.SelectionEnd);
+            if (start == end) return;
+            var s = getText();
+            if (end > s.Length) return;
+            int newStart = start, newEnd = end;
+            while (newStart > 0 && InWord(s, newStart - 1) && InWord(s, newStart)) newStart--;
+            while (newEnd < s.Length && InWord(s, newEnd) && InWord(s, newEnd - 1)) newEnd++;
+            if (newStart == start && newEnd == end) return;
+            snapping = true;
+            // The direction is kept: the control moves the end of the selection with the pointer and keeps its start where the press was (which is the
+            // later one of the two when the pointer went backwards): with the two turned around, the next move would measure from the wrong end and the
+            // selection flickered between the whole word and what the pointer covers.
+            bool backwards = block.SelectionStart > block.SelectionEnd;
+            try
+            {
+                if (backwards) { block.SelectionStart = newEnd; block.SelectionEnd = newStart; }
+                else { block.SelectionStart = newStart; block.SelectionEnd = newEnd; }
+            }
+            finally { snapping = false; }
+        }
+    }
+
+    // On Windows a popup is a window of its own, and Windows runs its press and hold (a long press is a right click, with a square that closes in) on it
+    // as on any window, which gets in the way of the long press that selects text. The main window turns that off (see MainWindow in the desktop
+    // project); a popup window is asked the same way, once for each window.
+    private const uint WM_TABLET_QUERYSYSTEMGESTURESTATUS = 0x02CC;
+    private const int TabletDisableGestures = 0x00000001 | 0x00000008 | 0x00000010; // press and hold, pen tap feedback, pen barrel feedback
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TopLevel, object> GestureFreePopups = new();
+
+    private void OnPopupOpened(object? sender, EventArgs e)
+    {
+        if (!OperatingSystem.IsWindows() || TopLevel.GetTopLevel(_popup.Child) is not { } root || GestureFreePopups.TryGetValue(root, out _)) return;
+        GestureFreePopups.Add(root, root);
+        Win32Properties.AddWndProcHookCallback(root, TabletGestureHook);
+    }
+
+    private static IntPtr TabletGestureHook(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_TABLET_QUERYSYSTEMGESTURESTATUS) return IntPtr.Zero;
+        handled = true;
+        return (IntPtr)TabletDisableGestures;
+    }
+
+    /// <summary>Shows <paramref name="content"/> in the popup (a card that scrolls when it is tall), next to <paramref name="bounds"/>.</summary>
+    private void ShowCard(Control content, Rect bounds)
+    {
+        _popup.IsOpen = false;
+        _popup.PlacementRect = bounds;
         var card = new Border
         {
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 8),
+            // The text has the padding itself (and a background to be hit by), so a press on the margin of the card starts a selection too.
+            Padding = content is SelectableTextBlock ? new Thickness(0) : new Thickness(10, 8),
             MaxWidth = 320,
-            Child = new ScrollViewer { MaxHeight = 360, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Content = text },
+            Child = new ScrollViewer { MaxHeight = 360, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Content = content },
             // The drop shadow is drawn outside the card, so the popup needs room around it (and a transparent window).
             Margin = new Thickness(12),
             // A black shadow is invisible on a dark background: in dark mode the shadow is white. The popup is built
@@ -2999,6 +3156,18 @@ public partial class BibleTextBlock : Panel
         };
         card[!Border.BackgroundProperty] = new DynamicResourceExtension("SystemControlBackgroundAltHighBrush");
         card[!Border.BorderBrushProperty] = new DynamicResourceExtension("SystemControlForegroundBaseLowBrush");
+        // A scroll that reaches the end of the card's own scroll viewer is not passed on (the events of a popup bubble up to this control, whose text
+        // would scroll and put the popup away): the viewer handles what it can, the card swallows the rest.
+        card.AddHandler(PointerWheelChangedEvent, (_, e) => e.Handled = true);
+        card.AddHandler(InputElement.ScrollGestureEvent, (_, e) => e.Handled = true);
+        // Nor are its presses, moves, releases and taps: this control would take them for a press on its own text, at the same coordinates (where there may be a
+        // footnote or a verse number, which opens another popup and so closes this one), or start or end a selection of its text.
+        card.AddHandler(InputElement.PointerPressedEvent, (_, e) => e.Handled = true);
+        card.AddHandler(InputElement.PointerMovedEvent, (_, e) => e.Handled = true);
+        card.AddHandler(InputElement.PointerReleasedEvent, (_, e) => e.Handled = true);
+        card.AddHandler(InputElement.TappedEvent, (_, e) => e.Handled = true);
+        // Nor does a request for a context menu (a long press): it would reach the context menu of this control, which acts on the text of the Bible.
+        card.AddHandler(Control.ContextRequestedEvent, (_, e) => e.Handled = true);
         _popup.Child = card;
         _popup.IsOpen = true;
     }
@@ -3031,6 +3200,7 @@ public partial class BibleTextBlock : Panel
             PlacementTarget = this,
             WindowManagerAddShadowHint = false, // the card draws its own shadow, not a rectangular one of the window manager
         };
+        _popup.Opened += OnPopupOpened;
         Children.Add(_popup);
         _tail = new BusySpinner { IsVisible = false, IsHitTestVisible = false, Thickness = 3 };
         _tail[!BusySpinner.BrushProperty] = new DynamicResourceExtension("SystemControlHighlightAccentBrush");

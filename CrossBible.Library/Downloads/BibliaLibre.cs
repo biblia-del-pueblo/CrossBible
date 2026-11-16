@@ -41,6 +41,8 @@ public class BibliaLibreBible : InstallableBook
         if (source is BibliaLibreBible blbible) DetailsUrl = blbible.DetailsUrl;
     }
 
+    public override InstallableBook Upgrade() => Class == Classes.Dictionary ? new BibliaLibreDictionary(this) : this;
+
     /// <summary>
     /// The Bibles of the index. Every entry is <c>{ "File": "Name.zip", "Info": { ... } }</c>; the info is an
     /// <see cref="InstallableBook"/> (name, language, country ...). A Bible whose info lacks a name takes the one of its zip.
@@ -149,7 +151,7 @@ public class BibliaLibreBible : InstallableBook
         }
     }
     static readonly Regex CodeFolder = new(@"^[a-z]{2,3}(?:-[A-Z]{2,3})?$");
-    public static async Task GetImagesAsync(IEnumerable<InstallableBook> books)
+    public static async Task GetImagesAsync(params IEnumerable<InstallableBook> books)
     {
         await UpdateBookCoversAsync();
 
