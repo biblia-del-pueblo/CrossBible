@@ -1641,8 +1641,24 @@ public partial class BibleTextBlock : Panel
     }
 
     // Touch panning: the scroll gesture recognizer turns a finger drag (and its inertia afterwards) into deltas.
+    /// <summary>
+    /// Whether an event comes from the content of the popup. The events of a popup bubble up to this control (the popup is its child), and a swipe, a
+    /// wheel turn or a tap in the popup must not move the text or put the popup away: the card of the popup stops them (see ShowCard), and the handlers
+    /// that move the text look here too, whatever the platform does with the events of a popup.
+    /// </summary>
+    private bool FromPopup(Avalonia.Interactivity.RoutedEventArgs e) =>
+        _popup is { IsOpen: true, Child: Visual child } && e.Source is Visual source && (ReferenceEquals(source, child) || Avalonia.VisualTree.VisualExtensions.GetVisualAncestors(source).Contains(child));
+
+    /// <summary>
+    /// True while a finger that began in the popup is down (and until its inertia is over). The scroll recognizer of this control gets the touches
+    /// of the popup too (it is below this control in the tree) and raises its gestures with this control as their source, so the source does not say
+    /// that they come from the popup: the press that began them does.
+    /// </summary>
+    private bool _gestureFromPopup;
+
     private void OnScrollGesture(object? sender, ScrollGestureEventArgs e)
     {
+        if (_gestureFromPopup || FromPopup(e)) { e.Handled = true; return; } // a swipe in the popup scrolls the popup, never the text (and the popup closed at its bottom)
         if (_touchSelecting) { e.Handled = true; return; } // the finger extends the selection, it does not scroll
         if (_vScrolling)
         {
@@ -1714,6 +1730,7 @@ public partial class BibleTextBlock : Panel
     /// <summary>Finger lifted while panning: choose the column to settle on (a short flick is enough).</summary>
     private void OnScrollInertiaStarting(object? sender, ScrollGestureInertiaStartingEventArgs e)
     {
+        if (_gestureFromPopup || FromPopup(e)) return; // the popup's own swipe goes on with its inertia
         if (_touchSelecting) { e.Handled = true; return; } // no inertia after selecting
         // Vertical mode: Avalonia's own inertia runs on (the same as in a ScrollViewer): the gesture events it
         // raises carry on arriving in OnScrollGesture, so a fast swipe travels further than a slow one.
@@ -1734,6 +1751,7 @@ public partial class BibleTextBlock : Panel
 
     private void OnScrollGestureEnded(object? sender, ScrollGestureEndedEventArgs e)
     {
+        if (_gestureFromPopup || FromPopup(e)) return;
         if (_inertia) SettleAfterInertia();
         else if (_panning) SettlePan(0);
     }
@@ -1766,6 +1784,7 @@ public partial class BibleTextBlock : Panel
     // A tap (touch) opens a footnote; for touch the press can't, because it may be the start of a pan.
     private void OnTapped(object? sender, TappedEventArgs e)
     {
+        if (FromPopup(e)) return; // a tap in the popup is not a tap on the text under it
         if (e.Pointer?.Type != PointerType.Touch) return;
         // Lifting the finger after a long press raises Tapped as well: that tap must not put the new selection away.
         if (_touchSelecting || Environment.TickCount64 - _touchSelectionEnded < 600) { e.Handled = true; return; }
@@ -1954,6 +1973,7 @@ public partial class BibleTextBlock : Panel
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+        if (FromPopup(e)) { e.Handled = true; return; }
         double delta = e.Delta.Y != 0 ? e.Delta.Y : e.Delta.X;
         if (_vScrolling && e.Delta.Y != 0)
         {
@@ -2785,6 +2805,7 @@ public partial class BibleTextBlock : Panel
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        if (FromPopup(e)) return;
         var position = e.GetPosition(this);
         if (_holdTimer is not null && Math.Abs(position.X - _touchPressPoint.X) + Math.Abs(position.Y - _touchPressPoint.Y) > LongPressSlop) StopHoldTimer(); // the finger moved: a drag, not a long press
         if (_touchSelecting) { e.Handled = true; return; } // the finger moves the end of the selection: see OnTouchSelectMoved
@@ -2803,6 +2824,7 @@ public partial class BibleTextBlock : Panel
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (FromPopup(e)) return;
         _touchDown = false;
         StopHoldTimer();
         if (_touchSelecting)
@@ -2827,6 +2849,7 @@ public partial class BibleTextBlock : Panel
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (FromPopup(e)) return; // a press in the popup is not a press on the text under it (where there may be a footnote or a verse number)
         if (e.Pointer.Type == PointerType.Touch) { _touchDown = true; _inertia = false; _touchSelecting = false; _touchPointer = e.Pointer; StartHoldTimer(e.GetPosition(this)); return; } // touch pans (and taps open footnotes); it does not select
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         var position = e.GetPosition(this);
@@ -2964,6 +2987,8 @@ public partial class BibleTextBlock : Panel
             foreach (var inline in items)
             {
                 if (inline is Avalonia.Controls.Documents.Run run) sb.Append(run.Text);
+                else if (inline is Avalonia.Controls.Documents.LineBreak) sb.Append('\n'); // one character in the text layout too: the positions of a selection count it
+                else if (inline is Avalonia.Controls.Documents.InlineUIContainer) sb.Append('￼'); // a control in the text (a link) is one character as well
                 else if (inline is Span { Inlines: { } children }) Walk(children);
             }
         }
@@ -2991,7 +3016,13 @@ public partial class BibleTextBlock : Panel
         foreach (var inline in items) text.Inlines!.Add(inline);
         text[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SystemControlForegroundBaseHighBrush");
         SelectWholeWords(text, () => text.Text is { Length: > 0 } shown ? shown : PlainText(items));
-        var contextMenu = text.ContextMenu = new ContextMenu
+        // The text does not take the pointer (a control that selects takes every touch: a swipe selected instead of scrolling the popup, and holding the
+        // events back to stop that lost the inertia of the scroll). A transparent host takes it, and the selection is made here: a swipe is then the scroll
+        // viewer's own. A mouse selects by pressing and dragging (a double click selects a word), a finger by a long press (the word under it, which the
+        // finger then extends).
+        text.IsHitTestVisible = false;
+        var host = new Border { Background = Brushes.Transparent, Child = text };
+        var contextMenu = host.ContextMenu = new ContextMenu
         {
             ItemsSource = new[]
             {
@@ -2999,71 +3030,139 @@ public partial class BibleTextBlock : Panel
                 CreateMenuItem("Select all", text.SelectAll, "select-all.svg"),
             },
         };
-        // The control asks for its menu by itself too: when a finger stays on the text (a long press, which is how a word is selected by touch) and when
-        // the mouse is right-clicked. Only the right click and the tap on a selection (below) may open it, else it flashed up while the reader was selecting.
+        // The menu opens from a right click and from a tap on the selection (below); not from the long press that selects a word by touch.
         bool menuWanted = false, rightPressed = false;
         contextMenu.Opening += (_, e) => { if (!menuWanted && !rightPressed) e.Cancel = true; };
-        // The control also has a context flyout of its own (Copy, shown for any long press, with or without a selection), which it puts there when it
-        // is attached: taken away, whenever it is put there.
-        text.ContextFlyout = null;
-        text.AttachedToVisualTree += (_, _) => text.ContextFlyout = null;
-        text.PropertyChanged += (_, e) => { if (e.Property == Control.ContextFlyoutProperty && text.ContextFlyout is not null) text.ContextFlyout = null; };
         void OpenMenu()
         {
             menuWanted = true;
-            try { contextMenu.Open(text); }
+            try { contextMenu.Open(host); }
             finally { menuWanted = false; }
         }
-        // A tap on the selection offers Copy and Select all, as it does in the text of the Bible (the context menu opens from a right click as well).
-        // A press on the selection would put it away (and start a new one) before the tap is known: the control does not get that press (the selection
-        // stays as it is, without a flicker), and the menu opens when the finger or the button is lifted without having moved. A press elsewhere is the
-        // control's own, as it was.
-        Point? pressedOn = null;
-        bool pressDown = false; // a press that began on the selection is down (and the control did not see it)
-        // The menu waits a moment after the lift: a second press (a double click that selects a word, or the start of another selection) comes first
-        // when the reader is selecting, and the menu must not flash up then.
-        DispatcherTimer? menuTimer = null;
-        void StopMenuTimer() { menuTimer?.Stop(); menuTimer = null; }
-        text.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        int TextLength() => (text.Text is { Length: > 0 } shown ? shown : PlainText(items)).Length;
+        int IndexAt(Point point) => Math.Clamp(text.TextLayout.HitTestPoint(point - new Point(text.Padding.Left, text.Padding.Top)).TextPosition, 0, TextLength());
+        // Widened to whole words, see SelectWholeWords. The two ends are written in an order that keeps the start before the end at every step: the control
+        // keeps the start from going past the end, so writing a start that is beyond the old end first left it at the old end.
+        void SetRange(int a, int b)
         {
-            StopMenuTimer();
-            pressedOn = null;
-            pressDown = false;
-            rightPressed = e.Pointer.Type == PointerType.Mouse && e.GetCurrentPoint(text).Properties.IsRightButtonPressed;
-            if (text.SelectionStart == text.SelectionEnd || !e.GetCurrentPoint(text).Properties.IsLeftButtonPressed || e.ClickCount > 1) return;
-            int low = Math.Min(text.SelectionStart, text.SelectionEnd), high = Math.Max(text.SelectionStart, text.SelectionEnd);
-            var at = e.GetPosition(text);
-            int index = text.TextLayout.HitTestPoint(at - new Point(text.Padding.Left, text.Padding.Top)).TextPosition;
-            if (index < low || index > high) return;
-            pressedOn = at;
-            pressDown = true;
-            e.Handled = true;
-        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        text.AddHandler(InputElement.PointerMovedEvent, (_, e) =>
+            int low = Math.Min(a, b), high = Math.Max(a, b);
+            if (high >= text.SelectionEnd) { text.SelectionEnd = high; text.SelectionStart = low; }
+            else { text.SelectionStart = low; text.SelectionEnd = high; }
+        }
+        // A finger that selects must not scroll the popup as well: the scroll gesture is switched off for as long as it selects.
+        var lockedRecognizers = new List<(ScrollGestureRecognizer Recognizer, bool Vertical, bool Horizontal)>();
+        void LockScroll(bool locked)
         {
-            if (!pressDown) return;
-            if (pressedOn is { } from && Math.Abs(e.GetPosition(text).X - from.X) + Math.Abs(e.GetPosition(text).Y - from.Y) > 10) pressedOn = null; // a drag, not a tap
-            // The control moves the end of its selection with every move while a button is down, whether it saw the press or not: the small
-            // moves of a finger that taps the selection resized it. The moves of a press that began on the selection are not its.
-            e.Handled = true;
-        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
-        text.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
-        {
-            bool swallowed = pressDown;
-            pressDown = false;
-            if (pressedOn is null) { if (swallowed) e.Handled = true; return; }
-            pressedOn = null;
-            StopMenuTimer();
-            var timer = menuTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
-            timer.Tick += (_, _) =>
+            if (locked)
             {
-                StopMenuTimer();
-                if (text.SelectionStart != text.SelectionEnd && !contextMenu.IsOpen) OpenMenu();
-            };
-            timer.Start();
+                if (Avalonia.VisualTree.VisualExtensions.GetVisualAncestors(host).OfType<ScrollViewer>().FirstOrDefault() is not { } viewer) return;
+                foreach (var visual in new Visual[] { viewer }.Concat(Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(viewer)))
+                    if (visual is InputElement input)
+                        foreach (var recognizer in input.GestureRecognizers.OfType<ScrollGestureRecognizer>())
+                        {
+                            lockedRecognizers.Add((recognizer, recognizer.CanVerticallyScroll, recognizer.CanHorizontallyScroll));
+                            recognizer.CanVerticallyScroll = recognizer.CanHorizontallyScroll = false;
+                        }
+                return;
+            }
+            foreach (var (recognizer, vertical, horizontal) in lockedRecognizers) { recognizer.CanVerticallyScroll = vertical; recognizer.CanHorizontallyScroll = horizontal; }
+            lockedRecognizers.Clear();
+        }
+
+        bool selecting = false, touchSelecting = false, touchDown = false, moved = false, pressedOnSelection = false;
+        bool longPressed = false; // this touch selected a word (kept when the capture is lost before the finger lifts: the order of the two events is not fixed)
+        int anchor = 0, anchorEnd = 0; // where the selection began: a point for the mouse, the word that the long press selected for a finger
+        Point pressedAt = default;
+        DispatcherTimer? menuTimer = null, touchTimer = null;
+        void StopMenuTimer() { menuTimer?.Stop(); menuTimer = null; }
+        void StopTouchTimer() { touchTimer?.Stop(); touchTimer = null; }
+
+        host.PointerPressed += (_, e) =>
+        {
+            StopMenuTimer();
+            StopTouchTimer();
+            selecting = touchSelecting = moved = pressedOnSelection = longPressed = false;
+            var properties = e.GetCurrentPoint(host).Properties;
+            rightPressed = e.Pointer.Type == PointerType.Mouse && properties.IsRightButtonPressed;
+            // A finger does not report a button: it is always the primary press.
+            if (rightPressed || (e.Pointer.Type == PointerType.Mouse && !properties.IsLeftButtonPressed)) return; // the context menu of a right click opens by itself
+            pressedAt = e.GetPosition(text);
+            int at = IndexAt(pressedAt);
+            int low = Math.Min(text.SelectionStart, text.SelectionEnd), high = Math.Max(text.SelectionStart, text.SelectionEnd);
+            bool onSelection = low != high && at >= low && at <= high;
+            if (e.Pointer.Type == PointerType.Touch)
+            {
+                touchDown = true;
+                pressedOnSelection = onSelection;
+                var timer = touchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+                timer.Tick += (_, _) =>
+                {
+                    StopTouchTimer();
+                    if (!touchDown || moved) return;
+                    // A long press selects the word, and the finger goes on from it.
+                    touchSelecting = longPressed = true;
+                    pressedOnSelection = false;
+                    anchor = at;
+                    anchorEnd = Math.Min(TextLength(), at + 1);
+                    SetRange(anchor, anchorEnd);
+                    LockScroll(true);
+                };
+                timer.Start();
+                return; // not handled: a swipe is the scroll viewer's
+            }
+            if (e.ClickCount >= 2) { SetRange(at, Math.Min(TextLength(), at + 1)); e.Handled = true; return; }
+            if (onSelection) { pressedOnSelection = true; e.Handled = true; return; } // the menu opens when the button is lifted
+            anchor = anchorEnd = at;
+            SetRange(at, at);
+            selecting = true;
+            e.Pointer.Capture(host);
             e.Handled = true;
-        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
-        ShowCard(text, bounds);
+        };
+        host.PointerMoved += (_, e) =>
+        {
+            var now = e.GetPosition(text);
+            if (!moved && (touchDown || pressedOnSelection) && Math.Abs(now.X - pressedAt.X) + Math.Abs(now.Y - pressedAt.Y) > 10)
+            {
+                moved = true; // a swipe, or a drag: not a tap
+                if (!touchSelecting) StopTouchTimer();
+            }
+            if (!selecting && !touchSelecting) return;
+            int index = IndexAt(now);
+            SetRange(Math.Min(anchor, index), Math.Max(anchorEnd, index)); // the place where it began stays in it, whichever way the pointer goes
+            e.Handled = true;
+        };
+        host.PointerReleased += (_, e) =>
+        {
+            StopTouchTimer();
+            bool wasSelecting = selecting || touchSelecting || longPressed;
+            if (touchSelecting) LockScroll(false);
+            selecting = touchSelecting = touchDown = false;
+            if (e.Pointer.Captured == host) e.Pointer.Capture(null);
+            if (!wasSelecting && !moved)
+            {
+                if (pressedOnSelection)
+                {
+                    // The menu waits a moment: a second press (a double click that selects a word) must not meet it.
+                    StopMenuTimer();
+                    var timer = menuTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+                    timer.Tick += (_, _) =>
+                    {
+                        StopMenuTimer();
+                        if (text.SelectionStart != text.SelectionEnd && !contextMenu.IsOpen) OpenMenu();
+                    };
+                    timer.Start();
+                }
+                else if (e.Pointer.Type == PointerType.Touch && text.SelectionStart != text.SelectionEnd) SetRange(0, 0); // a tap elsewhere puts the selection away
+            }
+            pressedOnSelection = false;
+        };
+        host.PointerCaptureLost += (_, _) =>
+        {
+            StopTouchTimer();
+            if (touchSelecting) LockScroll(false);
+            selecting = touchSelecting = touchDown = false;
+        };
+        ShowCard(host, bounds);
     }
 
     /// <summary>
@@ -3141,7 +3240,7 @@ public partial class BibleTextBlock : Panel
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             // The text has the padding itself (and a background to be hit by), so a press on the margin of the card starts a selection too.
-            Padding = content is SelectableTextBlock ? new Thickness(0) : new Thickness(10, 8),
+            Padding = content is Border ? new Thickness(0) : new Thickness(10, 8),
             MaxWidth = 320,
             Child = new ScrollViewer { MaxHeight = 360, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Content = content },
             // The drop shadow is drawn outside the card, so the popup needs room around it (and a transparent window).
@@ -3159,13 +3258,6 @@ public partial class BibleTextBlock : Panel
         // A scroll that reaches the end of the card's own scroll viewer is not passed on (the events of a popup bubble up to this control, whose text
         // would scroll and put the popup away): the viewer handles what it can, the card swallows the rest.
         card.AddHandler(PointerWheelChangedEvent, (_, e) => e.Handled = true);
-        card.AddHandler(InputElement.ScrollGestureEvent, (_, e) => e.Handled = true);
-        // Nor are its presses, moves, releases and taps: this control would take them for a press on its own text, at the same coordinates (where there may be a
-        // footnote or a verse number, which opens another popup and so closes this one), or start or end a selection of its text.
-        card.AddHandler(InputElement.PointerPressedEvent, (_, e) => e.Handled = true);
-        card.AddHandler(InputElement.PointerMovedEvent, (_, e) => e.Handled = true);
-        card.AddHandler(InputElement.PointerReleasedEvent, (_, e) => e.Handled = true);
-        card.AddHandler(InputElement.TappedEvent, (_, e) => e.Handled = true);
         // Nor does a request for a context menu (a long press): it would reach the context menu of this control, which acts on the text of the Bible.
         card.AddHandler(Control.ContextRequestedEvent, (_, e) => e.Handled = true);
         _popup.Child = card;
@@ -3224,6 +3316,8 @@ public partial class BibleTextBlock : Panel
         // Inertia is off by default in the recognizer (a ScrollViewer switches it on): without it the scrolling stops when the finger lifts.
         _scrollRecognizer = new ScrollGestureRecognizer { CanVerticallyScroll = true, CanHorizontallyScroll = true, IsScrollInertiaEnabled = true };
         GestureRecognizers.Add(_scrollRecognizer);
+        // Where a press began, whatever else handles it: in the popup or not (see _gestureFromPopup).
+        AddHandler(PointerPressedEvent, (_, e) => _gestureFromPopup = FromPopup(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(InputElement.ScrollGestureEvent, OnScrollGesture);
         AddHandler(InputElement.ScrollGestureInertiaStartingEvent, OnScrollInertiaStarting);
         AddHandler(InputElement.ScrollGestureEndedEvent, OnScrollGestureEnded);

@@ -1,0 +1,12 @@
+src/** text eol=lf
+Debian/** text eol=lf
+Fedora/** text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+src/**/*.png -text -eol binary
+src/**/*.jpg -text -eol binary
+src/**/*.jpeg -text -eol binary
+src/**/*.gif -text -eol binary

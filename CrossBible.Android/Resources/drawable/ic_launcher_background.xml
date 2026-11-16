@@ -1,3 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The logo's gold fills the whole mask of the adaptive icon, so no white box shows around the logo. -->
-<color xmlns:android="http://schemas.android.com/apk/res/android" android:color="#80A000" />
+<!-- The green of the logo's tile, from light at the top to dark at the bottom, fills the whole mask of the adaptive icon. The book and the cross are the
+     foreground (ic_launcher_foreground.png), small enough to lie inside the part of the icon that every mask shows. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient android:type="linear" android:angle="270" android:startColor="#DCF80A" android:endColor="#275302" />
+</shape>

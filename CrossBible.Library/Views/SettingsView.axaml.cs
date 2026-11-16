@@ -36,6 +36,9 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         FlowDirection = Localizer.FlowDirection; // mirrored for Arabic and Hebrew
+        var version = new AppVersion().Version;
+        VersionText.Text = string.Format(Localizer.Get("Version"),
+            version.Revision > 0 ? version.ToString() : version.ToString(version.Build >= 0 ? 3 : 2)); // "0.8.0", not "0.8.0.0"
         // The fonts that ship with the app first, then the ones installed on the system.
         FillFonts();
         UiSizeSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnUiSizeChanged(); };

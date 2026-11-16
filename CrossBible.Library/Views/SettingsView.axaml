@@ -6,7 +6,11 @@
     <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
         <ScrollViewer>
             <StackPanel Margin="16,12" Spacing="16" MaxWidth="600" HorizontalAlignment="Left">
-                <TextBlock Text="{loc:Loc Settings}" FontSize="{loc:Size 22}" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="{loc:Loc Settings}" FontSize="{loc:Size 22}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <!-- The version of the app (see AppVersion). -->
+                    <TextBlock x:Name="VersionText" Opacity="0.7" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+                </StackPanel>
 
                 <!-- Appearance -->
                 <StackPanel Spacing="16" Orientation="Horizontal">

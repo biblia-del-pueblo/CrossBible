@@ -1,0 +1,11 @@
+Section: server
+Priority: optional
+Maintainer: Simon Egli <simon.jakob.egli@gmail.com>
+Homepage: https://www.hostpanelpro.com
+Package: hostpanelpro
+Architecture: all
+Version: 1.0.0
+Depends: dotnet-runtime-10.0
+Description: This is the HostPanelPro Server for Debian
+ HostPanelPro is a complete management portal for Cloud Computing Companies and IT Providers to automate the provisioning of a full suite of Multi-Tenant services on servers. The powerful, flexible and fully open source HostPanelPro platform gives users simple point-and-click control over Server applications including IIS 10, Microsoft SQL Server 2025, MySQL, MariaDB, Active Directory, Microsoft Exchange 2025, Microsoft Sharepoint 2019, Microsoft RemoteApp/RDS and Hyper-V Deployments.
+Installed-Size: 402201

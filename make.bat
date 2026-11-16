@@ -1,0 +1,1 @@
+call CrossBible.Msix\make

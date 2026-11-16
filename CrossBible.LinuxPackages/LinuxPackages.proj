@@ -1,0 +1,197 @@
+<Project DefaultTargets="Build"
+    xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+
+    <PropertyGroup>
+        <netlatest>net11.0</netlatest>
+        <BUILD_NUMBER Condition=" '$(BUILD_NUMBER)' == '' ">1.0.0</BUILD_NUMBER>
+        <Version Condition=" '$(Version)' == '' ">1.0.0</Version>
+        <FileVersion Condition=" '$(FileVersion)' == '' ">$(BUILD_NUMBER)</FileVersion>
+        <VersionLabel Condition=" '$(VersionLabel)' == '' ">$(BUILD_NUMBER)</VersionLabel>
+        <ReleaseDate Condition=" '$(ReleaseDate)' == '' ">2025-11-21</ReleaseDate>
+        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+        <BuildConfiguration>$(Configuration)</BuildConfiguration>
+        <RootFolder>..\..\..</RootFolder>
+        <TrunkFolder>$(RootFolder)\HostPanelPro</TrunkFolder>
+        <Platform>Any CPU</Platform>
+
+        <SetupTrunkFolder>$(RootFolder)\HostPanelPro.Installer</SetupTrunkFolder>
+        <SetupBuildFolder>$(SetupTrunkFolder)\Build\$(BuildConfiguration)</SetupBuildFolder>
+        <MSBuildCommunityTasksPath>$(RootFolder)\MSBuildCommunityTasks</MSBuildCommunityTasksPath>
+
+        <BuildFolder>$(TrunkFolder)\Build\$(BuildConfiguration)</BuildFolder>
+        <DeployFolder>$(TrunkFolder)\Deploy\$(BuildConfiguration)</DeployFolder>
+        <PackagesFolder>$(SetupTrunkFolder)\Sources\HostPanelPro.InstallPackages</PackagesFolder>
+
+        <GZipCmd Condition=" '$(OS)' == 'Windows_NT' ">"$(RootFolder)\tools\gzip\bin\gzip.exe"</GZipCmd>
+        <GZipCmd Condition=" '$(OS)' == 'Unix' ">gzip</GZipCmd>
+        <NuGetCmd Condition=" '$(OS)' == 'Windows_NT' ">dotnet</NuGetCmd>
+        <NuGetCmd Condition=" '$(OS)' == 'Unix' ">dotnet</NuGetCmd>
+        <WpkgCmd>$(RootFolder)\tools\wpkg\src\bin\$(Configuration)\$(netlatest)\wpkg.exe</WpkgCmd>
+
+        <IncludeReleasePdbs Condition="'$(IncludeReleasePdbs)' == '' And '$(Configuration)' == 'Release'">false</IncludeReleasePdbs>
+        <IncludeReleasePdbs Condition="'$(IncludeReleasePdbs)' == '' And '$(Configuration)' != 'Release'">true</IncludeReleasePdbs>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <BinFiles Include="$(PackagesFolder)\src\bin\*.*" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <BuildOutputExclude Condition="'$(IncludeReleasePdbs)' != 'true'"
+            Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\**\*.pdb" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\**\*.xml" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Tmp\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Data\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Log\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-arm\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-x64\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-x86\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\browser-wasm\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x64\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x86\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win-x64\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win-x86\**\*.*" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\installer.settings.json" />
+        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Setup2.dll" />
+        <BuildOutput Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\**\*.*"
+            Exclude="@(BuildOutputExclude)" />
+    </ItemGroup>
+
+    <Target Name="BuildWpkg">
+        <Exec Command="$(NuGetCmd) restore $(RootFolder)\tools\wpkg\wpkg.slnx" />
+        <MSBuild Projects="$(RootFolder)\tools\wpkg\wpkg.slnx" Properties="Configuration=$(Configuration)" />
+    </Target>
+
+    <Target Name="BuildUniversalInstaller" Condition=" '$(OS)' == 'Unix' ">
+        <Exec Command="dotnet restore $(SetupTrunkFolder)\Sources\HostPanelPro.Installer.slnx" />
+        <MSBuild Projects="$(SetupTrunkFolder)\Sources\HostPanelPro.Installer.slnx" Properties="Configuration=$(Configuration);Platform=Any CPU" />
+    </Target>
+
+    <Target Name="CleanOutput" DependsOnTargets="BuildWpkg;BuildUniversalInstaller">
+        <ItemGroup>
+            <OutputPackageFiles Include="$(PackagesFolder)\bin\*.*" />
+        </ItemGroup>
+
+        <Delete Files="@(OutputPackageFiles)" />
+    </Target>
+
+    <Target Name="Dos2Unix" DependsOnTargets="CleanOutput">
+        <ItemGroup>
+            <TextFiles Include="$(PackagesFolder)\src\bin\hostpanelpro-installer" />
+            <TextFiles Include="$(PackagesFolder)\src\bin\sslcertmaker" />
+            <TextFiles Include="$(PackagesFolder)\src\doc\*.*" />
+            <TextFiles Include="$(PackagesFolder)\src\man\*.*" />
+            <TextFiles Include="$(PackagesFolder)\src\dektop\*.*" />
+            <TextFiles Include="$(PackagesFolder)\Debian\DEBIAN\*.*" />
+            <TextFiles Include="$(PackagesFolder)\Fedora\SPECS\*.*" />
+            <!--<TextFiles Include="$(PackagesFolder)\Debian\usr\bin\*.*" />-->
+            <!--<TextFiles Include="$(PackagesFolder)\Fedora\usr\bin\*.*" />-->
+        </ItemGroup>
+
+        <Exec Command="$(WpkgCmd) -d2u &quot;@(TextFiles)&quot;" LogStandardErrorAsError="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfDos2Unix" />
+        </Exec>
+        <Message Text="$(OutputOfDos2Unix)" />
+    </Target>
+
+    <Target Name="Debian" DependsOnTargets="Dos2Unix">
+
+        <Message Text="Preparing Debian Files"/>
+
+        <ItemGroup>
+            <DocFilesDebianExclude Include="$(PackagesFolder)\src\doc\ChangeLog" />
+            <DocFilesDebian Include="$(PackagesFolder)\src\doc\*.*" Exclude="@(DocFilesDebianExclude)" />
+            <PreviousReleaseFiles Include="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer\**\*.*" />
+        </ItemGroup>
+
+        <!--<Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.dll" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer" />
+        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer" />
+        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer" />-->
+        <Delete Files="@(PreviousReleaseFiles)" />
+        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer\%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)\src\man\hostpanelpro-installer.1" DestinationFiles="$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer.1" />
+        <Copy SourceFiles="$(PackagesFolder)\src\icon\HostPanelPro.png" DestinationFiles="$(PackagesFolder)\Debian\usr\share\pixmaps\HostPanelPro.png" />
+        <Copy SourceFiles="$(PackagesFolder)\src\desktop\hostpanelpro-installer.desktop" DestinationFolder="$(PackagesFolder)\Debian\usr\share\applications" />
+        <Copy SourceFiles="$(PackagesFolder)\src\icon\sslcertmaker.png" DestinationFolder="$(PackagesFolder)\Debian\usr\share\pixmaps" />
+        <Copy SourceFiles="$(PackagesFolder)\src\desktop\sslcertmaker.desktop" DestinationFolder="$(PackagesFolder)\Debian\usr\share\applications" />
+        <Copy SourceFiles="@(DocFilesDebian)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro" />
+        <Copy SourceFiles="@(BinFiles)" DestinationFolder="$(PackagesFolder)\Debian\usr\bin" />
+
+        <Delete Files="$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer.1.gz" />
+        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer.1&quot;" LogStandardErrorAsError="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfZip" />
+        </Exec>
+        <Message Text="$(OutputOfZip)" />
+        <Delete Files="$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer" />
+
+        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro\changelog.Debian.gz" />
+        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro\changelog.Debian&quot;" LogStandardErrorAsError="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfGZip" />
+        </Exec>
+        <Message Text="$(OutputOfGZip)" />
+        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro\changelog.Debian" />
+
+        <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -command  &quot;&amp; { .\src\scripts\ConfigureDebian.ps1 '$(FileVersion)' }&quot;" LogStandardErrorAsError="true" />
+
+        <Exec Command="$(WpkgCmd) -b &quot;$(PackagesFolder)\Debian&quot;" LogStandardErrorAsError="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfWpkg" />
+        </Exec>
+        <Message Text="$(OutputOfWpkg)" />
+        <Move SourceFiles="$(PackagesFolder)\Debian\hostpanelpro.deb" DestinationFiles="$(PackagesFolder)\bin\hostpanelpro_$(FileVersion)-1_all.deb" />
+
+    </Target>
+
+    <Target Name="Fedora" DependsOnTargets="Debian">
+
+        <Message Text="Preparing Fedora Files"/>
+
+        <ItemGroup>
+            <DocFilesFedoraExclude Include="$(PackagesFolder)\src\doc\changelog.Debian" />
+            <DocFilesFedora Include="$(PackagesFolder)\src\doc\*.*" Exclude="@(DocFilesFedoraExclude)" />
+            <BinFilesFedora Include="$(PackagesFolder)\src\bin\*.*" />
+            <PreviousReleaseFiles Include="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer\**\*.*" />
+        </ItemGroup>
+        <!--<Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.dll" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer" />
+        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer" />
+        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer" />-->
+        <Delete Files="@(PreviousReleaseFiles)" />
+        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer\%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)\src\man\hostpanelpro-installer.1" DestinationFiles="$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer.1" />
+        <Copy SourceFiles="$(PackagesFolder)\src\icon\HostPanelPro.png" DestinationFiles="$(PackagesFolder)\Fedora\usr\share\pixmaps\HostPanelPro.png" />
+        <Copy SourceFiles="$(PackagesFolder)\src\desktop\hostpanelpro-installer.desktop" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\applications" />
+        <Copy SourceFiles="$(PackagesFolder)\src\icon\sslcertmaker.png" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\pixmaps" />
+        <Copy SourceFiles="$(PackagesFolder)\src\desktop\sslcertmaker.desktop" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\applications" />
+        <Copy SourceFiles="@(DocFilesFedora)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\doc\hostpanelpro" />
+        <Copy SourceFiles="@(BinFiles)" DestinationFolder="$(PackagesFolder)\Fedora\usr\bin" />
+
+        <Delete Files="$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer.1.gz" />
+        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer.1&quot;" LogStandardErrorAsError="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfZip" />
+        </Exec>
+        <Message Text="$(OutputOfZip)" />
+        <Delete Files="$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer" />
+
+        <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -command  &quot;&amp; { .\src\scripts\ConfigureFedora.ps1 '$(FileVersion)' }&quot;" LogStandardErrorAsError="true" />
+
+        <Exec Command="$(WpkgCmd) -rd &quot;$(PackagesFolder)\Fedora&quot;" LogStandardErrorAsError="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfWpkg" />
+        </Exec>
+        <Message Text="$(OutputOfWpkg)" />
+
+        <ItemGroup>
+            <RpmFiles Include="$(PackagesFolder)\Fedora\*.rpm" />
+        </ItemGroup>
+
+        <Move SourceFiles="@(RpmFiles)" DestinationFolder="$(PackagesFolder)\bin" />
+    </Target>
+
+    <Target Name="Build" DependsOnTargets="Fedora" />
+
+</Project>
+

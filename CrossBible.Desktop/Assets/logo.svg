@@ -15,11 +15,11 @@
     <linearGradient
        id="linearGradient1">
       <stop
-         style="stop-color:#7a4e2a;stop-opacity:1;"
+         style="stop-color:#275302;stop-opacity:1;"
          offset="0"
          id="stop1" />
       <stop
-         style="stop-color:#f8ac0a;stop-opacity:1;"
+         style="stop-color:#dcf80a;stop-opacity:1;"
          offset="1"
          id="stop2" />
     </linearGradient>
@@ -81,7 +81,7 @@
        id="path1-8" />
     <path
        id="rect2"
-       style="fill:#bb7e19;fill-opacity:1;stroke:#ffffff;stroke-width:9.22675;stroke-linecap:round;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
+       style="fill:#85a51b;fill-opacity:1;stroke:#ffffff;stroke-width:9.22675;stroke-linecap:round;stroke-linejoin:bevel;stroke-dasharray:none;stroke-opacity:1;paint-order:markers stroke fill"
        d="m 55.670409,23.424359 c -1.188749,0 -2.14563,0.956879 -2.14563,2.14563 V 32.0368 h -9.051545 c -1.188749,0 -2.145626,0.956875 -2.145626,2.145631 v 3.571607 c 0,1.18876 0.956877,2.14563 2.145626,2.14563 h 9.051545 V 61.34373 c 0,1.18875 0.956881,2.14563 2.14563,2.14563 h 2.145628 c 1.188754,0 2.145624,-0.95688 2.145624,-2.14563 V 39.899668 h 9.051556 c 1.18874,0 2.14563,-0.95687 2.14563,-2.14563 v -3.571607 c 0,-1.188756 -0.95689,-2.145631 -2.14563,-2.145631 h -9.051556 v -6.466811 c 0,-1.188751 -0.95687,-2.14563 -2.145624,-2.14563 z" />
   </g>
 </svg>

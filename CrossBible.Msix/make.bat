@@ -1,5 +1,4 @@
-@echo off
-rem Builds the Microsoft Store package of CrossBible for x64 (amd64) and ARM64: one .msixbundle and the .msixupload for Partner Center.
+rem Builds the Microsoft Store package of CrossBible for x64 (amd64) and ARM64, precompiled with ReadyToRun: one .msixbundle and the .msixupload for Partner Center.
 rem
 rem   make.bat           builds (Release)
 rem   make.bat clean     deletes everything that was built before, then builds (use it after the identity or version in
@@ -39,7 +38,9 @@ if /i "%~1"=="clean" (
 )
 
 rem Platform x64 builds the bundle: AppxBundlePlatforms in CrossBible.Msix.wapproj has x64 and arm64, and the app is built for both.
-"%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -verbosity:minimal -nologo
+rem The code is precompiled (ReadyToRun) so that the app starts faster: PublishReadyToRun is set here, besides CrossBible.Desktop.csproj, so that the
+rem package is made this way whatever that file says. (Native AOT is not possible: Newtonsoft.Json and LiteDB need reflection.)
+"%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -p:PublishReadyToRun=true -verbosity:minimal -nologo
 if errorlevel 1 (
     echo.
     echo The build failed.
