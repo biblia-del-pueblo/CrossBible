@@ -10,4 +10,10 @@
     <PropertyGroup>
         <PackAsTool>false</PackAsTool>
     </PropertyGroup>
+
+    <!-- The settings and the info files are read and written with System.Text.Json by reflection (the types are not known to a source generator: they are of
+         several kinds, see BookText). A trimmed app (the Android Release build) has that switched off by default, and every save of the settings would throw. -->
+    <PropertyGroup>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    </PropertyGroup>
 </Project>

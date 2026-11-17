@@ -28,10 +28,19 @@
         <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
         <SelfContained>true</SelfContained>
     </PropertyGroup>
-    <!-- Precompiled (ReadyToRun) for the Store packages: the app starts faster, as the code does not have to be compiled when it runs. Native AOT is not
-         an option here: Newtonsoft.Json and LiteDB need reflection and dynamic code. -->
+    <!-- Precompiled (ReadyToRun) for the Store packages: the app starts faster, as the code does not have to be compiled when it runs. Native AOT (below) is
+         not used for them yet: LiteDB needs reflection. -->
     <PropertyGroup Condition="'$(Platform)' == 'x64' or '$(Platform)' == 'ARM64'">
         <PublishReadyToRun>true</PublishReadyToRun>
+    </PropertyGroup>
+
+    <!-- Native AOT: dotnet publish CrossBible.Desktop -c Release -r win-x64 -p:UseAot=true
+         The code is compiled to machine code, without the .NET runtime (a smaller start-up and no JIT). JSON is read and written by source generation (see
+         JsonContext in BibleMarkdown and in CrossBible.Library); what is left is LiteDB, which needs reflection (the Strong's dictionaries and the search of the
+         words): see the warnings IL2104 and IL3053 of the publish. -->
+    <PropertyGroup Condition="'$(UseAot)' == 'true'">
+        <PublishAot>true</PublishAot>
+        <PublishReadyToRun>false</PublishReadyToRun>
     </PropertyGroup>
 
     <ItemGroup>

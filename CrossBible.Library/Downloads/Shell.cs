@@ -19,6 +19,9 @@ namespace CrossBible;
 
 public abstract class Shell
 {
+	/// <summary>A new shell of the same kind (no search for the constructor by the type: it cannot be kept by compiling ahead of time).</summary>
+	protected abstract Shell NewShell();
+
 	const bool DoNotWaitForProcessExit = false;
 
 	static int N = 0;
@@ -366,7 +369,7 @@ public abstract class Shell
 	{
 		get
 		{
-			Shell clone = (Shell)Activator.CreateInstance(GetType())!;
+			Shell clone = NewShell();
 			clone.Parent = this;
 			clone.CreateNoWindow = this.CreateNoWindow;
 			clone.WindowStyle = this.WindowStyle;
@@ -645,5 +648,6 @@ public abstract class Shell
 
 public class StandardShell : Shell
 {
+	protected override Shell NewShell() => new StandardShell();
 	public override string ShellExe => Shell.IsWindows ? "cmd" : "sh";
 }

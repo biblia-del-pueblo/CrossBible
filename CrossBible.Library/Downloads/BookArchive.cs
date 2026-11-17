@@ -18,6 +18,7 @@ namespace CrossBible.Library.Downloads
         public string File { get; set; }
         public override string Origin => "Local File";
         
+        public BookArchive() { } // for reading the settings
         public BookArchive(string file) { this.File = file; Language = ""; LanguageEnglishName = ""; }
         public BookArchive(BookArchive source): base(source)
         {
@@ -145,6 +146,7 @@ namespace CrossBible.Library.Downloads
     public class BookArchiveDictionary: BookArchive, IStrongDictionary
     {
         public override Classes Class => Classes.Dictionary;
+        public BookArchiveDictionary() { } // for reading the settings
         public BookArchiveDictionary(BookArchive source) : base(source) { }
         string DatabaseFile => IO.Path.Combine(ConfigPath, StrongsDatabase.FileName);
         StrongsDatabase database = null;

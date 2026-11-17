@@ -1,6 +1,7 @@
 ﻿using EstrellasDeEsperanza.AsyncLock;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
+using BibleMarkdown;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -136,12 +137,8 @@ namespace CrossBible.Library
         private string Serialize()
         {
             TrimHistory();
-            return JsonConvert.SerializeObject(this, new JsonSerializerSettings()
-            {
-                TypeNameHandling = TypeNameHandling.Auto,
-                Formatting  = Formatting.Indented,
-                Converters = [ new StringEnumConverter(), new VersionConverter() ]
-            });
+            // The kinds of Bible in Books are written with their names ("$type", see the attributes of BookText).
+            return JsonSerializer.Serialize(this, JsonContext.Indented.Settings);
         }
 
         /// <summary>Drops the oldest entries beyond <see cref="MaxHistoryOnSave"/>; <see cref="HistoryIndex"/> keeps pointing at the same entry.</summary>
@@ -180,12 +177,8 @@ namespace CrossBible.Library
             try
             {
                 var json = File.ReadAllText(file);
-                var settings = JsonConvert.DeserializeObject<Settings>(json, new JsonSerializerSettings()
-                {
-                    TypeNameHandling = TypeNameHandling.Auto,
-                    Converters = [ new VersionConverter(), new StringEnumConverter() ],
-                    Formatting = Formatting.Indented
-                });
+                var settings = JsonSerializer.Deserialize(json, JsonContext.Indented.Settings)
+                    ?? throw new JsonException("The settings file is empty.");
                 Books = settings.Books;
                 CurrentBible = settings.CurrentBible;
                 CurrentBookIndex = settings.CurrentBookIndex;

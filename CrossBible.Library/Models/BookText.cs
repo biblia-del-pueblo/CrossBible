@@ -20,6 +20,17 @@ namespace CrossBible.Library;
 
 // partial: the regular expressions of the parsing are made at build time ([GeneratedRegex]). They are ordinary C# then, which the
 // ReadyToRun compiler precompiles, instead of being built (and for the Compiled ones, compiled) when the first book is read.
+// The Bibles in the settings are of different kinds: each is written with its kind ("$type") and read as that kind.
+[System.Text.Json.Serialization.JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(BookText), "BookText")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(InstallableBook), "InstallableBook")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(CrossWireBook), "CrossWireBook")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(CrossWireDictionary), "CrossWireDictionary")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(eBible), "eBible")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(BibliaLibreBible), "BibliaLibreBible")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(BibliaLibreDictionary), "BibliaLibreDictionary")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(CrossBible.Library.Downloads.BookArchive), "BookArchive")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(CrossBible.Library.Downloads.BookArchiveDictionary), "BookArchiveDictionary")]
 public partial class BookText : System.ComponentModel.INotifyPropertyChanged
 {
     /// <summary>Raised when <see cref="HasStrongs"/> changes (possibly on the thread that reads a book).</summary>
@@ -703,7 +714,7 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
     public string? EnglishName { get; set; }
     public virtual string Origin => GetType().Name;
     public string Id => WebUtility.UrlEncode(Origin + "." + (!string.IsNullOrEmpty(EnglishName) ? EnglishName : Name));
-    [Newtonsoft.Json.JsonIgnore] // Settings are saved with Newtonsoft; the books are read from the folder
+    [System.Text.Json.Serialization.JsonIgnore] // not saved with the settings: the books are read from the folder
     public List<Book> Books { get; set; } = new List<Book>();
     public string ConfigPath
     {

@@ -1,9 +1,9 @@
 ﻿using Avalonia.Markup.Xaml.Templates;
 using BibleMarkdown;
 using CrossBible.Library.Downloads;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using Newtonsoft.Json.Linq;
+using BibleMarkdown;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -49,19 +49,18 @@ public class BibliaLibreBible : InstallableBook
     /// </summary>
     public static async Task<IEnumerable<InstallableBook>> GetBooksAsync()
     {
-        var index = JArray.Parse(await Download.DownloadStringAsync(IndexUrl));
-        var serializer = JsonSerializer.Create(new JsonSerializerSettings { Converters = { new StringEnumConverter() } });
+        var index = JsonNode.Parse(await Download.DownloadStringAsync(IndexUrl)) as JsonArray ?? [];
 
         var bibles = new List<BibliaLibreBible>();
-        foreach (var entry in index.OfType<JObject>())
+        foreach (var entry in index.OfType<JsonObject>())
         {
-            var file = (string?)entry["File"];
+            var file = entry["File"] is JsonValue fileValue && fileValue.TryGetValue(out string? fileName) ? fileName : null;
             if (string.IsNullOrWhiteSpace(file)) continue;
 
             // A bad info is no reason to leave the Bible out: it is listed with what the zip's name tells.
             BibliaLibreBible bible;
             InstallableBook book;
-            try { book = (entry["Info"] as JObject)?.ToObject<InstallableBook>(serializer) ?? new InstallableBook(); }
+            try { book = (entry["Info"] as JsonObject)?.Deserialize(JsonContext.Plain.InstallableBook) ?? new InstallableBook(); }
             catch (JsonException) { book = new BibliaLibreBible(); }
 
             if (book.Class != Classes.Dictionary) bible = new BibliaLibreBible(book);
@@ -92,7 +91,7 @@ public class BibliaLibreBible : InstallableBook
                 .Max() ?? DateTime.MinValue;
 
             var indexJson = await Download.DownloadStringAsync(ImagesIndexUrl);
-            var zips = JsonConvert.DeserializeObject<string[]>(indexJson)
+            var zips = (JsonSerializer.Deserialize(indexJson, JsonContext.Plain.StringArray) ?? [])
                 .Select(file =>
                 {
                     if (Publisher.CoverZipName.Match(file) is { Success: true } match)
