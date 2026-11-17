@@ -19,6 +19,7 @@ public class eBible : InstallableBook
     protected virtual string DetailsUrl { get; set; }
     static async Task<string> GetListAsync() => await Download.DownloadStringAsync(Url);
 
+    public static readonly string[] NotSupportedBibles = ["Spanish LBLA", "Spanish NBLH"]; // This bibles don't have a SWORD module for download, so don't list them
     public static async Task<IEnumerable<eBible>> GetBiblesAsync()
     {
         var html = new HtmlAgilityPack.HtmlDocument();
@@ -56,7 +57,7 @@ public class eBible : InstallableBook
                 }
                 throw new NotSupportedException("ebible.org returned an invalid format.");
             })
-            .Where(bible => bible.EnglishName != "Spanish LBLA") // Spanish LBLA does not have a Strongs Module for download
+            .Where(bible => !NotSupportedBibles.Any(b => b == bible.EnglishName || b == bible.Name))
             .ToList();
     }
 

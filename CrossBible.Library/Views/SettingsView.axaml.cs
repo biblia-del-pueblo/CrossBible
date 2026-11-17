@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 
 namespace CrossBible.Library.UI;
 
@@ -26,6 +27,28 @@ public partial class SettingsView : UserControl
 
     private bool _loading;
 
+    private const double WideWidth = 500;
+
+    /// <summary>True while the page is wider than <see cref="WideWidth"/> (as the toolbar's); the names of the rows wrap when it is not and they are too long.</summary>
+    public static readonly StyledProperty<bool> IsWideProperty = AvaloniaProperty.Register<SettingsView, bool>(nameof(IsWide), true);
+
+    public bool IsWide { get => GetValue(IsWideProperty); private set => SetValue(IsWideProperty, value); }
+
+    /// <summary>
+    /// The names of the rows (the controls with the class "label"): on one line when the page is wide; when it is not they wrap, at no more than about a third of
+    /// the width, so that a long name (in another language) does not take the room of the control next to it. The column of the names has the same width in
+    /// all the rows (shared size), so one long name sets it for all of them: it wraps at that width.
+    /// </summary>
+    private void UpdateLabels()
+    {
+        double narrowMax = Math.Max(90, Bounds.Width * 0.34);
+        foreach (var label in this.GetVisualDescendants().OfType<TextBlock>().Where(t => t.Classes.Contains("label")))
+        {
+            label.TextWrapping = IsWide ? TextWrapping.NoWrap : TextWrapping.Wrap;
+            label.MaxWidth = IsWide ? double.PositiveInfinity : narrowMax;
+        }
+    }
+
     /// <summary>Raised after the font size, the font or the words of Jesus setting changed, so the text can follow.</summary>
     public event EventHandler? AppearanceChanged;
 
@@ -37,8 +60,14 @@ public partial class SettingsView : UserControl
         InitializeComponent();
         FlowDirection = Localizer.FlowDirection; // mirrored for Arabic and Hebrew
         var version = new AppVersion().Version;
-        VersionText.Text = string.Format(Localizer.Get("Version"),
+        VersionText.Text = "Cross Bible, " + string.Format(Localizer.Get("Version"),
             version.Revision > 0 ? version.ToString() : version.ToString(version.Build >= 0 ? 3 : 2)); // "0.8.0", not "0.8.0.0"
+        SizeChanged += (_, e) =>
+        {
+            IsWide = e.NewSize.Width > WideWidth;
+            UpdateLabels();
+        };
+        IsWideProperty.Changed.AddClassHandler<SettingsView>((view, _) => view.UpdateLabels());
         // The fonts that ship with the app first, then the ones installed on the system.
         FillFonts();
         UiSizeSlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnUiSizeChanged(); };
@@ -46,7 +75,7 @@ public partial class SettingsView : UserControl
         TextOpacitySlider.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) OnTextOpacityChanged(); };
         // The colour of the text is black or white with the theme, and the default opacity of the two themes differs: the slider and the sample follow.
         ActualThemeVariantChanged += (_, _) => Reload();
-        AttachedToVisualTree += (_, _) => Reload();
+        AttachedToVisualTree += (_, _) => { Reload(); UpdateLabels(); };
         PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty && IsVisible) Reload(); };
     }
 
