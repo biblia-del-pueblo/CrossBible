@@ -12,6 +12,12 @@
         <AvaloniaResource Include="Assets\**" />
     </ItemGroup>
 
+    <!-- The texts of the other languages (Resources/Strings.de.resx ...) go into this assembly, not into satellite assemblies (de\CrossBible.Library.resources.dll):
+         an app compiled ahead of time (native AOT) cannot load satellite assemblies, so no language but English would be found there. Localizer reads them. -->
+    <ItemGroup>
+        <EmbeddedResource Update="Resources\Strings.*.resx" WithCulture="false" />
+    </ItemGroup>
+
     <ItemGroup>
         <!-- InstallableBook is shared with BibleMarkdown, where it also reads info.json (see the #if CrossBible in it). -->
         <Compile Include="..\BibleMarkdown\BibleMarkdown\InstallableBook.cs" Link="Downloads\InstallableBook.cs" />

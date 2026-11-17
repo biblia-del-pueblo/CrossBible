@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Solution Items/">
+    <File Path="CrossBible.Msix/make.bat" />
     <File Path="make.bat" />
   </Folder>
   <Project Path="BibleMarkdown/BibleMarkdown/BibleMarkdown.csproj" />

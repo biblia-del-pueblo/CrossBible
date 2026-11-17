@@ -45,4 +45,5 @@
     <ItemGroup>
       <AndroidAsset Remove="C:\GitHub\CrossBible\CrossBible.Android\..\..\BibliaLibrePrivate\Bibles\English.WorldEnglishBibleUS\**" />
     </ItemGroup>
+
 </Project>

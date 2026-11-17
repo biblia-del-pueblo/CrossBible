@@ -64,4 +64,5 @@
     <ItemGroup>
         <ProjectReference Include="..\CrossBible.Library\CrossBible.Library.csproj" />
     </ItemGroup>
+
 </Project>
