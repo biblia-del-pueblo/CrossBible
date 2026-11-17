@@ -1,13 +1,3 @@
-HostPanelPro
+Cross Bible
 
-HostPanelPro is a complete management portal for Cloud Computing Companies and IT Providers to automate the provisioning of a full suite of Multi-Tenant services on servers. The powerful, flexible and fully open source HostPanelPro platform gives users simple point-and-click control over Server applications including IIS 10, Microsoft SQL Server 2022, MySQL, MariaDB, Active Directory, Microsoft Exchange 2019, Microsoft Sharepoint 2019, Microsoft RemoteApp/ RDS and Hyper-V Deployments.
-
-To download the latest Binaries or find more information visit our website at: 
-
-https://HostPanelPro.com/
-
-Usage:
-
-hostpanelpro-installer
-
-This will run the HostPanelPro Installer to install HostPanelPro on your computer.
+Cross Bible is a cross platform bible reader. It runs on Windows, Linux, macOS, Android and iOS. It can download a lot of free bibles for many languages from ebible.org and crosswire.org. It displays the bible text in columns for easier reading, as your print bible does.

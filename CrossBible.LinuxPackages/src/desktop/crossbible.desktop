@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Cross Bible
+Comment=CrossBible is a cross platform bible reader. It can download a lot of free bibles for many languages from ebible.org and crosswire.org. It displays the bible text in columns for easier reading, as your print bible does.
+Icon=/usr/share/pixmaps/crossbible.png
+Exec=/usr/bin/crossbible
+Terminal=false
+Type=Application
+Categories=Utility
+GenericName=CrossBible
+Keywords=Bible,Bible Reader,Cross Bible

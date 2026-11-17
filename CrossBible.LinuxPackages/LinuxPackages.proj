@@ -7,73 +7,93 @@
         <Version Condition=" '$(Version)' == '' ">1.0.0</Version>
         <FileVersion Condition=" '$(FileVersion)' == '' ">$(BUILD_NUMBER)</FileVersion>
         <VersionLabel Condition=" '$(VersionLabel)' == '' ">$(BUILD_NUMBER)</VersionLabel>
-        <ReleaseDate Condition=" '$(ReleaseDate)' == '' ">2025-11-21</ReleaseDate>
-        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+        <ReleaseDate Condition=" '$(ReleaseDate)' == '' ">2026-11-17</ReleaseDate>
+        <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
         <BuildConfiguration>$(Configuration)</BuildConfiguration>
-        <RootFolder>..\..\..</RootFolder>
-        <TrunkFolder>$(RootFolder)\HostPanelPro</TrunkFolder>
+        <RootFolder>..\</RootFolder>
         <Platform>Any CPU</Platform>
 
-        <SetupTrunkFolder>$(RootFolder)\HostPanelPro.Installer</SetupTrunkFolder>
-        <SetupBuildFolder>$(SetupTrunkFolder)\Build\$(BuildConfiguration)</SetupBuildFolder>
-        <MSBuildCommunityTasksPath>$(RootFolder)\MSBuildCommunityTasks</MSBuildCommunityTasksPath>
+        <DesktopFolder>$(RootFolder)CrossBible.Desktop</DesktopFolder>
+        <BuildFolder>$(DesktopFolder)\bin\$(BuildConfiguration)</BuildFolder>
+        <PackagesFolder>$(RootFolder)\CrossBible.LinuxPackages</PackagesFolder>
 
-        <BuildFolder>$(TrunkFolder)\Build\$(BuildConfiguration)</BuildFolder>
-        <DeployFolder>$(TrunkFolder)\Deploy\$(BuildConfiguration)</DeployFolder>
-        <PackagesFolder>$(SetupTrunkFolder)\Sources\HostPanelPro.InstallPackages</PackagesFolder>
-
-        <GZipCmd Condition=" '$(OS)' == 'Windows_NT' ">"$(RootFolder)\tools\gzip\bin\gzip.exe"</GZipCmd>
+        <GZipCmd Condition=" '$(OS)' == 'Windows_NT' ">"tools\gzip\bin\gzip.exe"</GZipCmd>
         <GZipCmd Condition=" '$(OS)' == 'Unix' ">gzip</GZipCmd>
+ 		<ZipCmd>"tools\7-Zip\7z.exe"</ZipCmd>
+ 		<ZipLevel> -mx9 -mmt=on</ZipLevel>
         <NuGetCmd Condition=" '$(OS)' == 'Windows_NT' ">dotnet</NuGetCmd>
         <NuGetCmd Condition=" '$(OS)' == 'Unix' ">dotnet</NuGetCmd>
-        <WpkgCmd>$(RootFolder)\tools\wpkg\src\bin\$(Configuration)\$(netlatest)\wpkg.exe</WpkgCmd>
+        <WpkgCmd>wpkg.exe</WpkgCmd>
 
         <IncludeReleasePdbs Condition="'$(IncludeReleasePdbs)' == '' And '$(Configuration)' == 'Release'">false</IncludeReleasePdbs>
         <IncludeReleasePdbs Condition="'$(IncludeReleasePdbs)' == '' And '$(Configuration)' != 'Release'">true</IncludeReleasePdbs>
     </PropertyGroup>
 
     <ItemGroup>
-        <BinFiles Include="$(PackagesFolder)\src\bin\*.*" />
+        <BinFiles Include="$(PackagesFolder)\bin\*.*" />
     </ItemGroup>
 
     <ItemGroup>
         <BuildOutputExclude Condition="'$(IncludeReleasePdbs)' != 'true'"
-            Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\**\*.pdb" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\**\*.xml" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Tmp\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Data\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Log\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-arm\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-x64\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\android-x86\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\browser-wasm\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x64\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x86\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win-x64\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\runtimes\win-x86\**\*.*" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\installer.settings.json" />
-        <BuildOutputExclude Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\Setup2.dll" />
-        <BuildOutput Include="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\**\*.*"
+            Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\**\*.pdb" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\**\*.xml" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-arm\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-x64\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-x86\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\browser-wasm\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x64\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x86\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win-x64\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win-arm64\**\*.*" />
+        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win-x86\**\*.*" />
+        <BuildOutput Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\**\*.*"
             Exclude="@(BuildOutputExclude)" />
     </ItemGroup>
 
     <Target Name="BuildWpkg">
-        <Exec Command="$(NuGetCmd) restore $(RootFolder)\tools\wpkg\wpkg.slnx" />
-        <MSBuild Projects="$(RootFolder)\tools\wpkg\wpkg.slnx" Properties="Configuration=$(Configuration)" />
+        <Exec Command="dotnet tool install -g CrossPlatformPackager" />
     </Target>
 
-    <Target Name="BuildUniversalInstaller" Condition=" '$(OS)' == 'Unix' ">
-        <Exec Command="dotnet restore $(SetupTrunkFolder)\Sources\HostPanelPro.Installer.slnx" />
-        <MSBuild Projects="$(SetupTrunkFolder)\Sources\HostPanelPro.Installer.slnx" Properties="Configuration=$(Configuration);Platform=Any CPU" />
+    <Target Name="BuildCrossBibleDesktop">
+        <Exec Command="dotnet restore $(RootFolder)BibleMarkdown\BibleMarkdown\BibleMarkdown.csproj" />
+        <Exec Command="dotnet restore $(RootFolder)CrossBible.Library\CrossBible.Library.csproj" />
+        <Exec Command="dotnet restore $(RootFolder)CrossBible.Desktop\CrossBible.Desktop.csproj" />
+        <MSBuild Projects="$(RootFolder)CrossBible.Desktop\CrossBible.Desktop.csproj" Properties="Configuration=$(Configuration);Platform=Any CPU" />
     </Target>
 
-    <Target Name="CleanOutput" DependsOnTargets="BuildWpkg;BuildUniversalInstaller">
+    <!-- Publishes CrossBible.Desktop with native AOT for every Linux runtime, and packs each result as publish/crossbible-<version>-<runtime>.tar.gz.
+         Run it on Linux (native AOT does not build for another operating system), as: dotnet msbuild LinuxPackages.proj -t:PublishDesktopAot
+         It needs clang and zlib1g-dev (the zlib development package); the ARM runtimes also the cross compiler of the machine (on a x64 machine, for linux-arm64:
+         gcc-aarch64-linux-gnu, binutils-aarch64-linux-gnu and the arm64 libraries; for linux-arm the arm ones), and the musl runtimes a musl toolchain (an Alpine
+         machine or container builds them best). The runtime of 32 bit ARM is linux-arm, and linux-musl-arm for musl: there is no "arm32" runtime. -->
+    <Target Name="PublishDesktopAot">
+        <PropertyGroup>
+            <DesktopProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', 'CrossBible.Desktop', 'CrossBible.Desktop.csproj'))</DesktopProject>
+            <AotPublishFolder>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', 'publish'))</AotPublishFolder>
+        </PropertyGroup>
+        <ItemGroup>
+            <AotRuntime Include="linux-x64" />
+            <AotRuntime Include="linux-arm64" />
+            <AotRuntime Include="linux-arm" />
+            <AotRuntime Include="linux-musl-x64" />
+            <AotRuntime Include="linux-musl-arm64" />
+            <AotRuntime Include="linux-musl-arm" />
+        </ItemGroup>
+
+        <!-- dotnet publish restores the packages of its runtime by itself. UseAot is the switch of CrossBible.Desktop.csproj for PublishAot (with ReadyToRun off). -->
+        <Exec Command="dotnet publish &quot;$(DesktopProject)&quot; -c $(Configuration) -r %(AotRuntime.Identity) --self-contained true -p:UseAot=true -p:Version=$(Version) -o &quot;$(AotPublishFolder)/%(AotRuntime.Identity)&quot;" />
+
+        <!-- The debug symbols are not part of the package. -->
+        <Exec Command="tar -czf &quot;$(AotPublishFolder)/crossbible-$(Version)-%(AotRuntime.Identity).tar.gz&quot; --exclude=&quot;*.pdb&quot; --exclude=&quot;*.dbg&quot; -C &quot;$(AotPublishFolder)/%(AotRuntime.Identity)&quot; ." />
+        <Message Importance="high" Text="Packed $(AotPublishFolder)/crossbible-$(Version)-%(AotRuntime.Identity).tar.gz" />
+    </Target>
+    
+    <Target Name="CleanOutput" DependsOnTargets="BuildWpkg;BuildCrossBibleDesktop">
         <ItemGroup>
             <OutputPackageFiles Include="$(PackagesFolder)\bin\*.*" />
         </ItemGroup>
@@ -83,11 +103,10 @@
 
     <Target Name="Dos2Unix" DependsOnTargets="CleanOutput">
         <ItemGroup>
-            <TextFiles Include="$(PackagesFolder)\src\bin\hostpanelpro-installer" />
-            <TextFiles Include="$(PackagesFolder)\src\bin\sslcertmaker" />
+            <TextFiles Include="$(PackagesFolder)\src\bin\crossbible" />
             <TextFiles Include="$(PackagesFolder)\src\doc\*.*" />
             <TextFiles Include="$(PackagesFolder)\src\man\*.*" />
-            <TextFiles Include="$(PackagesFolder)\src\dektop\*.*" />
+            <TextFiles Include="$(PackagesFolder)\src\desktop\*.*" />
             <TextFiles Include="$(PackagesFolder)\Debian\DEBIAN\*.*" />
             <TextFiles Include="$(PackagesFolder)\Fedora\SPECS\*.*" />
             <!--<TextFiles Include="$(PackagesFolder)\Debian\usr\bin\*.*" />-->
@@ -102,40 +121,31 @@
 
     <Target Name="Debian" DependsOnTargets="Dos2Unix">
 
-        <Message Text="Preparing Debian Files"/>
+        <Message Text="Preparing Debian Files" Importance="high" />
 
         <ItemGroup>
             <DocFilesDebianExclude Include="$(PackagesFolder)\src\doc\ChangeLog" />
             <DocFilesDebian Include="$(PackagesFolder)\src\doc\*.*" Exclude="@(DocFilesDebianExclude)" />
-            <PreviousReleaseFiles Include="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer\**\*.*" />
+            <PreviousReleaseFiles Include="$(PackagesFolder)\Debian\usr\share\crossbible\**\*.*" />
         </ItemGroup>
 
-        <!--<Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.dll" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer" />
-        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer" />
-        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer" />-->
+        <!--<Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.dll" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible" />
+        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible" />
+        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible" />-->
         <Delete Files="@(PreviousReleaseFiles)" />
-        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\hostpanelpro\Installer\%(RecursiveDir)" />
-        <Copy SourceFiles="$(PackagesFolder)\src\man\hostpanelpro-installer.1" DestinationFiles="$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer.1" />
-        <Copy SourceFiles="$(PackagesFolder)\src\icon\HostPanelPro.png" DestinationFiles="$(PackagesFolder)\Debian\usr\share\pixmaps\HostPanelPro.png" />
-        <Copy SourceFiles="$(PackagesFolder)\src\desktop\hostpanelpro-installer.desktop" DestinationFolder="$(PackagesFolder)\Debian\usr\share\applications" />
-        <Copy SourceFiles="$(PackagesFolder)\src\icon\sslcertmaker.png" DestinationFolder="$(PackagesFolder)\Debian\usr\share\pixmaps" />
-        <Copy SourceFiles="$(PackagesFolder)\src\desktop\sslcertmaker.desktop" DestinationFolder="$(PackagesFolder)\Debian\usr\share\applications" />
-        <Copy SourceFiles="@(DocFilesDebian)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro" />
-        <Copy SourceFiles="@(BinFiles)" DestinationFolder="$(PackagesFolder)\Debian\usr\bin" />
+        <Message Importance="high" Text="BuildOutput: @(BuildOutput)" />
+        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible\%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)\src\bin\crossbible" DestinationFiles="$(PackagesFolder)\Debian\usr\bin\crossbible" />
+        <Copy SourceFiles="$(PackagesFolder)\src\icon\crossbible.png" DestinationFiles="$(PackagesFolder)\Debian\usr\share\pixmaps\crossbible.png" />
+        <Copy SourceFiles="$(PackagesFolder)\src\desktop\crossbible.desktop" DestinationFolder="$(PackagesFolder)\Debian\usr\share\applications" />
+        <Copy SourceFiles="@(DocFilesDebian)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\doc\crossbible" />
 
-        <Delete Files="$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer.1.gz" />
-        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer.1&quot;" LogStandardErrorAsError="true">
-            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfZip" />
-        </Exec>
-        <Message Text="$(OutputOfZip)" />
-        <Delete Files="$(PackagesFolder)\Debian\usr\share\man\man1\hostpanelpro-installer" />
-
-        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro\changelog.Debian.gz" />
-        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro\changelog.Debian&quot;" LogStandardErrorAsError="true">
+        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\crossbible\changelog.Debian.gz" />
+        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Debian\usr\share\doc\crossbible\changelog.Debian&quot;" LogStandardErrorAsError="true">
             <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfGZip" />
         </Exec>
         <Message Text="$(OutputOfGZip)" />
-        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\hostpanelpro\changelog.Debian" />
+        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\crossbible\changelog.Debian" />
 
         <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -command  &quot;&amp; { .\src\scripts\ConfigureDebian.ps1 '$(FileVersion)' }&quot;" LogStandardErrorAsError="true" />
 
@@ -143,7 +153,7 @@
             <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfWpkg" />
         </Exec>
         <Message Text="$(OutputOfWpkg)" />
-        <Move SourceFiles="$(PackagesFolder)\Debian\hostpanelpro.deb" DestinationFiles="$(PackagesFolder)\bin\hostpanelpro_$(FileVersion)-1_all.deb" />
+        <Move SourceFiles="$(PackagesFolder)\Debian\crossbible.deb" DestinationFiles="$(PackagesFolder)\bin\crossbible_$(FileVersion)-1_all.deb" />
 
     </Target>
 
@@ -155,27 +165,17 @@
             <DocFilesFedoraExclude Include="$(PackagesFolder)\src\doc\changelog.Debian" />
             <DocFilesFedora Include="$(PackagesFolder)\src\doc\*.*" Exclude="@(DocFilesFedoraExclude)" />
             <BinFilesFedora Include="$(PackagesFolder)\src\bin\*.*" />
-            <PreviousReleaseFiles Include="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer\**\*.*" />
+            <PreviousReleaseFiles Include="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer\**\*.*" />
         </ItemGroup>
-        <!--<Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.dll" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer" />
-        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer" />
-        <Copy SourceFiles="$(SetupTrunkFolder)\Sources\HostPanelPro.UniversalInstaller\bin\$(Configuration)\$(netlatest)\HostPanelPro.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer" />-->
+        <!--<Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.dll" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer" />
+        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer" />
+        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer" />-->
         <Delete Files="@(PreviousReleaseFiles)" />
-        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\hostpanelpro\Installer\%(RecursiveDir)" />
-        <Copy SourceFiles="$(PackagesFolder)\src\man\hostpanelpro-installer.1" DestinationFiles="$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer.1" />
-        <Copy SourceFiles="$(PackagesFolder)\src\icon\HostPanelPro.png" DestinationFiles="$(PackagesFolder)\Fedora\usr\share\pixmaps\HostPanelPro.png" />
-        <Copy SourceFiles="$(PackagesFolder)\src\desktop\hostpanelpro-installer.desktop" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\applications" />
-        <Copy SourceFiles="$(PackagesFolder)\src\icon\sslcertmaker.png" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\pixmaps" />
-        <Copy SourceFiles="$(PackagesFolder)\src\desktop\sslcertmaker.desktop" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\applications" />
-        <Copy SourceFiles="@(DocFilesFedora)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\doc\hostpanelpro" />
-        <Copy SourceFiles="@(BinFiles)" DestinationFolder="$(PackagesFolder)\Fedora\usr\bin" />
-
-        <Delete Files="$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer.1.gz" />
-        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer.1&quot;" LogStandardErrorAsError="true">
-            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfZip" />
-        </Exec>
-        <Message Text="$(OutputOfZip)" />
-        <Delete Files="$(PackagesFolder)\Fedora\usr\share\man\man1\hostpanelpro-installer" />
+        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer\%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)\src\bin\crossbible" DestinationFiles="$(PackagesFolder)\Fedora\usr\bin\crossbible" />
+        <Copy SourceFiles="$(PackagesFolder)\src\icon\crossbible.png" DestinationFiles="$(PackagesFolder)\Fedora\usr\share\pixmaps\crossbible.png" />
+        <Copy SourceFiles="$(PackagesFolder)\src\desktop\crossbible.desktop" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\applications" />
+        <Copy SourceFiles="@(DocFilesFedora)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\doc\crossbible" />
 
         <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -command  &quot;&amp; { .\src\scripts\ConfigureFedora.ps1 '$(FileVersion)' }&quot;" LogStandardErrorAsError="true" />
 
@@ -191,7 +191,11 @@
         <Move SourceFiles="@(RpmFiles)" DestinationFolder="$(PackagesFolder)\bin" />
     </Target>
 
-    <Target Name="Build" DependsOnTargets="Fedora" />
+    <Target Name="CreateZipPackage" DependsOnTargets="Fedora">
+        <Exec Command="$(ZipCmd) -ttar -so &quot;bin\crossbible-$(Version).tar&quot; &quot;..\CrossBible.Desktop\bin\$(Configuration)\net11.0&quot; | 7z a -tgzip -si &quot;bin\crossbible-$(Version).tar.gz&quot;" />
+    </Target>
+
+    <Target Name="Build" DependsOnTargets="CreateZipPackage" />
 
 </Project>
 

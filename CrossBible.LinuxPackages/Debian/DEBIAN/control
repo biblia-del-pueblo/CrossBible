@@ -1,11 +1,10 @@
 Section: server
 Priority: optional
 Maintainer: Simon Egli <simon.jakob.egli@gmail.com>
-Homepage: https://www.hostpanelpro.com
-Package: hostpanelpro
+Homepage: https://www.crossbible.org
+Package: crossbible
 Architecture: all
 Version: 1.0.0
-Depends: dotnet-runtime-10.0
-Description: This is the HostPanelPro Server for Debian
- HostPanelPro is a complete management portal for Cloud Computing Companies and IT Providers to automate the provisioning of a full suite of Multi-Tenant services on servers. The powerful, flexible and fully open source HostPanelPro platform gives users simple point-and-click control over Server applications including IIS 10, Microsoft SQL Server 2025, MySQL, MariaDB, Active Directory, Microsoft Exchange 2025, Microsoft Sharepoint 2019, Microsoft RemoteApp/RDS and Hyper-V Deployments.
-Installed-Size: 402201
+Depends: dotnet-runtime-11.0
+Description: CrossBible is a cross platform bible reader. It runs on Windows, Linux, macOS, Android and iOS. It can download a lot of free bibles for many languages from ebible.org and crosswire.org. It displays the bible text in columns for easier reading, as your print bible does.
+Installed-Size: 234986
