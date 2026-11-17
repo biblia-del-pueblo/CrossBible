@@ -1,8 +1,14 @@
-rem Builds the Microsoft Store package of CrossBible for x64 (amd64) and ARM64, precompiled with ReadyToRun: one .msixbundle and the .msixupload for Partner Center.
+rem Builds the Microsoft Store package of CrossBible for x64 (amd64) and ARM64: one .msixbundle and the .msixupload for Partner Center.
+rem The code is compiled to machine code ahead of time (native AOT): no .NET runtime in the package, and a smaller start-up.
 rem
-rem   make.bat           builds (Release)
+rem   make.bat           builds (Release), native AOT
+rem   make.bat r2r       builds with ReadyToRun instead (the code is precompiled, but the .NET runtime is in the package: larger, and it needs no C++ tools)
 rem   make.bat clean     deletes everything that was built before, then builds (use it after the identity or version in
 rem                      Package.appxmanifest changed: an older package of the other architecture would not fit the bundle)
+rem   (the words can be given together: make.bat clean r2r)
+rem
+rem Native AOT is linked by the C++ tools of Visual Studio: for the x64 package "MSVC build tools for x64/x86" and for the ARM64 package "MSVC build tools
+rem for ARM64/ARM64EC" (Visual Studio Installer > Modify > Individual components), with the Windows SDK.
 rem
 rem The packaging targets belong to Visual Studio, so the project is built with the MSBuild of Visual Studio, not with "dotnet build".
 rem The result is in AppPackages\
@@ -24,7 +30,30 @@ if not defined MSBUILD (
     exit /b 1
 )
 
-if /i "%~1"=="clean" (
+set "CLEAN="
+set "MODE=aot"
+for %%o in (%*) do (
+    if /i "%%o"=="clean" set "CLEAN=1"
+    if /i "%%o"=="r2r" set "MODE=r2r"
+)
+
+if "%MODE%"=="aot" (
+    rem Fail at once, with what to do, instead of after minutes of work when the linker cannot find the libraries of the architecture.
+    set "CPPX64="
+    set "CPPARM64="
+    for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "CPPX64=%%i"
+    for /f "usebackq delims=" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath`) do set "CPPARM64=%%i"
+    if not defined CPPX64 (
+        echo Native AOT needs the C++ tools of Visual Studio for x64: install "MSVC build tools for x64/x86 (latest)" with the Visual Studio Installer, or build with: make.bat r2r
+        exit /b 1
+    )
+    if not defined CPPARM64 (
+        echo Native AOT for the ARM64 package needs the C++ tools of Visual Studio for ARM64: install "MSVC build tools for ARM64/ARM64EC (latest)" with the Visual Studio Installer, or build with: make.bat r2r
+        exit /b 1
+    )
+)
+
+if defined CLEAN (
     echo Deleting the packages and layouts that were built before...
     for %%a in (x64 arm64) do (
         if exist "%HERE%bin\%%a" rmdir /s /q "%HERE%bin\%%a"
@@ -38,9 +67,15 @@ if /i "%~1"=="clean" (
 )
 
 rem Platform x64 builds the bundle: AppxBundlePlatforms in CrossBible.Msix.wapproj has x64 and arm64, and the app is built for both.
-rem The code is precompiled (ReadyToRun) so that the app starts faster: PublishReadyToRun is set here, besides CrossBible.Desktop.csproj, so that the
-rem package is made this way whatever that file says. (Native AOT is not possible: Newtonsoft.Json and LiteDB need reflection.)
-"%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -p:PublishReadyToRun=true -verbosity:minimal -nologo
+rem How the code is compiled is set here, besides CrossBible.Desktop.csproj, so that the package is made this way whatever that file says: UseAot=true is
+rem native AOT (see the switch in that file), PublishReadyToRun=true is ReadyToRun.
+if "%MODE%"=="aot" (
+    echo Building with native AOT...
+    "%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -p:UseAot=true -verbosity:minimal -nologo
+) else (
+    echo Building with ReadyToRun...
+    "%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -p:PublishReadyToRun=true -verbosity:minimal -nologo
+)
 if errorlevel 1 (
     echo.
     echo The build failed.
