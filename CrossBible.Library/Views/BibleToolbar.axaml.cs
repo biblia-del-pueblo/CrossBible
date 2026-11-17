@@ -454,7 +454,8 @@ public partial class BibleToolbar : UserControl
     {
         var moved = e.GetPosition(this) - _swipeStart;
         dx = moved.X;
-        return _swipeTracked && Math.Abs(moved.X) >= SwipeDistance && Math.Abs(moved.X) > 2 * Math.Abs(moved.Y);
+        // Not while a finger selects text: a long press that selects a word and a drag that extends the selection is no swipe, however horizontal it is.
+        return _swipeTracked && Target?.IsSelectingByTouch != true && Math.Abs(moved.X) >= SwipeDistance && Math.Abs(moved.X) > 2 * Math.Abs(moved.Y);
     }
 
     /// <summary>Once the pointer has swiped, the press is no long press any more.</summary>

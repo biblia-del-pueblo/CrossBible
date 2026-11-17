@@ -2419,7 +2419,7 @@ public partial class BibleTextBlock : Panel
     private bool _selecting;
 
     // Selecting by touch: a long press selects the word, dragging the finger on extends the selection by words.
-    // Only while Strong's words are not marked: then they are not tappable and the long press cannot be meant for one.
+    // Also while Strong's words are marked: a tap on one opens its entry, a long press (350 ms) selects, and the lift after a long press is no tap (see OnTapped).
     private ScrollGestureRecognizer? _scrollRecognizer;
     private bool _touchSelectingValue;
 
@@ -2437,6 +2437,12 @@ public partial class BibleTextBlock : Panel
         }
     }
     private int _touchWordStart, _touchWordEnd;
+
+    /// <summary>
+    /// A finger is selecting text, or has just stopped: its drag is not a swipe (the bar takes a mostly horizontal drag on the text for a step
+    /// in the history), and a drag that selects must not turn into one.
+    /// </summary>
+    public bool IsSelectingByTouch => _touchSelecting || Environment.TickCount64 - _touchSelectionEnded < 600;
     private ulong _lastTouchMoveTimestamp; // the timestamp of the last move that extended the selection (it is seen by two routes)
     private long _touchSelectionEnded; // Environment.TickCount64 of the lift of the finger that selected (or of the start of the selection)
 
@@ -2451,7 +2457,7 @@ public partial class BibleTextBlock : Panel
     private void StartHoldTimer(Point position)
     {
         StopHoldTimer();
-        if (StrongsDictionaries.Any || OverScrollBar(position)) return;
+        if (OverScrollBar(position)) return;
         _touchPressPoint = position;
         _holdTimer = new DispatcherTimer { Interval = LongPressTime };
         _holdTimer.Tick += OnHoldTimer;
@@ -2470,7 +2476,7 @@ public partial class BibleTextBlock : Panel
     private void OnHoldTimer(object? sender, EventArgs e)
     {
         StopHoldTimer();
-        if (!_touchDown || _selecting || _panning || StrongsDictionaries.Any) return;
+        if (!_touchDown || _selecting || _panning) return;
         var point = ToContent(_touchPressPoint);
         if (!IsOverText(point) || IndexAt(point) is not { } index) return;
         Focus();
@@ -2511,7 +2517,9 @@ public partial class BibleTextBlock : Panel
 
     private void OnContextRequestedTunnel(object? sender, ContextRequestedEventArgs e)
     {
-        if (_touchSelecting) { _touchSelecting = false; _touchSelectionEnded = Environment.TickCount64; } // the finger lifted (its release does not always arrive)
+        // The finger lifted (its release does not always arrive). Not when the selection began a moment ago: the Holding gesture of Avalonia asks for the menu
+        // about 50 ms after the long press that selected the word, with the finger still down, and ending the selection then handed the finger to the scroll.
+        if (_touchSelecting && Environment.TickCount64 - _touchSelectionEnded > 400) { _touchSelecting = false; _touchSelectionEnded = Environment.TickCount64; }
         // subscribed to the tunnel phase: the context menu itself answers in the bubble phase, which a handled event does not reach
         if (_touchSelecting || _holdTimer is not null || Environment.TickCount64 - _touchSelectionEnded < 1000) e.Handled = true;
     }
@@ -2603,18 +2611,22 @@ public partial class BibleTextBlock : Panel
     private static bool InWord(char c) => char.IsLetterOrDigit(c) || Hyphenation.IsMark(c) || c == '\'';
 
     /// <summary>The start of the word that <paramref name="index"/> is in or at the end of (the index itself between words).</summary>
-    private int WordStart(int index)
+    private int WordStart(int index) => WordStartIn(_text, index);
+
+    internal static int WordStartIn(string text, int index)
     {
-        int start = Math.Min(index, _text.Length);
-        while (start > 0 && InWord(_text[start - 1])) start--;
+        int start = Math.Min(index, text.Length);
+        while (start > 0 && InWord(text[start - 1])) start--;
         return start;
     }
 
     /// <summary>The end of the word that <paramref name="index"/> is in or at the start of (the index itself between words).</summary>
-    private int WordEnd(int index)
+    private int WordEnd(int index) => WordEndIn(_text, index);
+
+    internal static int WordEndIn(string text, int index)
     {
-        int end = Math.Min(index, _text.Length);
-        while (end < _text.Length && InWord(_text[end])) end++;
+        int end = Math.Min(index, text.Length);
+        while (end < text.Length && InWord(text[end])) end++;
         return end;
     }
 
@@ -2627,10 +2639,12 @@ public partial class BibleTextBlock : Panel
     /// The end of a selection that reaches the word at <paramref name="index"/>: the end of the word and the punctuation marks that stand
     /// right behind it ("word," or "word.)"), so a selection does not leave them out.
     /// </summary>
-    private int SelectionEnd(int index)
+    private int SelectionEnd(int index) => SelectionEndIn(_text, index);
+
+    internal static int SelectionEndIn(string text, int index)
     {
-        int end = WordEnd(index);
-        while (end < _text.Length && TrailingPunctuation(_text[end])) end++;
+        int end = WordEndIn(text, index);
+        while (end < text.Length && TrailingPunctuation(text[end])) end++;
         return end;
     }
 
@@ -2643,11 +2657,13 @@ public partial class BibleTextBlock : Panel
     /// The start of a selection that reaches the word at <paramref name="index"/>: the start of the word and the punctuation marks that stand
     /// right in front of it ("¿word" or "(word"), unless they are stuck to the word before them ("word"next").
     /// </summary>
-    private int SelectionStart(int index)
+    private int SelectionStart(int index) => SelectionStartIn(_text, index);
+
+    internal static int SelectionStartIn(string text, int index)
     {
-        int start = WordStart(index), i = start;
-        while (i > 0 && LeadingPunctuation(_text[i - 1])) i--;
-        return i < start && (i == 0 || !InWord(_text[i - 1])) ? i : start;
+        int start = WordStartIn(text, index), i = start;
+        while (i > 0 && LeadingPunctuation(text[i - 1])) i--;
+        return i < start && (i == 0 || !InWord(text[i - 1])) ? i : start;
     }
 
     private void SelectWordAt(int index) => SetSelection(SelectionStart(index), SelectionEnd(index));
@@ -2782,6 +2798,7 @@ public partial class BibleTextBlock : Panel
     private void DrawSelection(DrawingContext context)
     {
         if (!HasSelection) return;
+        var fill = SelectionFill();
         foreach (var pl in _lines)
         {
             if (!IsInView(pl)) continue;
@@ -2789,8 +2806,22 @@ public partial class BibleTextBlock : Panel
             int start = Math.Max(SelStart, first), end = Math.Min(SelEnd, first + pl.Line.Length - pl.Line.NewLineLength);
             if (end <= start) continue;
             foreach (var box in pl.Bounds(start, end - start))
-                context.DrawRectangle(SelectionBrush, null, box.Rectangle.Translate(new Vector(pl.Origin.X, pl.Origin.Y)));
+                context.DrawRectangle(fill, null, box.Rectangle.Translate(new Vector(pl.Origin.X, pl.Origin.Y)));
         }
+    }
+
+    /// <summary>
+    /// The colour of a selection: the one that the theme resource has, which the constructor sets to the light blue (so the text block, the popups and the other
+    /// text of the application select in the same colour). The blue itself is the fallback.
+    /// </summary>
+    private IBrush SelectionFill()
+    {
+        if (this.TryFindResource("TextControlSelectionHighlightColor", ActualThemeVariant, out var found))
+        {
+            if (found is IBrush brush) return brush;
+            if (found is Color color) return new SolidColorBrush(color);
+        }
+        return SelectionBrush;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -2836,6 +2867,12 @@ public partial class BibleTextBlock : Panel
         }
         var pressedStrong = _pressedStrong;
         _pressedStrong = null;
+        if (_pressedInSelection)
+        {
+            _pressedInSelection = false;
+            if (ContextMenu is { IsOpen: false } menu) menu.Open(this);
+            return;
+        }
         if (!_selecting) return;
         _selecting = false;
         e.Pointer.Capture(null);
@@ -2855,6 +2892,15 @@ public partial class BibleTextBlock : Panel
         var position = e.GetPosition(this);
         if (OverScrollBar(position)) return; // the scroll bar is a child; its presses bubble up to here
         var point = ToContent(position);
+        // A click on the selection offers Copy and Select all, as a tap does (see OnTapped): the menu opens when the button is lifted. Not a footnote, a
+        // Strong's entry or the start of a new selection then: the selection stays, to be copied.
+        if (HasSelection && e.ClickCount == 1 && IsOverText(point) && IndexAt(point) is { } inside && inside >= SelStart && inside <= SelEnd)
+        {
+            _pressedInSelection = true;
+            Focus();
+            e.Handled = true;
+            return;
+        }
         if (HitFootnote(point, out var bounds) is { } note)
         {
             bounds = bounds.Translate(new Vector(-_offsetX, -_offsetY)); // popup placement uses control coordinates
@@ -2884,6 +2930,7 @@ public partial class BibleTextBlock : Panel
     }
 
     private (string Strong, Rect Bounds)? _pressedStrong;
+    private bool _pressedInSelection; // the mouse button went down on the selection
 
     /// <summary>The popup's text is this much smaller than the text of the reader.</summary>
     private const double FootnoteScale = 0.85;
@@ -2987,7 +3034,7 @@ public partial class BibleTextBlock : Panel
             foreach (var inline in items)
             {
                 if (inline is Avalonia.Controls.Documents.Run run) sb.Append(run.Text);
-                else if (inline is Avalonia.Controls.Documents.LineBreak) sb.Append('\n'); // one character in the text layout too: the positions of a selection count it
+                else if (inline is Avalonia.Controls.Documents.LineBreak) sb.Append(Environment.NewLine); // as many characters as the text layout counts for it (two on Windows: "\r\n"): the positions of a selection count them
                 else if (inline is Avalonia.Controls.Documents.InlineUIContainer) sb.Append('￼'); // a control in the text (a link) is one character as well
                 else if (inline is Span { Inlines: { } children }) Walk(children);
             }
@@ -3015,14 +3062,15 @@ public partial class BibleTextBlock : Panel
         };
         foreach (var inline in items) text.Inlines!.Add(inline);
         text[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SystemControlForegroundBaseHighBrush");
-        SelectWholeWords(text, () => text.Text is { Length: > 0 } shown ? shown : PlainText(items));
+        var popupText = PlainText(items); // the text as the layout has it: the positions of a selection count into it
         // The text does not take the pointer (a control that selects takes every touch: a swipe selected instead of scrolling the popup, and holding the
         // events back to stop that lost the inertia of the scroll). A transparent host takes it, and the selection is made here: a swipe is then the scroll
         // viewer's own. A mouse selects by pressing and dragging (a double click selects a word), a finger by a long press (the word under it, which the
         // finger then extends).
         text.IsHitTestVisible = false;
         var host = new Border { Background = Brushes.Transparent, Child = text };
-        var contextMenu = host.ContextMenu = new ContextMenu
+        // Not attached to the host (ContextMenu property): the long press of a finger asks for such a menu, and opening or even refusing it let go of the finger.
+        var contextMenu = new ContextMenu
         {
             ItemsSource = new[]
             {
@@ -3039,9 +3087,17 @@ public partial class BibleTextBlock : Panel
             try { contextMenu.Open(host); }
             finally { menuWanted = false; }
         }
-        int TextLength() => (text.Text is { Length: > 0 } shown ? shown : PlainText(items)).Length;
+        int TextLength() => popupText.Length;
         int IndexAt(Point point) => Math.Clamp(text.TextLayout.HitTestPoint(point - new Point(text.Padding.Left, text.Padding.Top)).TextPosition, 0, TextLength());
-        // Widened to whole words, see SelectWholeWords. The two ends are written in an order that keeps the start before the end at every step: the control
+        // Whole words, by the functions of the text of the Bible (WordStartIn, SelectionStartIn ...: the punctuation that stands right behind or in front of a
+        // word belongs to it). The selection of a drag from the place where it began (the word of it) to the word of the place where it is now.
+        void SelectWords(int anchorIndex, int index, bool caretWithoutMove)
+        {
+            if (caretWithoutMove && index == anchorIndex) { SetRange(anchorIndex, anchorIndex); return; }
+            if (index >= anchorIndex) SetRange(SelectionStartIn(popupText, anchorIndex), SelectionEndIn(popupText, index));
+            else SetRange(SelectionStartIn(popupText, index), SelectionEndIn(popupText, anchorIndex));
+        }
+        // The two ends are written in an order that keeps the start before the end at every step: the control
         // keeps the start from going past the end, so writing a start that is beyond the old end first left it at the old end.
         void SetRange(int a, int b)
         {
@@ -3053,6 +3109,9 @@ public partial class BibleTextBlock : Panel
         var lockedRecognizers = new List<(ScrollGestureRecognizer Recognizer, bool Vertical, bool Horizontal)>();
         void LockScroll(bool locked)
         {
+            // The scroll recognizer of this control gets the touches of the popup too, and takes the finger for itself (and with it all its events, which then reach
+            // nobody else) once the finger moves: switched off as the text of the Bible does it for its own long press (see _touchSelecting).
+            if (_scrollRecognizer is { } own && !_touchSelecting) own.CanVerticallyScroll = own.CanHorizontallyScroll = !locked;
             if (locked)
             {
                 if (Avalonia.VisualTree.VisualExtensions.GetVisualAncestors(host).OfType<ScrollViewer>().FirstOrDefault() is not { } viewer) return;
@@ -3071,8 +3130,10 @@ public partial class BibleTextBlock : Panel
 
         bool selecting = false, touchSelecting = false, touchDown = false, moved = false, pressedOnSelection = false;
         bool longPressed = false; // this touch selected a word (kept when the capture is lost before the finger lifts: the order of the two events is not fixed)
-        int anchor = 0, anchorEnd = 0; // where the selection began: a point for the mouse, the word that the long press selected for a finger
+        ulong lastMove = 0; // the timestamp of the last move that was used (it comes by two routes)
+        int anchor = 0; // where the selection began (the place of the press)
         Point pressedAt = default;
+        IPointer? touchPointer = null;
         DispatcherTimer? menuTimer = null, touchTimer = null;
         void StopMenuTimer() { menuTimer?.Stop(); menuTimer = null; }
         void StopTouchTimer() { touchTimer?.Stop(); touchTimer = null; }
@@ -3081,11 +3142,13 @@ public partial class BibleTextBlock : Panel
         {
             StopMenuTimer();
             StopTouchTimer();
+            if (touchSelecting) LockScroll(false);
             selecting = touchSelecting = moved = pressedOnSelection = longPressed = false;
             var properties = e.GetCurrentPoint(host).Properties;
             rightPressed = e.Pointer.Type == PointerType.Mouse && properties.IsRightButtonPressed;
+            if (rightPressed) { OpenMenu(); e.Handled = true; return; }
             // A finger does not report a button: it is always the primary press.
-            if (rightPressed || (e.Pointer.Type == PointerType.Mouse && !properties.IsLeftButtonPressed)) return; // the context menu of a right click opens by itself
+            if (e.Pointer.Type == PointerType.Mouse && !properties.IsLeftButtonPressed) return;
             pressedAt = e.GetPosition(text);
             int at = IndexAt(pressedAt);
             int low = Math.Min(text.SelectionStart, text.SelectionEnd), high = Math.Max(text.SelectionStart, text.SelectionEnd);
@@ -3093,6 +3156,7 @@ public partial class BibleTextBlock : Panel
             if (e.Pointer.Type == PointerType.Touch)
             {
                 touchDown = true;
+                touchPointer = e.Pointer;
                 pressedOnSelection = onSelection;
                 var timer = touchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
                 timer.Tick += (_, _) =>
@@ -3103,23 +3167,27 @@ public partial class BibleTextBlock : Panel
                     touchSelecting = longPressed = true;
                     pressedOnSelection = false;
                     anchor = at;
-                    anchorEnd = Math.Min(TextLength(), at + 1);
-                    SetRange(anchor, anchorEnd);
+                    SelectWords(anchor, at, caretWithoutMove: false);
                     LockScroll(true);
+                    touchPointer?.Capture(host); // as the text of the Bible does for its long press: the moves and the lift of this finger come to the host
                 };
                 timer.Start();
                 return; // not handled: a swipe is the scroll viewer's
             }
-            if (e.ClickCount >= 2) { SetRange(at, Math.Min(TextLength(), at + 1)); e.Handled = true; return; }
+            if (e.ClickCount >= 2) { SelectWords(at, at, caretWithoutMove: false); e.Handled = true; return; }
             if (onSelection) { pressedOnSelection = true; e.Handled = true; return; } // the menu opens when the button is lifted
-            anchor = anchorEnd = at;
+            anchor = at;
             SetRange(at, at);
             selecting = true;
             e.Pointer.Capture(host);
             e.Handled = true;
         };
-        host.PointerMoved += (_, e) =>
+        // Listened to with handled events too, in both phases (as the text of the Bible does): the scroll recognizer marks the moves of a finger handled once it
+        // has the finger, and then the ordinary handlers do not see them; an event is used once.
+        void OnMove(PointerEventArgs e)
         {
+            if (e.Timestamp == lastMove) return;
+            lastMove = e.Timestamp;
             var now = e.GetPosition(text);
             if (!moved && (touchDown || pressedOnSelection) && Math.Abs(now.X - pressedAt.X) + Math.Abs(now.Y - pressedAt.Y) > 10)
             {
@@ -3127,11 +3195,12 @@ public partial class BibleTextBlock : Panel
                 if (!touchSelecting) StopTouchTimer();
             }
             if (!selecting && !touchSelecting) return;
-            int index = IndexAt(now);
-            SetRange(Math.Min(anchor, index), Math.Max(anchorEnd, index)); // the place where it began stays in it, whichever way the pointer goes
+            // A finger that selected by a long press has its word already (also without a move); the mouse has only a caret until it moves.
+            SelectWords(anchor, IndexAt(now), caretWithoutMove: selecting);
             e.Handled = true;
-        };
-        host.PointerReleased += (_, e) =>
+        }
+        host.AddHandler(InputElement.PointerMovedEvent, (_, e) => OnMove(e), Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+        void OnRelease(PointerEventArgs e)
         {
             StopTouchTimer();
             bool wasSelecting = selecting || touchSelecting || longPressed;
@@ -3155,58 +3224,17 @@ public partial class BibleTextBlock : Panel
                 else if (e.Pointer.Type == PointerType.Touch && text.SelectionStart != text.SelectionEnd) SetRange(0, 0); // a tap elsewhere puts the selection away
             }
             pressedOnSelection = false;
-        };
+        }
+        host.PointerReleased += (_, e) => OnRelease(e);
         host.PointerCaptureLost += (_, _) =>
         {
+            // The scroll recognizer took the finger before the long press: a swipe, which never selects. After the long press the capture goes too (switching
+            // the scroll gesture off lets go of it), and the selection goes on: the release ends it.
+            if (touchSelecting) return;
             StopTouchTimer();
-            if (touchSelecting) LockScroll(false);
-            selecting = touchSelecting = touchDown = false;
+            selecting = touchDown = false;
         };
         ShowCard(host, bounds);
-    }
-
-    /// <summary>
-    /// Makes the selection of the text of a popup always cover whole words, as it does in the text of the Bible: whenever it changes, its start
-    /// moves back to the start of its word and its end on to the end of its word.
-    /// </summary>
-    private static void SelectWholeWords(SelectableTextBlock block, Func<string> getText)
-    {
-        bool snapping = false;
-        static bool InWord(string s, int i) =>
-            i >= 0 && i < s.Length && (char.IsLetterOrDigit(s[i]) || char.GetUnicodeCategory(s[i]) is System.Globalization.UnicodeCategory.NonSpacingMark
-                or System.Globalization.UnicodeCategory.SpacingCombiningMark || s[i] == '­'
-                || ((s[i] == '\'' || s[i] == '’') && InWord(s, i - 1) && InWord(s, i + 1)));
-        bool queued = false;
-        // The control sets the start and the end one after the other (the end is still the old one while the start is new): the selection is
-        // looked at once both are set, from a posted callback, not from the change of one of them.
-        block.PropertyChanged += (_, e) =>
-        {
-            if (snapping || queued || (e.Property != SelectableTextBlock.SelectionStartProperty && e.Property != SelectableTextBlock.SelectionEndProperty)) return;
-            queued = true;
-            Dispatcher.UIThread.Post(() => { queued = false; Snap(); }, DispatcherPriority.Send); // before the next frame is drawn, so the raw selection is never seen
-        };
-        void Snap()
-        {
-            int start = Math.Min(block.SelectionStart, block.SelectionEnd), end = Math.Max(block.SelectionStart, block.SelectionEnd);
-            if (start == end) return;
-            var s = getText();
-            if (end > s.Length) return;
-            int newStart = start, newEnd = end;
-            while (newStart > 0 && InWord(s, newStart - 1) && InWord(s, newStart)) newStart--;
-            while (newEnd < s.Length && InWord(s, newEnd) && InWord(s, newEnd - 1)) newEnd++;
-            if (newStart == start && newEnd == end) return;
-            snapping = true;
-            // The direction is kept: the control moves the end of the selection with the pointer and keeps its start where the press was (which is the
-            // later one of the two when the pointer went backwards): with the two turned around, the next move would measure from the wrong end and the
-            // selection flickered between the whole word and what the pointer covers.
-            bool backwards = block.SelectionStart > block.SelectionEnd;
-            try
-            {
-                if (backwards) { block.SelectionStart = newEnd; block.SelectionEnd = newStart; }
-                else { block.SelectionStart = newStart; block.SelectionEnd = newEnd; }
-            }
-            finally { snapping = false; }
-        }
     }
 
     // On Windows a popup is a window of its own, and Windows runs its press and hold (a long press is a right click, with a square that closes in) on it
@@ -3282,6 +3310,9 @@ public partial class BibleTextBlock : Panel
 
     public BibleTextBlock()
     {
+        // The light blue is the colour of every selection (also of the text blocks and text boxes of the other pages): it takes the place of the accent colour that the
+        // theme has for it. Set where the application's resources are, so that it is found from everywhere; the same brush each time.
+        if (Application.Current is { } application) application.Resources["TextControlSelectionHighlightColor"] = SelectionBrush;
         _layer = new TextLayer(this) { IsHitTestVisible = false };
         ActualThemeVariantChanged += (_, _) => _layer.InvalidateVisual(); // the underline of Strong's words follows the theme
         Children.Add(_layer);
