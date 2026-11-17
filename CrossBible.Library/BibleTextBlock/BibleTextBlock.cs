@@ -3026,7 +3026,7 @@ public partial class BibleTextBlock : Panel
         ToInlines(BookText.ParseText(markdown, new BookText.VersePosition()), size, upperCase: false);
 
     /// <summary>The plain text of inlines (their runs, also in spans).</summary>
-    internal static string PlainText(IEnumerable<Inline> inlines)
+    internal static string PlainText(IEnumerable<Inline> inlines, List<string>? linkTexts = null)
     {
         var sb = new StringBuilder();
         void Walk(IEnumerable<Inline> items)
@@ -3035,7 +3035,11 @@ public partial class BibleTextBlock : Panel
             {
                 if (inline is Avalonia.Controls.Documents.Run run) sb.Append(run.Text);
                 else if (inline is Avalonia.Controls.Documents.LineBreak) sb.Append(Environment.NewLine); // as many characters as the text layout counts for it (two on Windows: "\r\n"): the positions of a selection count them
-                else if (inline is Avalonia.Controls.Documents.InlineUIContainer) sb.Append('￼'); // a control in the text (a link) is one character as well
+                else if (inline is Avalonia.Controls.Documents.InlineUIContainer container)
+                {
+                    sb.Append('￼'); // a control in the text (a link) is one character as well
+                    linkTexts?.Add(container.Child is TextBlock link ? link.Text ?? string.Empty : string.Empty); // what the reader sees there, for copying
+                }
                 else if (inline is Span { Inlines: { } children }) Walk(children);
             }
         }
@@ -3062,7 +3066,8 @@ public partial class BibleTextBlock : Panel
         };
         foreach (var inline in items) text.Inlines!.Add(inline);
         text[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("SystemControlForegroundBaseHighBrush");
-        var popupText = PlainText(items); // the text as the layout has it: the positions of a selection count into it
+        var linkTexts = new List<string>();
+        var popupText = PlainText(items, linkTexts); // the text as the layout has it: the positions of a selection count into it
         // The text does not take the pointer (a control that selects takes every touch: a swipe selected instead of scrolling the popup, and holding the
         // events back to stop that lost the inertia of the scroll). A transparent host takes it, and the selection is made here: a swipe is then the scroll
         // viewer's own. A mouse selects by pressing and dragging (a double click selects a word), a finger by a long press (the word under it, which the
@@ -3074,7 +3079,7 @@ public partial class BibleTextBlock : Panel
         {
             ItemsSource = new[]
             {
-                CreateMenuItem("Copy", () => text.Copy(), "copy.svg"),
+                CreateMenuItem("Copy", () => CopySelection(), "copy.svg"),
                 CreateMenuItem("Select all", text.SelectAll, "select-all.svg"),
             },
         };
@@ -3088,6 +3093,27 @@ public partial class BibleTextBlock : Panel
             finally { menuWanted = false; }
         }
         int TextLength() => popupText.Length;
+        // The selected text for the clipboard. A link (a Strong's number in an entry) is a control in the text, which the layout counts as one character, U+FFFC,
+        // and which the control would copy as that character: its own text takes its place.
+        string SelectedText()
+        {
+            int low = Math.Min(text.SelectionStart, text.SelectionEnd), high = Math.Min(Math.Max(text.SelectionStart, text.SelectionEnd), popupText.Length);
+            if (high <= low) return string.Empty;
+            int link = popupText.Take(low).Count(c => c == '￼');
+            var sb = new StringBuilder();
+            for (int i = low; i < high; i++)
+            {
+                if (popupText[i] != '￼') sb.Append(popupText[i]);
+                else sb.Append(link < linkTexts.Count ? linkTexts[link++] : string.Empty);
+            }
+            return sb.ToString();
+        }
+        async void CopySelection()
+        {
+            var clipboard = TopLevel.GetTopLevel(host)?.Clipboard ?? TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is not null && SelectedText() is { Length: > 0 } selected) await clipboard.SetTextAsync(selected);
+        }
+        text.CopyingToClipboard += (_, e) => { e.Handled = true; CopySelection(); }; // Ctrl+C, when the text has the keys
         int IndexAt(Point point) => Math.Clamp(text.TextLayout.HitTestPoint(point - new Point(text.Padding.Left, text.Padding.Top)).TextPosition, 0, TextLength());
         // Whole words, by the functions of the text of the Bible (WordStartIn, SelectionStartIn ...: the punctuation that stands right behind or in front of a
         // word belongs to it). The selection of a drag from the place where it began (the word of it) to the word of the place where it is now.
