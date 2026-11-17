@@ -75,7 +75,6 @@ public class OSInfo
         }
     }
 
-    static OSFlavor flavor = OSFlavor.Unknown;
     static Version version = new Version("0.0.0.0");
 
     public static OSPlatform OSPlatform => IsWindows ? OSPlatform.Windows :
@@ -85,6 +84,7 @@ public class OSInfo
 
     public static Architecture Architecture => RuntimeInformation.ProcessArchitecture;
 #if Server
+    static OSFlavor flavor = OSFlavor.Unknown;
     public static OSFlavor OSFlavor
     {
         get
