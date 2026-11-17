@@ -1,0 +1,27 @@
+Privacy Policy for Cross Bible
+
+Last updated: 17 November 2026
+
+Cross Bible is a Bible reader published by Estrellas de Esperanza. This policy explains what the app does with your information.
+
+1. Information we collect
+We do not collect, store or receive any personal information about you. The app has no accounts, no advertising, no analytics and no tracking, and we run no server that receives data from the app.
+
+2. Information stored on your device
+The app keeps on your device only what it needs to work: your settings (such as language, text size, colors and the Bible you read), your reading position and history, and the Bibles and dictionaries you have installed. This data stays on your device and is removed when you uninstall the app.
+
+3. Internet access
+The app connects to the internet only when you ask it to download Bibles or dictionaries, from public sources such as crosswire.org, ebible.org and biblia-del-pueblo.github.io. Like any web request, these downloads reveal your IP address to the server that provides the files, and are subject to that server's own privacy policy. We do not send any information about you in these requests.
+
+4. Sharing of information
+We do not sell, share or transfer any information about you to anyone, because we do not have any.
+
+5. Children
+The app does not knowingly collect information from anyone, including children.
+
+6. Changes to this policy
+If this policy changes, the new version will be published with the app, with a new date above.
+
+7. Contact
+Estrellas de Esperanza
+Email: simon.jakob.egli@gmail.com

@@ -12,7 +12,7 @@
 
   <Identity
     Name="EstrellasdeEsperanza.358954F0087BC"
-    Publisher="CN=Estrellas de Esperanza"
+    Publisher="CN=057A2C88-2942-44F8-AF45-BFA303465615"
     Version="0.8.0.0" />
 
   <Properties>
@@ -48,7 +48,7 @@
     <Resource Language="ja" />
     <Resource Language="km" />
     <Resource Language="ko" />
-    <Resource Language="mn" />
+    <Resource Language="mn-Cyrl" />
     <Resource Language="nb" />
     <Resource Language="ne" />
     <Resource Language="nl" />
@@ -56,7 +56,6 @@
     <Resource Language="ro" />
     <Resource Language="bg" />
     <Resource Language="hr" />
-    <Resource Language="sr" />
     <Resource Language="sr-Latn" />
     <Resource Language="sq" />
     <Resource Language="cs" />
