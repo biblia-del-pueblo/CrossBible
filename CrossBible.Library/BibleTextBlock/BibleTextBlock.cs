@@ -1791,8 +1791,7 @@ public partial class BibleTextBlock : Panel
         if (HasSelection)
         {
             // A tap on the selected text offers Copy and Select all; a tap elsewhere puts the selection away.
-            var tapped = ToContent(e.GetPosition(this));
-            if (IsOverText(tapped) && IndexAt(tapped) is { } at && at >= SelStart && at <= SelEnd)
+            if (IsOnSelection(ToContent(e.GetPosition(this))))
             {
                 if (ContextMenu is { IsOpen: false } menu) menu.Open(this);
                 e.Handled = true;
@@ -2595,6 +2594,26 @@ public partial class BibleTextBlock : Panel
         char.IsLowSurrogate(c) || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.NonSpacingMark
             or System.Globalization.UnicodeCategory.SpacingCombiningMark or System.Globalization.UnicodeCategory.EnclosingMark;
 
+    /// <summary>
+    /// The point is on the selection or just beside it (<see cref="SelectionTapSlop"/>): the nearest caret position is inside the selection and the nearest line is
+    /// close. A finger is not exact, and a tap in the gap beside a short last line, or between the lines, would otherwise put the selection away instead
+    /// of offering Copy and Select all.
+    /// </summary>
+    private bool IsOnSelection(Point point)
+    {
+        if (!HasSelection || IndexAt(point) is not { } at || at < SelStart || at > SelEnd) return false;
+        foreach (var pl in _lines)
+        {
+            double w = pl.Line.WidthIncludingTrailingWhitespace, h = pl.Line.Height;
+            double dy = point.Y < pl.Origin.Y ? pl.Origin.Y - point.Y : point.Y >= pl.Origin.Y + h ? point.Y - (pl.Origin.Y + h) : 0;
+            double dx = point.X < pl.Origin.X ? pl.Origin.X - point.X : point.X > pl.Origin.X + w ? point.X - (pl.Origin.X + w) : 0;
+            if (dx <= SelectionTapSlop && dy <= SelectionTapSlop) return true;
+        }
+        return false;
+    }
+
+    private const double SelectionTapSlop = 14; // device independent pixels
+
     private bool IsOverText(Point point) =>
         _lines.Any(pl => point.Y >= pl.Origin.Y && point.Y < pl.Origin.Y + pl.Line.Height
                          && point.X >= pl.Origin.X && point.X <= pl.Origin.X + pl.Line.WidthIncludingTrailingWhitespace);
@@ -2894,7 +2913,7 @@ public partial class BibleTextBlock : Panel
         var point = ToContent(position);
         // A click on the selection offers Copy and Select all, as a tap does (see OnTapped): the menu opens when the button is lifted. Not a footnote, a
         // Strong's entry or the start of a new selection then: the selection stays, to be copied.
-        if (HasSelection && e.ClickCount == 1 && IsOverText(point) && IndexAt(point) is { } inside && inside >= SelStart && inside <= SelEnd)
+        if (HasSelection && e.ClickCount == 1 && IsOnSelection(point))
         {
             _pressedInSelection = true;
             Focus();
