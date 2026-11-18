@@ -4,7 +4,7 @@ Release: 1%{?dist}
 Summary: This is Cross Bible, a cross platform bible reader.
 License: MIT  
 URL: https://www.crossbible.org
-Requires: /bin/sh, sed, dotnet-runtime-11.0
+Requires: /bin/sh, sed, dotnet-runtime-11.0, libX11, libICE, libSM, fontconfig, mesa-libGL
 AutoReqProv: no
 BuildArch: noarch
 Source0: %{name}-%{version}.tar.gz
