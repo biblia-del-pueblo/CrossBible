@@ -12,9 +12,13 @@
     <!-- Release: the code is compiled to native code ahead of time (Native AOT, which implies trimming) for 64 bit ARM phones, so the first use of
          each method does not wait for the JIT (the first layout of a book took over a second on a Moto G24). LiteDB raises trim/AOT warnings.
          The x64 emulator is left out of a Release build (it only makes the build and the APK larger): build it with
-         -p:RuntimeIdentifiers="android-arm64;android-x64" to run a Release build there. A Debug build is not compiled ahead of time. -->
+         -p:AndroidAbis=android-x64 to run a Release build there (make.bat builds one APK per ABI this way, and the Play Store bundle with AndroidAbis=all:
+         RuntimeIdentifiers itself must not be given on the command line, it would flow into the referenced projects, and a list with ";" does not survive it).
+         A Debug build is not compiled ahead of time. -->
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
-        <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+        <AndroidAbis Condition="'$(AndroidAbis)' == ''">android-arm64</AndroidAbis>
+        <RuntimeIdentifiers>$(AndroidAbis)</RuntimeIdentifiers>
+        <RuntimeIdentifiers Condition="'$(AndroidAbis)' == 'all'">android-arm64;android-arm;android-x64</RuntimeIdentifiers>
         <PublishAot>true</PublishAot>
     </PropertyGroup>
 

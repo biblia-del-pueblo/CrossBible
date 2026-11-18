@@ -66,7 +66,7 @@ Without Windows, `sh make.sh [msbuild arguments]` does the same in a Linux shell
 
 # Alpine Linux
 
-Alpine uses musl, so its packages (`crossbible-<Version>-r0-<arch>.apk`, for x86_64, aarch64 and armv7) are made from the musl runtimes. Native AOT for musl
+Alpine uses musl, so its packages (`crossbible-<Version>-r0-linux-<arch>.apk`, for x86_64, aarch64 and armv7) are made from the musl runtimes. Native AOT for musl
 needs a musl toolchain, and the package is made by `apk mkpkg` (apk-tools 3, Alpine 3.21 or later), so the build runs in Alpine (`make.bat alpine`, or in an
 Alpine machine or container, with `apk add tar clang build-base zlib-dev rsync` and the .NET SDK for musl):
 
@@ -77,4 +77,4 @@ All three architectures are built. The ARM ones are cross-built on a x64 Alpine:
 against it. `-p:AlpineAllArchs=false` builds only the architecture of the machine; with `-p:SkipPublish=true` the packages are made from the builds in the `publish` folder
 that other machines made.
 
-Install a package with `apk add --allow-untrusted crossbible-<Version>-r0-<arch>.apk` (it is not signed).
+Install a package with `apk add --allow-untrusted crossbible-<Version>-r0-linux-<arch>.apk` (it is not signed).

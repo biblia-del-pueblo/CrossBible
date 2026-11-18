@@ -3,7 +3,7 @@
 #   <root>          folder with the usr tree of the package (see the StageRoot target of LinuxPackages.proj)
 #   <version>       version and release of Alpine, as 1.0.0-r0
 #   <architecture>  x86_64, aarch64 or armv7
-#   <output>        the file to write, as crossbible-1.0.0-r0-x86_64.apk
+#   <output>        the file to write, as crossbible-1.0.0-r0-linux-x86_64.apk
 # The package is made by "apk mkpkg" of apk-tools 3 (Alpine 3.21 and later), as a package of its own format cannot be made by hand: apk 3 refuses the files of a
 # package that has no checksum for each of them ("file format is obsolete"). So it runs on Alpine (make.bat alpine does). The package is not signed: install it
 # with apk add --allow-untrusted.

@@ -242,7 +242,7 @@
          there (-t:PublishDesktopAot, then copy the publish folder) and make the packages anywhere with -t:PackageAlpine -p:SkipPublish=true. -->
     <Target Name="PackageAlpineRuntime" DependsOnTargets="PublishRuntime">
         <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="StageRoot" Properties="AotRuntimeId=$(AotRuntimeId);StageDir=$(StagingFolder)/apk-$(ApkArch)" />
-        <Exec Command="sh &quot;$(PackagesFolder)src/scripts/MakeAlpinePackage.sh&quot; &quot;$(StagingFolder)/apk-$(ApkArch)&quot; &quot;$(FileVersion)-r0&quot; &quot;$(ApkArch)&quot; &quot;$(BinFolder)/crossbible-$(FileVersion)-r0-$(ApkArch).apk&quot;" />
+        <Exec Command="sh &quot;$(PackagesFolder)src/scripts/MakeAlpinePackage.sh&quot; &quot;$(StagingFolder)/apk-$(ApkArch)&quot; &quot;$(FileVersion)-r0&quot; &quot;$(ApkArch)&quot; &quot;$(BinFolder)/crossbible-$(FileVersion)-r0-linux-$(ApkArch).apk&quot;" />
         <Copy Condition="Exists('$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz')" SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
     </Target>
 
