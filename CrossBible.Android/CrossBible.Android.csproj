@@ -9,14 +9,13 @@
         <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
     </PropertyGroup>
 
-    <!-- Release: the code is compiled ahead of time with crossgen2 (ReadyToRun) for 64 bit ARM phones, so the first use of each method does not
-         wait for the JIT (the first layout of a book took over a second on a Moto G24). The SDK only does it together with trimming.
+    <!-- Release: the code is compiled to native code ahead of time (Native AOT, which implies trimming) for 64 bit ARM phones, so the first use of
+         each method does not wait for the JIT (the first layout of a book took over a second on a Moto G24). LiteDB raises trim/AOT warnings.
          The x64 emulator is left out of a Release build (it only makes the build and the APK larger): build it with
          -p:RuntimeIdentifiers="android-arm64;android-x64" to run a Release build there. A Debug build is not compiled ahead of time. -->
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
         <RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
-        <PublishTrimmed>true</PublishTrimmed>
-        <PublishReadyToRun>true</PublishReadyToRun>
+        <PublishAot>true</PublishAot>
     </PropertyGroup>
 
     <ItemGroup>
