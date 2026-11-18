@@ -1,0 +1,20 @@
+CrossBible, native package
+==========================
+
+This package holds CrossBible compiled to machine code for one processor and one C library (the name of the file says which: linux-x64, linux-arm64,
+linux-arm; with -musl- for the systems that use musl, as Alpine). It needs no .NET runtime. (The generic package, crossbible-<version>-noarch.tar.gz, runs on every
+processor, but needs the .NET runtime, version 11 or later.)
+
+Install:
+
+    tar -xzf crossbible-<version>-<runtime>.tar.gz
+    cd crossbible-<version>-<runtime>
+    sudo ./install.sh              (into /usr/local)
+    ./install.sh --user            (into ~/.local, no root needed)
+    ./install.sh --prefix /opt/cb  (into another folder)
+
+Remove: the same command with --uninstall (and the same --user or --prefix).
+
+Without installing: ./crossbible/CrossBible.Desktop
+
+It needs, as every desktop program on Linux: X11 (libX11, libICE, libSM), fontconfig and a font, OpenGL (libGL), ICU (libicu), OpenSSL and zlib.

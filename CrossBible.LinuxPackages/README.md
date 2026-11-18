@@ -39,8 +39,10 @@ used, Alpine is imported from alpinelinux.org: `src\scripts\WslSetup.ps1`) and, 
 PowerShell, the cross compilers for ARM; on Alpine `clang`, `build-base`, `tar` and the .NET SDK). The Windows part needs WSL itself: `wsl --install --no-distribution`
 in an administrator terminal, once.
 
-Close Visual Studio while the packages are built: it restores the projects in the background and overwrites `project.assets.json` with its own NuGet
-folders, which stops the build in WSL.
+The packages are not built in the folder of Windows (`/mnt/c`): `make.sh` copies the sources to `~/crossbible-build` in the file system of Linux (`rsync`, without
+`bin`, `obj` and the projects that are not needed), builds there, and copies the packages (`bin`) and the builds (`publish`) back. That is faster, the files have
+their execute permission, and Visual Studio, which restores the projects in the background and overwrites `project.assets.json` with the NuGet folders of Windows
+(a build in the middle of it stops with "Unable to find fallback package folder"), cannot get in the way. `MAKE_INPLACE=1` builds in place.
 
 There are packages for three architectures:
 
@@ -55,17 +57,24 @@ each architecture are written to the bin folder. Each package is put together in
 build of each runtime is in `..\publish`. The packages are not signed (install the Arch Linux one with `pacman -U`). `-t:PublishDesktopAot` only publishes
 the `.tar.gz` files, with the musl ones too.
 
+Every `.tar.gz` (`crossbible-<Version>-<runtime>.tar.gz`, one for each runtime, and `crossbible-<Version>-noarch.tar.gz`) holds the program in the folder `crossbible` and
+next to it an installer, `install.sh` (`sudo ./install.sh` into `/usr/local`, `--user` into `~/.local`, `--prefix <folder>`, and `--uninstall`; the sources of it and of the
+two READMEs are in `src/install`). The native ones (the AOT builds) hold the program of one processor, which needs no .NET runtime. The generic one, `-noarch`, is the .NET program,
+published without AOT (the `.dll`, and the native libraries of all the Linux runtimes): it runs on every processor that has the .NET runtime 11 or later, which `install.sh` looks for.
+
 Without Windows, `sh make.sh [msbuild arguments]` does the same in a Linux shell.
 
 # Alpine Linux
 
 Alpine uses musl, so its packages (`crossbible-<Version>-r0-<arch>.apk`, for x86_64, aarch64 and armv7) are made from the musl runtimes. Native AOT for musl
-needs a musl toolchain: build on an Alpine machine or container (`apk add tar clang build-base zlib-dev`, and the .NET SDK for musl), with
+needs a musl toolchain, and the package is made by `apk mkpkg` (apk-tools 3, Alpine 3.21 or later), so the build runs in Alpine (`make.bat alpine`, or in an
+Alpine machine or container, with `apk add tar clang build-base zlib-dev rsync` and the .NET SDK for musl):
 
-    sh make.sh -t:PackageAlpine -p:FileVersion=<Version>
+    sh make.sh -p:FileVersion=<Version>
 
-or publish the musl runtimes there (`-t:PublishDesktopAot`), copy the `publish` folder to the machine that makes the packages, and run
-
-    sh make.sh -t:PackageAlpine -p:SkipPublish=true -p:FileVersion=<Version>
+All three architectures are built. The ARM ones are cross-built on a x64 Alpine: `make.sh` makes a root file system of Alpine for each of them in
+`/opt/sysroot/<arch>` (`src/scripts/MakeAlpineSysroot.sh`: the C library of the target, its start files, gcc's runtime, libstdc++, zlib) and Native AOT links with `lld`
+against it. `-p:AlpineAllArchs=false` builds only the architecture of the machine; with `-p:SkipPublish=true` the packages are made from the builds in the `publish` folder
+that other machines made.
 
 Install a package with `apk add --allow-untrusted crossbible-<Version>-r0-<arch>.apk` (it is not signed).

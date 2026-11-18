@@ -1,0 +1,20 @@
+CrossBible, generic package (noarch)
+====================================
+
+This package is for every Linux and every processor that has the .NET runtime, version 11 or later (https://dotnet.microsoft.com/download).
+The program is not compiled for a processor: it is the .NET program, and it runs on the runtime of your system. (The packages for Debian, Fedora,
+Arch Linux and Alpine hold the same program compiled to machine code, and need no runtime: use them when there is one for your system.)
+
+Install:
+
+    tar -xzf crossbible-<version>-noarch.tar.gz
+    cd crossbible-<version>-noarch
+    sudo ./install.sh              (into /usr/local)
+    ./install.sh --user            (into ~/.local, no root needed)
+    ./install.sh --prefix /opt/cb  (into another folder)
+
+Remove: the same command with --uninstall (and the same --user or --prefix).
+
+Without installing: dotnet crossbible/CrossBible.Desktop.dll
+
+It needs, as every desktop program on Linux: X11 (libX11, libICE, libSM), fontconfig and a font, OpenGL (libGL), ICU (libicu), OpenSSL and zlib.

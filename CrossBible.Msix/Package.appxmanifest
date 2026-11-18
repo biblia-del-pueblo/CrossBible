@@ -57,6 +57,7 @@
     <Resource Language="bg" />
     <Resource Language="hr" />
     <Resource Language="sr-Latn" />
+    <Resource Language="sr-Cyrl" />
     <Resource Language="sq" />
     <Resource Language="cs" />
     <Resource Language="sk" />

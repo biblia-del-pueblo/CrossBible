@@ -44,6 +44,7 @@ depend = zlib
 depend = icu
 depend = openssl
 depend = fontconfig
+depend = ttf-font
 depend = libx11
 depend = libice
 depend = libsm

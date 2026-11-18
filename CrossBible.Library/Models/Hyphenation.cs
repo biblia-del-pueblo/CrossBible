@@ -23,9 +23,12 @@ public static class Hyphenation
     /// <summary>The soft hyphen: invisible unless a line is broken at it.</summary>
     public const char SoftHyphen = '­';
 
-    /// <summary>The languages that have patterns (ISO 639-1 codes).</summary>
+    /// <summary>
+    /// The languages that have patterns (ISO 639-1 codes; "sr-cyrl" is Serbian in the Cyrillic script, the patterns are not for the Latin one: see <see cref="CodeOf"/>).
+    /// The patterns of a language are Assets/Hyphenation/hyph-&lt;code&gt;.pat.txt, and its exceptions hyph-&lt;code&gt;.hyp.txt, if there are.
+    /// </summary>
     public static readonly string[] Languages = { "de", "en", "es", "fr", "pt", "ru", "tr", "el", "it", "nl", "pl", "da", "sv", "nb", "fi",
-        "hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa", "or", "th", "hy", "id", "mn", "ne" };
+        "hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa", "or", "th", "hy", "id", "mn", "ne", "sr-cyrl", "sh-latn", "sr" };
 
     /// <summary>
     /// The Indian languages, and Thai. Their words have combining vowel signs, which are not letters for NHyphenator, so they are
@@ -34,11 +37,31 @@ public static class Hyphenation
     /// </summary>
     public static readonly HashSet<string> IndicLanguages = new() { "hi", "bn", "ta", "te", "mr", "gu", "kn", "ml", "pa", "or", "th", "ne" };
 
+    /// <summary>
+    /// Languages that are hyphenated by <see cref="LiangPatterns"/> too, but with a soft hyphen, so a hyphen is written at the end of a line: Serbian in the Cyrillic script.
+    /// NHyphenator finds hardly any place in a Serbian word with its patterns (its settings and the way it reads the patterns do not fit them), where the algorithm
+    /// itself, applied to the same file, finds all of them (<c>\u0441\u0432\u0435-\u0442\u0438-\u043B\u0438-\u0448\u0442\u0435</c>, <c>\u043F\u0440\u0430-\u0432\u043E-\u0441\u043B\u0430-\u0432\u0459\u0435</c>).
+    /// </summary>
+    public static readonly HashSet<string> LiangLanguages = new() { "sr-cyrl", "sh-latn", "sr" };
+
+    /// <summary>The patterns for the script of a word, for the languages of <see cref="LiangLanguages"/> that are written in two (plain "sr", where the script of the Bible is not known).</summary>
+    private static string PatternsOf(string language, string word) =>
+        language == "sr" ? (word[0] is >= 'Ѐ' and <= 'ӿ' ? "sr-cyrl" : "sh-latn") : language;
+
     /// <summary>An invisible place where a line may be broken, without a hyphen (used for the Indian languages).</summary>
     public const char BreakOpportunity = '\u200B';
 
     /// <summary>Whether the character only marks a place where a word may be split (it is not part of the text that is read or copied).</summary>
     public static bool IsMark(char c) => c is SoftHyphen or BreakOpportunity;
+
+    /// <summary>
+    /// Whether a line that ends with the mark at <paramref name="index"/> shows a hyphen there. A soft hyphen does; so does a <see cref="BreakOpportunity"/> behind a
+    /// Cyrillic or Latin letter (Serbian: the Cyrillic letters come from another font than the soft hyphen, and the line is not broken at a soft hyphen between them, while
+    /// the invisible break works); the Indian languages have no hyphen.
+    /// </summary>
+    public static bool ShowsHyphen(string text, int index) =>
+        index >= 0 && index < text.Length
+        && (text[index] == SoftHyphen || (text[index] == BreakOpportunity && index > 0 && text[index - 1] is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= 'À' and <= 'ɏ') or (>= 'Ѐ' and <= 'ӿ')));
 
     // Languages whose patterns must be sorted before use (see NHyphenator).
     private static readonly HashSet<string> SortedLanguages = new() { "de", "pt" };
@@ -61,11 +84,17 @@ public static class Hyphenation
         }
     });
 
-    private static readonly ConcurrentDictionary<string, LiangPatterns?> IndicPatterns = new();
+    private static readonly ConcurrentDictionary<string, LiangPatterns?> LiangPatternSets = new();
 
-    private static LiangPatterns? IndicPatternsOf(string language) => IndicPatterns.GetOrAdd(language, code =>
+    /// <summary>The patterns (and the exceptions, if there are) of a language that <see cref="LiangPatterns"/> hyphenates: the Indian languages and <see cref="LiangLanguages"/>, with an invisible break (see <see cref="ShowsHyphen"/> for the hyphen).</summary>
+    private static LiangPatterns? LiangPatternsOf(string language) => LiangPatternSets.GetOrAdd(language, code =>
     {
-        try { return LiangPatterns.Parse(AssetPatternsLoader.Read(AssetPatternsLoader.UriOf(code, "pat")) ?? "", BreakOpportunity); }
+        try
+        {
+            var patterns = LiangPatterns.Parse(AssetPatternsLoader.Read(AssetPatternsLoader.UriOf(code, "pat")) ?? "", BreakOpportunity);
+            if (AssetPatternsLoader.Read(AssetPatternsLoader.UriOf(code, "hyp")) is { } exceptions) patterns.AddExceptions(exceptions);
+            return patterns;
+        }
         catch (Exception ex) when (ex is IOException or ArgumentException)
         {
             System.Diagnostics.Debug.WriteLine($"No hyphenation patterns for {code}: {ex.Message}");
@@ -87,7 +116,8 @@ public static class Hyphenation
         if (text.Length == 0) return text;
         bool indic = IndicLanguages.Contains(language);
         Func<string, string>? hyphenate = null;
-        if (indic) { if (IndicPatternsOf(language) is { } patterns) hyphenate = patterns.Hyphenate; }
+        if (language == "sr") hyphenate = word => LiangPatternsOf(PatternsOf(language, word))?.Hyphenate(word) ?? word;
+        else if (indic || LiangLanguages.Contains(language)) { if (LiangPatternsOf(language) is { } patterns) hyphenate = patterns.Hyphenate; }
         else if (HyphenatorOf(language) is { } hyphenator) hyphenate = hyphenator.HyphenateText;
         if (hyphenate is null) return text;
 
@@ -140,36 +170,26 @@ public static class Hyphenation
         if (bible is null) return null;
         var installed = (Settings.Current.Books ?? new List<BookText>()).OfType<InstallableBook>()
             .FirstOrDefault(b => b.EnglishName == bible.EnglishName || b.EnglishName == bible.Name);
-        if (installed is null) return null;
-        return CodeOf(installed.Language) ?? CodeOf(installed.LanguageEnglishName);
+        // The language code of the Bible (InstallableBook.LanguageCode: "de", "pt-BR"), not its Language, which is a name ("Deutsch"): what a name is made of differs
+        // from system to system (on Linux a name that is no culture is made a custom culture, with the name as its code), the code does not.
+        return CodeOf(installed.LanguageCode);
     }
 
-    // The two-letter code of "de", "pt-BR", "German" or "Deutsch"; null when it has no patterns.
-    private static string? CodeOf(string? language)
+    // The code of the language of "de" or "pt-BR" ("pt"); null when it has no patterns.
+    private static string? CodeOf(string? languageCode)
     {
-        if (string.IsNullOrWhiteSpace(language)) return null;
-        language = language.Trim();
-        string? code;
-        try { code = CultureInfo.GetCultureInfo(language).TwoLetterISOLanguageName; }
-        catch (CultureNotFoundException)
-        {
-            code = NameToCode.Value.TryGetValue(language, out var found) ? found : null;
-        }
+        if (string.IsNullOrWhiteSpace(languageCode)) return null;
+        string[] parts = languageCode.Trim().Split('-', '_');
+        string code = parts[0].ToLowerInvariant();
         if (code is "no" or "nn") code = "nb"; // Norwegian, both written forms, share the patterns of Bokmål
-        return code is not null && Languages.Contains(code) ? code : null;
-    }
-
-    private static readonly Lazy<Dictionary<string, string>> NameToCode = new(() =>
-    {
-        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var culture in CultureInfo.GetCultures(CultureTypes.NeutralCultures))
+        // Serbian is written in two scripts, with patterns of their own (the Latin ones are those of Serbo-Croatian, "sh-latn"); with no script in the code ("sr"), they are chosen word by word.
+        if (code == "sr")
         {
-            if (culture.TwoLetterISOLanguageName.Length != 2) continue;
-            names.TryAdd(culture.EnglishName, culture.TwoLetterISOLanguageName);
-            names.TryAdd(culture.NativeName, culture.TwoLetterISOLanguageName);
+            if (parts.Skip(1).Any(p => p.Equals("Latn", StringComparison.OrdinalIgnoreCase))) code = "sh-latn";
+            else if (parts.Skip(1).Any(p => p.Equals("Cyrl", StringComparison.OrdinalIgnoreCase))) code = "sr-cyrl";
         }
-        return names;
-    });
+        return Languages.Contains(code) ? code : null;
+    }
 
     /// <summary>Reads the patterns (and the exceptions, if there are) of a language from the assets of this assembly.</summary>
     private sealed class AssetPatternsLoader(string code) : IHyphenatePatternsLoader
@@ -223,11 +243,41 @@ public static class Hyphenation
             return result;
         }
 
+        // The words that have their own places to be split (hyph-<code>.hyp.txt, one word a line: "на-тка-ти"), by the word in lower case, as the indexes of the
+        // letters that a split is in front of.
+        private readonly Dictionary<string, int[]> exceptions = new();
+
+        /// <summary>Takes the exceptions of the patterns: words in which the places to split are marked by hyphens (на-тка-ти). They are used instead of the patterns.</summary>
+        public void AddExceptions(string text)
+        {
+            foreach (var line in text.Split(new[] { '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var breaks = new List<int>();
+                var word = new StringBuilder();
+                foreach (char c in line)
+                {
+                    if (c == '-') breaks.Add(word.Length);
+                    else word.Append(c);
+                }
+                if (word.Length > 0) exceptions[word.ToString().ToLowerInvariant()] = breaks.ToArray();
+            }
+        }
+
         /// <summary>The word with the mark at every place where it may be split, at least two characters from both ends.</summary>
         public string Hyphenate(string word)
         {
             const int minimum = 2;
             if (word.Length < 2 * minimum) return word;
+            if (exceptions.Count > 0 && exceptions.TryGetValue(word.ToLowerInvariant(), out var fixedBreaks))
+            {
+                var spelled = new StringBuilder(word.Length + fixedBreaks.Length);
+                for (int k = 0; k < word.Length; k++)
+                {
+                    if (Array.IndexOf(fixedBreaks, k) >= 0) spelled.Append(mark);
+                    spelled.Append(word[k]);
+                }
+                return spelled.ToString();
+            }
             string dotted = "." + word.ToLowerInvariant() + ".";
             var levels = new byte[dotted.Length + 1];
             for (int start = 0; start < dotted.Length; start++)

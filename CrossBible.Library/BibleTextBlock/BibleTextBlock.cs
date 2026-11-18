@@ -177,8 +177,7 @@ public partial class BibleTextBlock : Panel
             if (!ReferenceEquals(bible, _hyphenBible) || (_hyphenCode is null && bible is not null))
             {
                 _hyphenBible = bible;
-                _hyphenCode = Hyphenation.LanguageOf(bible);
-            }
+                _hyphenCode = Hyphenation.LanguageOf(bible);            }
             return _hyphenCode;
         }
     }
@@ -1508,7 +1507,7 @@ public partial class BibleTextBlock : Panel
             // hyphen there, which may no longer fit; then it ends earlier (the loop looks at where it ended then).
             TextLine WithHyphen(TextLine line, int from, double lineWidth)
             {
-                while (line.NewLineLength == 0 && line.Length > 0 && text[from + line.Length - 1] == Hyphenation.SoftHyphen)
+                while (line.NewLineLength == 0 && line.Length > 0 && Hyphenation.ShowsHyphen(text, from + line.Length - 1))
                 {
                     var hyphenated = formatter.FormatLine(new HyphenSource(text, input.Segments, from + line.Length), from, lineWidth, paraProps);
                     if (hyphenated is null || hyphenated.Length == 0) return line;
@@ -1794,7 +1793,7 @@ public partial class BibleTextBlock : Panel
     private void OnTapped(object? sender, TappedEventArgs e)
     {
         if (FromPopup(e)) return; // a tap in the popup is not a tap on the text under it
-        if (_pressDismissedPopup) return; // the tap that put the popup away does not open another
+        if (_pressDismissedPopup) { PopupTrace("tap ignored: its press put the popup away"); return; } // the tap that put the popup away does not open another
         if (e.Pointer?.Type != PointerType.Touch) return;
         // Lifting the finger after a long press raises Tapped as well: that tap must not put the new selection away.
         if (_touchSelecting || Environment.TickCount64 - _touchSelectionEnded < 600) { e.Handled = true; return; }
@@ -1815,7 +1814,7 @@ public partial class BibleTextBlock : Panel
         {
             bounds = bounds.Translate(new Vector(-_offsetX, -_offsetY));
             e.Handled = true;
-            Dispatcher.UIThread.Post(() => ShowFootnote(note, bounds), DispatcherPriority.Background);
+            PostShow(() => ShowFootnote(note, bounds));
         }
         else if (TryOpenNumbers(ToContent(position), touch: true))
         {
@@ -2153,7 +2152,7 @@ public partial class BibleTextBlock : Panel
         double extra = (width - line.Width) / spaces.Count;
         if (extra < 0.01) return null;
 
-        bool hyphen = line.NewLineLength == 0 && text[start + line.Length - 1] == Hyphenation.SoftHyphen;
+        bool hyphen = line.NewLineLength == 0 && Hyphenation.ShowsHyphen(text, start + line.Length - 1);
         var source = new JustifiedSource(text, segments, start + line.Length, spaces, gapChars, extra, line.Height, line.Baseline, hyphen);
         var justified = TextFormatter.Current.FormatLine(source, start, 100_000, paragraph);
         if (justified is null || justified.Length != line.Length) return null;
@@ -2215,7 +2214,7 @@ public partial class BibleTextBlock : Panel
             int found = FindSegment(segments, index);
             if (found < 0) return null;
             var seg = segments[found];
-            int stop = Math.Min(seg.End, hyphen ? lineEnd - 1 : lineEnd);
+            int stop = Math.Min(RunEnd(segments, found), hyphen ? lineEnd - 1 : lineEnd);
             for (int i = index; i < stop; i++)
                 if (spaces.ContainsKey(i)) { stop = i; break; }
             return new TextCharacters(text.AsMemory(index, stop - index), ToRunProperties(seg.Style));
@@ -2885,7 +2884,7 @@ public partial class BibleTextBlock : Panel
     {
         base.OnPointerReleased(e);
         if (FromPopup(e)) return;
-        if (_pressDismissedPopup) return; // the press that put the popup away is over: nothing began
+        if (_pressDismissedPopup) { PopupTrace("release ignored: its press put the popup away"); return; } // the press that put the popup away is over: nothing began
         _touchDown = false;
         StopHoldTimer();
         if (_touchSelecting)
@@ -2917,7 +2916,7 @@ public partial class BibleTextBlock : Panel
     {
         base.OnPointerPressed(e);
         if (FromPopup(e)) return; // a press in the popup is not a press on the text under it (where there may be a footnote or a verse number)
-        if (_pressDismissedPopup) { e.Handled = true; return; } // this press put the popup away: it opens nothing and selects nothing
+        if (_pressDismissedPopup) { PopupTrace("press ignored: it put the popup away"); e.Handled = true; return; } // this press put the popup away: it opens nothing and selects nothing
         if (e.Pointer.Type == PointerType.Touch) { _touchDown = true; _inertia = false; _touchSelecting = false; _touchPointer = e.Pointer; StartHoldTimer(e.GetPosition(this)); return; } // touch pans (and taps open footnotes); it does not select
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         var position = e.GetPosition(this);
@@ -2936,7 +2935,7 @@ public partial class BibleTextBlock : Panel
         {
             bounds = bounds.Translate(new Vector(-_offsetX, -_offsetY)); // popup placement uses control coordinates
             e.Handled = true;
-            Dispatcher.UIThread.Post(() => ShowFootnote(note, bounds), DispatcherPriority.Background);
+            PostShow(() => ShowFootnote(note, bounds));
             return;
         }
         if (TryOpenNumbers(point, touch: false)) { e.Handled = true; return; }
@@ -2974,15 +2973,18 @@ public partial class BibleTextBlock : Panel
     /// </summary>
     private async Task ShowStrongsAsync(string strong, Rect bounds)
     {
+        int generation = _dismissGeneration;
+        PopupTrace($"Strong's lookup starts: {strong}");
         string? markdown;
         try { markdown = await Task.Run(() => StrongsDictionaries.Lookup(strong)); }
         catch (Exception ex) when (ex is IOException or InvalidDataException or LiteDB.LiteException)
         {
             markdown = null; // a dictionary whose database cannot be read has no entry
         }
+        if (generation != _dismissGeneration) { PopupTrace("Strong's entry dropped: the popup was put away while it was looked up"); return; } // the popup was put away while the entry was looked up (a press outside it): the entry is not wanted any more
         if (string.IsNullOrWhiteSpace(markdown))
             markdown = Localizer.Format("NoStrongsEntry", strong);
- 
+
         if (Environment.NewLine != "\r\n") markdown = markdown.Replace("\r\n", Environment.NewLine);
 
         // The markdown of the dictionaries is the same Bible Markdown as the text: bold, italic and paragraphs.
@@ -3362,16 +3364,59 @@ public partial class BibleTextBlock : Panel
     // Tunnelling: before any control has it, whether one handles it or not. (A press in the popup itself is not outside it.)
     private void OnRootPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_popup.IsOpen && !FromPopup(e)) _popup.IsOpen = false;
+        PopupTrace($"window press: {e.Pointer.Type}, on {e.Source?.GetType().Name}, popup open={_popup.IsOpen}, in the popup={FromPopup(e)}, handled={e.Handled}");
+        if (_popup.IsOpen && !FromPopup(e)) DismissPopup();
     }
 
     private void OnRootActivated(object? sender, EventArgs e)
     {
-        if (_popup.IsOpen && Environment.TickCount64 - _popupOpenedTick > PopupActivationGraceMs) _popup.IsOpen = false;
+        PopupTrace($"window activated: popup open={_popup.IsOpen}, {Environment.TickCount64 - _popupOpenedTick} ms since it opened");
+        if (_popup.IsOpen && Environment.TickCount64 - _popupOpenedTick > PopupActivationGraceMs) DismissPopup();
+    }
+
+    /// <summary>
+    /// With the environment variable CROSSBIBLE_POPUP_TRACE=1 every event that has to do with the popup (a press, a window activation, the popup opening, closing, being
+    /// put away or kept from opening) is written to the error output with its time: for the cases where the popup does something on a desktop that cannot be
+    /// seen from here (run it as CROSSBIBLE_POPUP_TRACE=1 crossbible 2> popup.log).
+    /// </summary>
+    private static readonly bool TracePopups = Environment.GetEnvironmentVariable("CROSSBIBLE_POPUP_TRACE") == "1";
+    private static void PopupTrace(string what)
+    {
+        if (TracePopups) Console.Error.WriteLine($"{DateTime.Now:HH:mm:ss.fff} popup: {what}");
+    }
+
+    /// <summary>
+    /// Puts the popup away because of the reader (a press outside it): at once, and for good. The entries that are on their way to be shown (the lookup of a
+    /// Strong's number, a footnote that is posted) are dropped (<see cref="_dismissGeneration"/>), and no popup opens for a moment (<see cref="_popupBlockedUntil"/>):
+    /// the same press, or the release or tap of it, must not open one at once (it did: the popup closed, came back, and went away again a moment later).
+    /// </summary>
+    private void DismissPopup()
+    {
+        PopupTrace($"DISMISS (open={_popup.IsOpen}); entries on their way are dropped, no popup for {PopupBlockMs} ms");
+        _dismissGeneration++;
+        _popupBlockedUntil = Environment.TickCount64 + PopupBlockMs;
+        _popup.IsOpen = false;
+    }
+
+    private int _dismissGeneration;
+    private long _popupBlockedUntil;
+    private const long PopupBlockMs = 800;
+
+    /// <summary>Shows a popup from a posted callback (a popup that opens during the press that closed another is light-dismissed by it), unless the popup was put away since.</summary>
+    private void PostShow(Action show)
+    {
+        int generation = _dismissGeneration;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (generation == _dismissGeneration) show();
+            else PopupTrace("a posted popup is dropped: the popup was put away since");
+        }, DispatcherPriority.Background);
     }
 
     private void OnPopupOpened(object? sender, EventArgs e)
     {
+        PopupTrace($"Opened (blocked for another {Math.Max(0, _popupBlockedUntil - Environment.TickCount64)} ms)");
+        if (Environment.TickCount64 < _popupBlockedUntil) { _popup.IsOpen = false; return; } // opened by whatever: not now
         AttachDismiss();
         if (!OperatingSystem.IsWindows() || TopLevel.GetTopLevel(_popup.Child) is not { } root || GestureFreePopups.TryGetValue(root, out _)) return;
         GestureFreePopups.Add(root, root);
@@ -3388,6 +3433,8 @@ public partial class BibleTextBlock : Panel
     /// <summary>Shows <paramref name="content"/> in the popup (a card that scrolls when it is tall), next to <paramref name="bounds"/>.</summary>
     private void ShowCard(Control content, Rect bounds)
     {
+        if (Environment.TickCount64 < _popupBlockedUntil) { PopupTrace("ShowCard: kept from opening, a press has just put the popup away"); return; } // see DismissPopup
+        PopupTrace("ShowCard: opens");
         _popup.IsOpen = false;
         _popup.PlacementRect = bounds;
         var card = new Border
@@ -3475,13 +3522,14 @@ public partial class BibleTextBlock : Panel
         _scrollRecognizer = new ScrollGestureRecognizer { CanVerticallyScroll = true, CanHorizontallyScroll = true, IsScrollInertiaEnabled = true };
         GestureRecognizers.Add(_scrollRecognizer);
         // Where a press began, whatever else handles it: in the popup or not (see _gestureFromPopup).
-        _popup.Closed += (_, _) => { _popupClosedTick = Environment.TickCount64; DetachDismiss(); };
+        _popup.Closed += (_, _) => { PopupTrace("Closed"); _popupClosedTick = Environment.TickCount64; DetachDismiss(); };
         AddHandler(PointerPressedEvent, (_, e) =>
         {
             _gestureFromPopup = FromPopup(e);
             // A press outside the popup puts it away (light dismiss does, before or after this runs, depending on the platform) and does nothing else.
             _pressDismissedPopup = !_gestureFromPopup && (_popup.IsOpen || Environment.TickCount64 - _popupClosedTick < PopupDismissWindowMs);
-            if (_pressDismissedPopup) _popup.IsOpen = false;
+            PopupTrace($"control press: {e.Pointer.Type}, on {e.Source?.GetType().Name}, in the popup={_gestureFromPopup}, dismisses the popup={_pressDismissedPopup}");
+            if (_pressDismissedPopup) DismissPopup();
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(InputElement.ScrollGestureEvent, OnScrollGesture);
         AddHandler(InputElement.ScrollGestureInertiaStartingEvent, OnScrollInertiaStarting);
@@ -4098,6 +4146,20 @@ public partial class BibleTextBlock : Panel
     }
 
     /// <summary>
+    /// Where the run that starts in segment <paramref name="found"/> ends: the end of the segment, and of the segments after it that have the same style. The text is
+    /// cut into a segment for every word that has a Strong's number, a footnote marker and so on, and most of them have the style of their neighbours: handed to the
+    /// formatter as runs of their own, each of them was a boundary where it did not see the places a line may break (a line ended at "Achsel und" with room for "sprach:"
+    /// next to it, and a wide gap between the two). The same text as one run is broken right.
+    /// </summary>
+    private static int RunEnd(List<Segment> segments, int found)
+    {
+        var style = segments[found].Style;
+        int end = segments[found].End;
+        for (int i = found + 1; i < segments.Count && segments[i].Start == end && segments[i].Style == style; i++) end = segments[i].End;
+        return end;
+    }
+
+    /// <summary>
     /// Serves the flattened text to the formatter one styled run at a time. <see cref="Limit"/> makes the text
     /// appear to end early: the formatter fetches runs up to the end of the paragraph for every line it breaks,
     /// which is quadratic for a long paragraph, so each line is formatted from a window just past its end.
@@ -4113,7 +4175,7 @@ public partial class BibleTextBlock : Panel
             var seg = segments[found];
             var properties = ToRunProperties(seg.Style);
             if (index == lineEnd - 1) return new TextCharacters("-".AsMemory(), properties);
-            return new TextCharacters(text.AsMemory(index, Math.Min(seg.End, lineEnd - 1) - index), properties);
+            return new TextCharacters(text.AsMemory(index, Math.Min(RunEnd(segments, found), lineEnd - 1) - index), properties);
         }
     }
 
@@ -4128,7 +4190,7 @@ public partial class BibleTextBlock : Panel
             int i = FindSegment(segments, textSourceIndex);
             if (i < 0) return null;
             var seg = segments[i];
-            return new TextCharacters(text.AsMemory(textSourceIndex, Math.Min(seg.End, end) - textSourceIndex), ToRunProperties(seg.Style));
+            return new TextCharacters(text.AsMemory(textSourceIndex, Math.Min(RunEnd(segments, i), end) - textSourceIndex), ToRunProperties(seg.Style));
         }
     }
 }

@@ -111,6 +111,10 @@
         <PropertyGroup Condition=" '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' ">
             <CrossOption Condition=" '$(AotRuntimeId)' == 'linux-arm64' ">-p:ObjCopyName=aarch64-linux-gnu-objcopy</CrossOption>
             <CrossOption Condition=" '$(AotRuntimeId)' == 'linux-arm' ">-p:ObjCopyName=arm-linux-gnueabihf-objcopy</CrossOption>
+            <!-- Musl for ARM on a x64 Alpine: linked with lld against the C library of the target, in a root file system of Alpine for that architecture
+                 (src/scripts/MakeAlpineSysroot.sh, made by make.sh). -->
+            <CrossOption Condition=" '$(AotRuntimeId)' == 'linux-musl-arm64' ">-p:SysRoot=/opt/sysroot/aarch64 -p:LinkerFlavor=lld -p:ObjCopyName=llvm-objcopy</CrossOption>
+            <CrossOption Condition=" '$(AotRuntimeId)' == 'linux-musl-arm' ">-p:SysRoot=/opt/sysroot/armv7 -p:LinkerFlavor=lld -p:ObjCopyName=llvm-objcopy</CrossOption>
         </PropertyGroup>
 
         <!-- UseAot is the switch of CrossBible.Desktop.csproj for PublishAot (with ReadyToRun off).
@@ -119,10 +123,33 @@
              "No precompiled XAML found". One call: Visual Studio restores the projects in the background when it is open, and overwrites project.assets.json
              with the NuGet folders of Windows (the build then stops with "Unable to find fallback package folder"): close it while the packages are built. -->
         <!-- -p:SkipPublish=true uses the build in the publish folder, that is already there (of a musl runtime, that was built on an Alpine machine, say). -->
-        <Exec Condition=" '$(SkipPublish)' != 'true' " Command="dotnet msbuild &quot;$(DesktopProject)&quot; -restore -t:Rebuild -t:Publish -p:Configuration=$(Configuration) -p:RuntimeIdentifier=$(AotRuntimeId) -p:SelfContained=true $(CrossOption) -p:UseAot=true -p:Version=$(Version) -p:PublishDir=&quot;$(RuntimeFolder)/&quot;" />
+        <PropertyGroup>
+            <PublishCommand>dotnet msbuild &quot;$(DesktopProject)&quot; -restore -t:Rebuild -t:Publish -p:Configuration=$(Configuration) -p:RuntimeIdentifier=$(AotRuntimeId) -p:SelfContained=true $(CrossOption) -p:UseAot=true -p:Version=$(Version) -p:PublishDir=&quot;$(RuntimeFolder)/&quot;</PublishCommand>
+        </PropertyGroup>
+        <Exec Condition=" '$(SkipPublish)' != 'true' " Command="$(PublishCommand)" />
 
-        <!-- The debug symbols are not part of the package. -->
-        <Exec Condition=" '$(SkipPublish)' != 'true' " Command="tar -czf &quot;$(RuntimeTarball)&quot; --exclude=&quot;*.pdb&quot; --exclude=&quot;*.dbg&quot; -C &quot;$(RuntimeFolder)&quot; ." />
+        <!-- A publish can end without error and without its files (it did for linux-arm, while Visual Studio was open and restoring the projects): it is done once more,
+             and the build stops when there is still no program, as a package without it (the .tar.gz was 105 bytes) is worse than none. -->
+        <Message Condition=" '$(SkipPublish)' != 'true' And !Exists('$(RuntimeFolder)/CrossBible.Desktop') " Importance="high" Text="No CrossBible.Desktop in $(RuntimeFolder) after the publish: it is done once more." />
+        <Exec Condition=" '$(SkipPublish)' != 'true' And !Exists('$(RuntimeFolder)/CrossBible.Desktop') " Command="$(PublishCommand)" />
+        <Error Condition=" !Exists('$(RuntimeFolder)/CrossBible.Desktop') " Text="The AOT publish for $(AotRuntimeId) made no CrossBible.Desktop in $(RuntimeFolder). Close Visual Studio while the packages are built." />
+
+        <!-- The .tar.gz of the runtime: the program (without the debug symbols) in the folder crossbible, and next to it the installer (src/install/install.sh), the desktop
+             file, the icon and the documents, as in the generic package (see PackageNoarch). The files are put together in staging, with the permissions they need. -->
+        <PropertyGroup>
+            <TarName>crossbible-$(Version)-$(AotRuntimeId)</TarName>
+            <TarStage>$(StagingFolder)/tar/$(TarName)</TarStage>
+        </PropertyGroup>
+        <ItemGroup Condition=" '$(SkipPublish)' != 'true' ">
+            <TarFiles Include="$(RuntimeFolder)/**/*.*" Exclude="$(RuntimeFolder)/**/*.pdb;$(RuntimeFolder)/**/*.dbg" />
+        </ItemGroup>
+        <RemoveDir Condition=" '$(SkipPublish)' != 'true' " Directories="$(TarStage)" />
+        <Copy Condition=" '$(SkipPublish)' != 'true' " SourceFiles="@(TarFiles)" DestinationFolder="$(TarStage)/crossbible/%(RecursiveDir)" />
+        <Copy Condition=" '$(SkipPublish)' != 'true' " SourceFiles="$(PackagesFolder)src/install/install.sh;$(PackagesFolder)src/icon/crossbible.png;$(PackagesFolder)src/desktop/crossbible.desktop;$(PackagesFolder)src/doc/copyright;$(PackagesFolder)src/doc/ChangeLog" DestinationFolder="$(TarStage)" />
+        <Copy Condition=" '$(SkipPublish)' != 'true' " SourceFiles="$(PackagesFolder)src/install/README.native" DestinationFiles="$(TarStage)/README" />
+        <!-- The files of a Windows drive have no execute permission: they are set here (the program and the installer are the ones that run). -->
+        <Exec Condition=" '$(SkipPublish)' != 'true' " Command="find &quot;$(TarStage)&quot; -type d -exec chmod 755 {} + &amp;&amp; find &quot;$(TarStage)&quot; -type f -exec chmod 644 {} + &amp;&amp; chmod 755 &quot;$(TarStage)/install.sh&quot; &quot;$(TarStage)/crossbible/CrossBible.Desktop&quot;" />
+        <Exec Condition=" '$(SkipPublish)' != 'true' " Command="tar --owner=0 --group=0 --numeric-owner -czf &quot;$(RuntimeTarball)&quot; -C &quot;$(StagingFolder)/tar&quot; &quot;$(TarName)&quot;" />
         <Message Condition=" '$(SkipPublish)' != 'true' " Importance="high" Text="Packed $(RuntimeTarball)" />
     </Target>
 
@@ -219,10 +246,57 @@
         <Copy Condition="Exists('$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz')" SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
     </Target>
 
+    <!-- All three architectures are built (ARM from a x64 machine with the sysroots of make.sh, see PublishRuntime). -p:AlpineAllArchs=false builds only the one of
+         the machine; with -p:SkipPublish=true all of them are made from the builds in the publish folder that other machines made. -->
     <Target Name="PackageAlpine">
+        <PropertyGroup>
+            <AlpineHostRuntime Condition=" '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' ">linux-musl-x64</AlpineHostRuntime>
+            <AlpineHostRuntime Condition=" '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' ">linux-musl-arm64</AlpineHostRuntime>
+            <AlpineHostRuntime Condition=" '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm' ">linux-musl-arm</AlpineHostRuntime>
+        </PropertyGroup>
+        <ItemGroup>
+            <AlpineBuild Include="@(AlpineArch)" Condition=" '$(AlpineAllArchs)' != 'false' Or '%(Identity)' == '$(AlpineHostRuntime)' " />
+        </ItemGroup>
         <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="PackageAlpineRuntime"
-                 Properties="AotRuntimeId=%(AlpineArch.Identity);ApkArch=%(AlpineArch.ApkArch)" />
+                 Properties="AotRuntimeId=%(AlpineBuild.Identity);ApkArch=%(AlpineBuild.ApkArch)" />
     </Target>
 
-    <Target Name="Build" DependsOnTargets="PackageLinux" />
+    <!-- The generic package (crossbible-<version>-noarch.tar.gz): for every Linux and every processor that has the .NET runtime 11. CrossBible.Desktop is published
+         without AOT, framework dependent and without the apphost (a program of the processor of this machine): the .dll runs on the runtime of the target, with the
+         native libraries (SkiaSharp, HarfBuzz) of all the Linux runtimes next to it (.NET takes the one of the machine). The package has an installer
+         (src/noarch/install.sh: into /usr/local, ~/.local or a folder, and it removes it again), the desktop file, the icon and the documents. -->
+    <Target Name="PackageNoarch">
+        <PropertyGroup>
+            <NoarchName>crossbible-$(FileVersion)-noarch</NoarchName>
+            <NoarchPublish>$(AotPublishFolder)/noarch</NoarchPublish>
+            <NoarchStage>$(StagingFolder)/noarch/$(NoarchName)</NoarchStage>
+        </PropertyGroup>
+
+        <RemoveDir Directories="$(NoarchPublish)" />
+        <Exec Command="dotnet msbuild &quot;$(DesktopProject)&quot; -restore -t:Rebuild -t:Publish -p:Configuration=$(Configuration) -p:SelfContained=false -p:UseAppHost=false -p:UseAot=false -p:Version=$(Version) -p:PublishDir=&quot;$(NoarchPublish)/&quot;" />
+        <Error Condition=" !Exists('$(NoarchPublish)/CrossBible.Desktop.dll') " Text="The publish for the generic package made no CrossBible.Desktop.dll in $(NoarchPublish). Close Visual Studio while the packages are built." />
+
+        <ItemGroup>
+            <NoarchExclude Include="$(NoarchPublish)/**/*.pdb;$(NoarchPublish)/**/*.xml" />
+            <!-- The native libraries of the systems that are not Linux (the runtimes of Windows, macOS, Android, iOS and the browser) are of no use here. -->
+            <NoarchExclude Include="$(NoarchPublish)/runtimes/win*/**;$(NoarchPublish)/runtimes/osx*/**;$(NoarchPublish)/runtimes/maccatalyst*/**;$(NoarchPublish)/runtimes/android*/**;$(NoarchPublish)/runtimes/linux-bionic*/**;$(NoarchPublish)/runtimes/ios*/**;$(NoarchPublish)/runtimes/tvos*/**;$(NoarchPublish)/runtimes/browser*/**" />
+            <NoarchFiles Include="$(NoarchPublish)/**/*.*" Exclude="@(NoarchExclude)" />
+            <NoarchDocs Include="$(PackagesFolder)src/doc/README;$(PackagesFolder)src/doc/copyright;$(PackagesFolder)src/doc/ChangeLog" />
+        </ItemGroup>
+
+        <RemoveDir Directories="$(StagingFolder)/noarch" />
+        <Copy SourceFiles="@(NoarchFiles)" DestinationFolder="$(NoarchStage)/crossbible/%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)src/install/install.sh;$(PackagesFolder)src/icon/crossbible.png;$(PackagesFolder)src/desktop/crossbible.desktop" DestinationFolder="$(NoarchStage)" />
+        <Copy SourceFiles="$(PackagesFolder)src/install/README.noarch" DestinationFiles="$(NoarchStage)/README" />
+        <Copy SourceFiles="$(PackagesFolder)src/doc/copyright;$(PackagesFolder)src/doc/ChangeLog" DestinationFolder="$(NoarchStage)" />
+
+        <Delete Files="$(BinFolder)/$(NoarchName).tar.gz" />
+        <MakeDir Directories="$(BinFolder)" />
+        <!-- The files of a Windows drive have no execute permission: they are set here. -->
+        <Exec Command="find &quot;$(NoarchStage)&quot; -type d -exec chmod 755 {} + &amp;&amp; find &quot;$(NoarchStage)&quot; -type f -exec chmod 644 {} + &amp;&amp; chmod 755 &quot;$(NoarchStage)/install.sh&quot;" />
+        <Exec Command="tar --owner=0 --group=0 --numeric-owner -czf &quot;$(BinFolder)/$(NoarchName).tar.gz&quot; -C &quot;$(StagingFolder)/noarch&quot; &quot;$(NoarchName)&quot;" />
+        <Message Importance="high" Text="Made $(BinFolder)/$(NoarchName).tar.gz" />
+    </Target>
+
+    <Target Name="Build" DependsOnTargets="PackageLinux;PackageNoarch" />
 </Project>

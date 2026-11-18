@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>теxт/мицрософт-ресx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>Сyстем.Ресоурцес.РесXРесоурцеРеадер, Сyстем.Wиндоwс.Формс, Версион=4.0.0.0, Цултуре=неутрал, ПублицКеyТокен=б77а5ц561934е089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>Сyстем.Ресоурцес.РесXРесоурцеWритер, Сyстем.Wиндоwс.Формс, Версион=4.0.0.0, Цултуре=неутрал, ПублицКеyТокен=б77а5ц561934е089</value>
+  </resheader>
+  <data name=".\" xml:space="preserve">
+    <value>Све</value>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Тражи</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Затвори</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Откажи</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Подешавања</value>
+  </data>
+  <data name="InstalledBibles" xml:space="preserve">
+    <value>Инсталиране Библије</value>
+  </data>
+  <data name="StrongsDictionaries" xml:space="preserve">
+    <value>Стронгови речници</value>
+  </data>
+  <data name="SearchBible" xml:space="preserve">
+    <value>Претражи Библију…</value>
+  </data>
+  <data name="BackToBooks" xml:space="preserve">
+    <value>‹  Књиге</value>
+  </data>
+  <data name="NoBiblesInstalled" xml:space="preserve">
+    <value>Још нема инсталираних Библија</value>
+  </data>
+  <data name="NoStrongsInstalled" xml:space="preserve">
+    <value>Још нема инсталираних Стронгових речника</value>
+  </data>
+  <data name="OpenBibleFirst" xml:space="preserve">
+    <value>Прво отвори Библију.</value>
+  </data>
+  <data name="Searching" xml:space="preserve">
+    <value>Претрага… (при првој претрази неке Библије прави се њен индекс, што кратко траје)</value>
+  </data>
+  <data name="SearchFailed" xml:space="preserve">
+    <value>Претрага није успела: {0}</value>
+  </data>
+  <data name="NoVersesFound" xml:space="preserve">
+    <value>Нема пронађених стихова.</value>
+  </data>
+  <data name="VersesFound" xml:space="preserve">
+    <value>{0} стихова, најбоље поклапање прво</value>
+  </data>
+  <data name="MenuInstallBibles" xml:space="preserve">
+    <value>Инсталирај Библије…</value>
+  </data>
+  <data name="MenuBackToReading" xml:space="preserve">
+    <value>Назад на читање</value>
+  </data>
+  <data name="MenuSettings" xml:space="preserve">
+    <value>Подешавања…</value>
+  </data>
+  <data name="Installed" xml:space="preserve">
+    <value>Инсталирано</value>
+  </data>
+  <data name="Install" xml:space="preserve">
+    <value>Инсталирај</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Обриши</value>
+  </data>
+  <data name="DeleteQuestion" xml:space="preserve">
+    <value>Обрисати?</value>
+  </data>
+  <data name="InstalledBiblesCount" xml:space="preserve">
+    <value>Инсталиране Библије ({0})</value>
+  </data>
+  <data name="InstallFromFile" xml:space="preserve">
+    <value>Инсталирај из датотеке ...</value>
+  </data>
+  <data name="LanguagePlaceholder" xml:space="preserve">
+    <value>Језик…</value>
+  </data>
+  <data name="AllLanguages" xml:space="preserve">
+    <value>Сви језици</value>
+  </data>
+  <data name="FilterByKind" xml:space="preserve">
+    <value>Филтрирај по врсти</value>
+  </data>
+  <data name="ShowingKind" xml:space="preserve">
+    <value>Приказано: {0}</value>
+  </data>
+  <data name="SearchNamePlaceholder" xml:space="preserve">
+    <value>Тражи назив…</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Учитај поново</value>
+  </data>
+  <data name="NameOfBible" xml:space="preserve">
+    <value>Назив Библије</value>
+  </data>
+  <data name="InstallBibleFromFileTitle" xml:space="preserve">
+    <value>Инсталирај Библију из датотеке</value>
+  </data>
+  <data name="BibleArchives" xml:space="preserve">
+    <value>Архиве Библија</value>
+  </data>
+  <data name="Installing" xml:space="preserve">
+    <value>Инсталирање {0}…</value>
+  </data>
+  <data name="NoBooksImported" xml:space="preserve">
+    <value>Из датотеке није било могуће увести ниједну књигу.</value>
+  </data>
+  <data name="NameInstalled" xml:space="preserve">
+    <value>{0} је инсталирана</value>
+  </data>
+  <data name="InstallFromFileFailed" xml:space="preserve">
+    <value>Инсталација из датотеке није успела: {0}</value>
+  </data>
+  <data name="EnterName" xml:space="preserve">
+    <value>Унеси назив.</value>
+  </data>
+  <data name="NameExists" xml:space="preserve">
+    <value>Библија са овим називом је већ инсталирана.</value>
+  </data>
+  <data name="LoadingModules" xml:space="preserve">
+    <value>Учитавање Библија са ebible.org и crosswire.org…</value>
+  </data>
+  <data name="CouldNotLoadList" xml:space="preserve">
+    <value>Списак није било могуће учитати: {0}</value>
+  </data>
+  <data name="PersecutionHint" xml:space="preserve">
+    <value>За приказ мрежних Библија означи „{0}” у подешавањима.</value>
+  </data>
+  <data name="ModulesCount" xml:space="preserve">
+    <value>{0} од {1} модула</value>
+  </data>
+  <data name="DeleteFailed" xml:space="preserve">
+    <value>Брисање није успело: {0}</value>
+  </data>
+  <data name="InstallFailed" xml:space="preserve">
+    <value>Инсталација није успела: {0}</value>
+  </data>
+  <data name="Class_Bible" xml:space="preserve">
+    <value>Библија</value>
+  </data>
+  <data name="Class_Comment" xml:space="preserve">
+    <value>Коментар</value>
+  </data>
+  <data name="Class_Dictionary" xml:space="preserve">
+    <value>Речник</value>
+  </data>
+  <data name="Class_Book" xml:space="preserve">
+    <value>Књига</value>
+  </data>
+  <data name="Class_Map" xml:space="preserve">
+    <value>Мапа</value>
+  </data>
+  <data name="Class_AddOn" xml:space="preserve">
+    <value>Додатак</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Тема:</value>
+  </data>
+  <data name="ThemeSystem" xml:space="preserve">
+    <value>Системска</value>
+  </data>
+  <data name="ThemeLight" xml:space="preserve">
+    <value>Светла</value>
+  </data>
+  <data name="ThemeDark" xml:space="preserve">
+    <value>Тамна</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Језик:</value>
+  </data>
+  <data name="RestartForLanguage" xml:space="preserve">
+    <value>Језик ће се променити када се апликација поново покрене.</value>
+  </data>
+  <data name="Font" xml:space="preserve">
+    <value>Фонт:</value>
+  </data>
+  <data name="GreekFont" xml:space="preserve">
+    <value>Грчки фонт:</value>
+  </data>
+  <data name="HebrewFont" xml:space="preserve">
+    <value>Хебрејски фонт:</value>
+  </data>
+  <data name="InstallFont" xml:space="preserve">
+    <value>Инсталирај фонт ...</value>
+  </data>
+  <data name="FontSize" xml:space="preserve">
+    <value>Величина фонта:</value>
+  </data>
+  <data name="ShowJesusRed" xml:space="preserve">
+    <value>Прикажи Исусове речи црвено</value>
+  </data>
+  <data name="ShowVersesGreen" xml:space="preserve">
+    <value>Прикажи бројеве стихова зелено</value>
+  </data>
+  <data name="NoPersecution" xml:space="preserve">
+    <value>У мојој земљи нема прогона</value>
+  </data>
+  <data name="SampleText1" xml:space="preserve">
+    <value>И Исус је обилазио сву Галилеју, учећи у њиховим зборницама.</value>
+  </data>
+  <data name="SampleText2" xml:space="preserve">
+    <value>Ходите за мном и учинићу вас рибарима људи.</value>
+  </data>
+  <data name="Storage" xml:space="preserve">
+    <value>Складиште:</value>
+  </data>
+  <data name="InstallFonts" xml:space="preserve">
+    <value>Инсталирај фонтове</value>
+  </data>
+  <data name="FontFiles" xml:space="preserve">
+    <value>Фонтови или зип са фонтовима</value>
+  </data>
+  <data name="NoUsableFont" xml:space="preserve">
+    <value>Није пронађен употребљив фонт у {0}</value>
+  </data>
+  <data name="FontsInstalled" xml:space="preserve">
+    <value>Инсталирано: {0}</value>
+  </data>
+  <data name="NoUsableFontIn" xml:space="preserve">
+    <value>. Нема употребљивог фонта у {0}</value>
+  </data>
+  <data name="CouldNotInstallFont" xml:space="preserve">
+    <value>Фонт није било могуће инсталирати: {0}</value>
+  </data>
+  <data name="OneBibleInstalled" xml:space="preserve">
+    <value>1 инсталирана Библија</value>
+  </data>
+  <data name="BiblesInstalled" xml:space="preserve">
+    <value>{0} инсталираних Библија</value>
+  </data>
+  <data name="NoStrongsEntry" xml:space="preserve">
+    <value>Нема уноса за {0}. Укључи Стронгов речник дугметом Strongs.</value>
+  </data>
+  <data name="UiSize" xml:space="preserve">
+    <value>Величина интерфејса:</value>
+  </data>
+  <data name="TextColor" xml:space="preserve">
+    <value>Боја текста</value>
+  </data>
+  <data name="UiSizeReset" xml:space="preserve">
+    <value>Врати на величину система</value>
+  </data>
+  <data name="HistoryBack" xml:space="preserve">
+    <value>Назад</value>
+  </data>
+  <data name="HistoryForward" xml:space="preserve">
+    <value>Напред</value>
+  </data>
+  <data name="NoHistory" xml:space="preserve">
+    <value>Још нема историје</value>
+  </data>
+  <data name="Hyphenation" xml:space="preserve">
+    <value>Дели речи на крају реда</value>
+  </data>
+  <data name="PersecutionQuestion" xml:space="preserve">
+    <value>Да ли се хришћани прогоне у твојој земљи? Мрежне Библије се приказују само тамо где нема прогона.</value>
+  </data>
+  <data name="PersecutionYes" xml:space="preserve">
+    <value>Да, постоје прогони</value>
+  </data>
+  <data name="PersecutionNo" xml:space="preserve">
+    <value>Не, нема прогона</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+    <value>Верзија {0}</value>
+  </data>
+</root>

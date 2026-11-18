@@ -4,7 +4,7 @@ Release: 1%{?dist}
 Summary: This is Cross Bible, a cross platform bible reader.
 License: MIT  
 URL: https://www.crossbible.org
-Requires: /bin/sh, sed, zlib, libicu, openssl-libs, libX11, libICE, libSM, fontconfig, mesa-libGL
+Requires: /bin/sh, sed, zlib, libicu, openssl-libs, dejavu-sans-fonts, libX11, libICE, libSM, fontconfig, mesa-libGL
 AutoReqProv: no
 # The architecture of the package: replaced for each one by src/scripts/ConfigureFedora.ps1 (x86_64, aarch64 or armv7hl). It is not BuildArch: that tag is
 # for noarch only, and rpmbuild (and rpmlint) refuse a spec for another architecture than the one of the machine. wpkg gives rpmbuild the line as --target.

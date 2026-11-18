@@ -4,8 +4,9 @@
 #   <version>       version and release of Alpine, as 1.0.0-r0
 #   <architecture>  x86_64, aarch64 or armv7
 #   <output>        the file to write, as crossbible-1.0.0-r0-x86_64.apk
-# An apk (format 2) is three gzip streams one after the other, that make one tar archive: the signature (not here), the control part (.PKGINFO, which has
-# the sha256 of the data part) and the data part (the files). It is not signed: install it with apk add --allow-untrusted. Needs GNU tar (apk add tar on Alpine).
+# The package is made by "apk mkpkg" of apk-tools 3 (Alpine 3.21 and later), as a package of its own format cannot be made by hand: apk 3 refuses the files of a
+# package that has no checksum for each of them ("file format is obsolete"). So it runs on Alpine (make.bat alpine does). The package is not signed: install it
+# with apk add --allow-untrusted.
 set -e
 
 root=$1
@@ -14,6 +15,11 @@ arch=$3
 output=$4
 if [ -z "$root" ] || [ -z "$version" ] || [ -z "$arch" ] || [ -z "$output" ]; then
     echo "Usage: $0 <root> <version> <architecture> <output>" >&2
+    exit 1
+fi
+
+if ! command -v apk >/dev/null 2>&1 || ! apk mkpkg --help 2>&1 | grep -q "creates a package file"; then
+    echo "apk mkpkg (apk-tools 3, Alpine 3.21 or later) is needed to make the package for Alpine: run the build in Alpine (make.bat alpine)." >&2
     exit 1
 fi
 
@@ -27,42 +33,18 @@ find "$work/pkg" -type d -exec chmod 755 {} +
 find "$work/pkg" -type f -exec chmod 644 {} +
 chmod 755 "$work/pkg/usr/bin/crossbible" "$work/pkg/usr/share/crossbible/CrossBible.Desktop"
 
-size=$(( $(du -sk "$work/pkg" | cut -f1) * 1024 ))
-
-# The data part.
-tar --format=ustar --owner=0 --group=0 --numeric-owner -C "$work/pkg" -cf - usr | gzip -9n > "$work/data.tar.gz"
-datahash=$(sha256sum "$work/data.tar.gz" | cut -d' ' -f1)
-
-# The control part: its tar archive has no end (the two empty blocks), as the data part follows it in the same archive. -b 1 leaves out the padding of
-# the last block, so the end is exactly the last 1024 bytes.
-mkdir "$work/control"
-cat > "$work/control/.PKGINFO" <<EOF
-pkgname = crossbible
-pkgver = $version
-pkgdesc = A cross platform bible reader, that downloads free bibles from ebible.org and crosswire.org
-url = https://www.crossbible.org
-builddate = $(date +%s)
-packager = Simon Egli <simon.jakob.egli@gmail.com>
-size = $size
-arch = $arch
-origin = crossbible
-license = MIT
-depend = libstdc++
-depend = libgcc
-depend = zlib
-depend = icu-libs
-depend = libssl3
-depend = fontconfig
-depend = libx11
-depend = libice
-depend = libsm
-depend = mesa-gl
-datahash = $datahash
-EOF
-tar --format=ustar --owner=0 --group=0 --numeric-owner -b 1 -C "$work/control" -cf "$work/control.tar" .PKGINFO
-size_tar=$(wc -c < "$work/control.tar")
-head -c $((size_tar - 1024)) "$work/control.tar" | gzip -9n > "$work/control.tar.gz"
-
 mkdir -p "$(dirname "$output")"
-cat "$work/control.tar.gz" "$work/data.tar.gz" > "$output"
+rm -f "$output"
+apk mkpkg \
+    --files "$work/pkg" \
+    --info "name:crossbible" \
+    --info "version:$version" \
+    --info "arch:$arch" \
+    --info "description:A cross platform bible reader, that downloads free bibles from ebible.org and crosswire.org" \
+    --info "url:https://www.crossbible.org" \
+    --info "license:MIT" \
+    --info "origin:crossbible" \
+    --info "maintainer:Simon Egli <simon.jakob.egli@gmail.com>" \
+    --info "depends:libstdc++ libgcc zlib icu-libs libssl3 fontconfig font-dejavu libx11 libice libsm mesa-gl" \
+    --output "$output"
 echo "Made $output"
