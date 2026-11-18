@@ -7,7 +7,7 @@
 
     <!-- The toolbar on top follows the text block's Position and navigates it by book and chapter. -->
     <Grid RowDefinitions="Auto,*" Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-        <local:BibleToolbar x:Name="Toolbar" Target="{Binding #Block}" />
+        <local:BibleToolbar x:Name="Toolbar" Target="{Binding #Block}" IsTitleBar="{Binding #Root.IsTitleBar}" TitleBarInset="{Binding #Root.TitleBarInset}" />
         <!-- Vertical: a single column that scrolls by touch, which is what a phone wants.
              Bible Roman is the font embedded in this assembly's Assets folder (regular, italic and bold). -->
         <local:BibleTextBlock x:Name="Block"

@@ -119,12 +119,44 @@ public partial class BibleToolbar : UserControl
         ShowText = !ShowOnlineBibles && !ShowSettings;
     }
 
+    /// <summary>Whether the toolbar is the title bar of its window (the desktop app, whose window has no title bar of its own): an empty part of it moves the window, a double click maximizes it.</summary>
+    public static readonly StyledProperty<bool> IsTitleBarProperty = AvaloniaProperty.Register<BibleToolbar, bool>(nameof(IsTitleBar));
+    public bool IsTitleBar { get => GetValue(IsTitleBarProperty); set => SetValue(IsTitleBarProperty, value); }
+
+    /// <summary>The space at the left and at the right of the window that the system buttons of the window take (as seen on the screen, whatever the flow direction): the toolbar leaves it free.</summary>
+    public static readonly StyledProperty<Thickness> TitleBarInsetProperty = AvaloniaProperty.Register<BibleToolbar, Thickness>(nameof(TitleBarInset));
+    public Thickness TitleBarInset { get => GetValue(TitleBarInsetProperty); set => SetValue(TitleBarInsetProperty, value); }
+
+    private static readonly Thickness BarPadding = new(8, 2);
+
+    private void UpdateBarPadding()
+    {
+        // The toolbar is mirrored for the right to left languages, and its padding with it.
+        var inset = TitleBarInset;
+        bool rtl = FlowDirection == FlowDirection.RightToLeft;
+        double left = rtl ? inset.Right : inset.Left, right = rtl ? inset.Left : inset.Right;
+        Bar.Padding = new Thickness(BarPadding.Left + left, BarPadding.Top, BarPadding.Right + right, BarPadding.Bottom);
+    }
+
+    private void OnBarPressed(object? sender, PointerPressedEventArgs e)
+    {
+        // The buttons handle their own presses, so this is only the empty part of the bar.
+        if (!IsTitleBar || TopLevel.GetTopLevel(this) is not Window window || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (e.ClickCount == 2 && window.CanResize)
+            window.WindowState = window.WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        else if (e.ClickCount == 1)
+            window.BeginMoveDrag(e);
+    }
+
     public BibleToolbar()
     {
         InitializeComponent();
+        Bar.PointerPressed += OnBarPressed;
+        PropertyChanged += (_, e) => { if (e.Property == TitleBarInsetProperty) UpdateBarPadding(); };
         SizeChanged += (_, e) => IsWide = e.NewSize.Width > WideWidth;
         if (ReturnToSettings) { ReturnToSettings = false; ShowSettings = true; }
         FlowDirection = Localizer.FlowDirection; // mirrored for Arabic and Hebrew
+        UpdateBarPadding();
         MenuPopup.PlacementTarget = MenuButton;
         BiblesPopup.PlacementTarget = BiblesButton;
         StrongsPopup.PlacementTarget = StrongsButton;

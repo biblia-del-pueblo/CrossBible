@@ -1,10 +1,12 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="using:CrossBible.Library.UI"
         x:Class="CrossBible.Desktop.MainWindow"
         Width="780" Height="600"
         Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
-        Icon="Assets\logo.ico">
+        Icon="Assets\logo.ico"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1">
     <!-- No ScrollViewer: the text block fits as many whole columns as the window shows and brings its own
          horizontal scroll bar that moves one column at a time. -->
         <!-- &#173; is a soft hyphen (U+00AD): an invisible break opportunity inside a word. -->
@@ -14,5 +16,41 @@
             FontSize="18" FontFamily="avares://CrossBible.Library/Assets#Bible Roman" ColumnWidth="350" ColumnSpacing="24" HorizontalAlignment="Center">
         </local:BibleTextBlock>
     </Grid>-->
-    <local:BibleView x:Name="bibleView"/>
+    <Grid>
+        <local:BibleView x:Name="bibleView" IsTitleBar="True"/>
+        <!-- The buttons of the window on Linux (MainWindow.axaml.cs shows them): the window has no frame of its own there, and Avalonia draws no buttons on X11. -->
+        <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" IsVisible="False">
+            <StackPanel.Styles>
+                <Style Selector="Button.caption">
+                    <Setter Property="Width" Value="46" />
+                    <Setter Property="Height" Value="34" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="CornerRadius" Value="0" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                </Style>
+                <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
+                    <Setter Property="Background" Value="#40FFFFFF" />
+                    <Setter Property="Foreground" Value="White" />
+                </Style>
+                <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
+                    <Setter Property="Background" Value="#E81123" />
+                </Style>
+                <Style Selector="Button.caption Path">
+                    <Setter Property="Stroke" Value="White" />
+                    <Setter Property="StrokeThickness" Value="2" />
+                    <Setter Property="Stretch" Value="Uniform" />
+                    <Setter Property="Width" Value="18" />
+                    <Setter Property="Height" Value="18" />
+                </Style>
+            </StackPanel.Styles>
+            <Button x:Name="FullScreenButton" Classes="caption" ToolTip.Tip="Full screen (F11)"><Path x:Name="FullScreenIcon" Data="M8,1 H13 V6 M13,1 L7.5,6.5 M6,13 H1 V8 M1,13 L6.5,7.5" /></Button>
+            <Button x:Name="MinimizeButton" Classes="caption" ToolTip.Tip="Minimize"><Path Data="M0,9 H18" Stretch="None" Width="18" Height="18" /></Button>
+            <Button x:Name="MaximizeButton" Classes="caption" ToolTip.Tip="Maximize"><Path x:Name="MaximizeIcon" Data="M1,1 H13 V13 H1 Z" /></Button>
+            <Button x:Name="CloseButton" Classes="caption close" ToolTip.Tip="Close"><Path Data="M0,0 L14,14 M14,0 L0,14" /></Button>
+        </StackPanel>
+    </Grid>
 </Window>

@@ -45,6 +45,14 @@ public partial class BibleView : UserControl
     }
 
     /// <summary>True while the text is shown and there is no Bible to show: none is installed. The reader then shows a big gray ban sign.</summary>
+    /// <summary>Makes the toolbar the title bar of the window (see <see cref="BibleToolbar.IsTitleBar"/>). Only the desktop app uses it.</summary>
+    public static readonly StyledProperty<bool> IsTitleBarProperty = AvaloniaProperty.Register<BibleView, bool>(nameof(IsTitleBar));
+    public bool IsTitleBar { get => GetValue(IsTitleBarProperty); set => SetValue(IsTitleBarProperty, value); }
+
+    /// <summary>The space of the system buttons of the window that the toolbar leaves free (see <see cref="BibleToolbar.TitleBarInset"/>).</summary>
+    public static readonly StyledProperty<Thickness> TitleBarInsetProperty = AvaloniaProperty.Register<BibleView, Thickness>(nameof(TitleBarInset));
+    public Thickness TitleBarInset { get => GetValue(TitleBarInsetProperty); set => SetValue(TitleBarInsetProperty, value); }
+
     public static readonly StyledProperty<bool> NoBibleVisibleProperty = AvaloniaProperty.Register<BibleView, bool>(nameof(NoBibleVisible));
 
     public bool NoBibleVisible { get => GetValue(NoBibleVisibleProperty); private set => SetValue(NoBibleVisibleProperty, value); }
