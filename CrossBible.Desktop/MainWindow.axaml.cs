@@ -1,6 +1,7 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Styling;
 using CrossBible.Library;
+using CrossBible.Library.UI;
 using System;
 using System.IO;
 
@@ -11,6 +12,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _view = bibleView;
         Title = "Cross Bible";
         // Avalonia draws the title of the window (PART_TitleTextPanel, in the layer of the window buttons) over the toolbar. It is not shown: the title of the window
         // stays "Cross Bible" for the taskbar and Alt+Tab. A style of the application, as that layer is above the window and not part of it.
@@ -42,6 +44,23 @@ public partial class MainWindow : Window
         // Scrolling past the end of a book continues in the next one, back past the start in the previous one.
         //bibleView.Books = Bible.OpenFrom("C:\\GitHub\\BibliaLibrePrivate\\Bibles\\English.WorldEnglishBibleUS").Books;
         //_ = bibleView.ShowBookAsync(4);
+    }
+
+    private BibleView _view;
+
+    /// <summary>The view of the Bible in the window.</summary>
+    public BibleView View => _view;
+
+    /// <summary>
+    /// Puts a new view of the Bible in place of the old one (a change of language or of the interface size builds all the texts and sizes again), with the settings of the title bar
+    /// that the old one had. The buttons of the window on Linux are not part of the view: they stay.
+    /// </summary>
+    public void ReplaceView(BibleView view)
+    {
+        view.IsTitleBar = _view.IsTitleBar;
+        view.TitleBarInset = _view.TitleBarInset;
+        Layout.Children[Layout.Children.IndexOf(_view)] = view; // the old view leaves the visual tree: it stops its timers and lets go of the Bibles
+        _view = view;
     }
 
     private Avalonia.Size _normalSize;

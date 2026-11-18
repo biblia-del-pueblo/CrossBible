@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Controls;
@@ -36,13 +36,13 @@ public partial class App : Application
 
     private void OpenMainViewAgain()
     {
-        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime { MainWindow: { } window }) return;
-        var old = window.Content as BibleView;
-        old?.SaveStateNow(); // the new view opens at the saved position
-        bool settings = old?.ShowSettings ?? false; // the reader stays on the page they were on
+        if (ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime { MainWindow: MainWindow window }) return;
+        var old = window.View;
+        old.SaveStateNow(); // the new view opens at the saved position
+        bool settings = old.ShowSettings; // the reader stays on the page they were on
 
         var view = new BibleView { Name = "bibleView" };
         if (settings) view.ShowSettings = true;
-        window.Content = view; // the old view leaves the visual tree: it stops its timers and lets go of the Bibles
+        window.ReplaceView(view);
     }
 }

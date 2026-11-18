@@ -16,7 +16,7 @@
             FontSize="18" FontFamily="avares://CrossBible.Library/Assets#Bible Roman" ColumnWidth="350" ColumnSpacing="24" HorizontalAlignment="Center">
         </local:BibleTextBlock>
     </Grid>-->
-    <Grid>
+    <Grid x:Name="Layout">
         <local:BibleView x:Name="bibleView" IsTitleBar="True"/>
         <!-- The buttons of the window on Linux (MainWindow.axaml.cs shows them): the window has no frame of its own there, and Avalonia draws no buttons on X11. -->
         <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" IsVisible="False">
