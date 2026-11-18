@@ -1656,6 +1656,15 @@ public partial class BibleTextBlock : Panel
     /// </summary>
     private bool _gestureFromPopup;
 
+    /// <summary>
+    /// True when the press that is being handled (or its tap) put the popup away: it only does that. Light dismiss closes the popup on a press outside it, and
+    /// where the press goes on to the text as well (Linux: it did not on Windows) it hit a Strong's word or a footnote under the pointer and opened a popup
+    /// again, at once; only the second press, with no popup open, closed it for good.
+    /// </summary>
+    private bool _pressDismissedPopup;
+    private long _popupClosedTick;
+    private const long PopupDismissWindowMs = 200; // a popup that closed this shortly before a press was closed by it (light dismiss, before the press is routed)
+
     private void OnScrollGesture(object? sender, ScrollGestureEventArgs e)
     {
         if (_gestureFromPopup || FromPopup(e)) { e.Handled = true; return; } // a swipe in the popup scrolls the popup, never the text (and the popup closed at its bottom)
@@ -1785,6 +1794,7 @@ public partial class BibleTextBlock : Panel
     private void OnTapped(object? sender, TappedEventArgs e)
     {
         if (FromPopup(e)) return; // a tap in the popup is not a tap on the text under it
+        if (_pressDismissedPopup) return; // the tap that put the popup away does not open another
         if (e.Pointer?.Type != PointerType.Touch) return;
         // Lifting the finger after a long press raises Tapped as well: that tap must not put the new selection away.
         if (_touchSelecting || Environment.TickCount64 - _touchSelectionEnded < 600) { e.Handled = true; return; }
@@ -2875,6 +2885,7 @@ public partial class BibleTextBlock : Panel
     {
         base.OnPointerReleased(e);
         if (FromPopup(e)) return;
+        if (_pressDismissedPopup) return; // the press that put the popup away is over: nothing began
         _touchDown = false;
         StopHoldTimer();
         if (_touchSelecting)
@@ -2906,6 +2917,7 @@ public partial class BibleTextBlock : Panel
     {
         base.OnPointerPressed(e);
         if (FromPopup(e)) return; // a press in the popup is not a press on the text under it (where there may be a footnote or a verse number)
+        if (_pressDismissedPopup) { e.Handled = true; return; } // this press put the popup away: it opens nothing and selects nothing
         if (e.Pointer.Type == PointerType.Touch) { _touchDown = true; _inertia = false; _touchSelecting = false; _touchPointer = e.Pointer; StartHoldTimer(e.GetPosition(this)); return; } // touch pans (and taps open footnotes); it does not select
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         var position = e.GetPosition(this);
@@ -3032,12 +3044,19 @@ public partial class BibleTextBlock : Panel
             FontFamily = FontFamily,
             Cursor = new Cursor(StandardCursorType.Hand),
         };
-        link.PointerPressed += (_, e) =>
+        void Open()
         {
-            e.Handled = true; // it is not the start of a selection of the text around it
             _popup.IsOpen = false;
             // Shown from a posted callback: a popup that opens during the press that closed another is light-dismissed by it.
             Dispatcher.UIThread.Post(() => _ = ShowStrongsAsync(key, bounds), DispatcherPriority.Background);
+        }
+        // The text of the popup does not take the pointer (see ShowPopup), and neither does a link in it: the host of the text finds the link under the
+        // pointer and runs this (LinkAt).
+        link.Tag = (Action)Open;
+        link.PointerPressed += (_, e) =>
+        {
+            e.Handled = true; // it is not the start of a selection of the text around it
+            Open();
         };
         return link;
     }
@@ -3097,6 +3116,23 @@ public partial class BibleTextBlock : Panel
         // finger then extends).
         text.IsHitTestVisible = false;
         var host = new Border { Background = Brushes.Transparent, Child = text };
+        // The links in the text (the numbers of other Strong's entries; see StrongsLink) cannot be hit, as the text is not: the host finds the one under the pointer.
+        var linkControls = new List<Control>();
+        void CollectLinks(IEnumerable<Inline> inlines)
+        {
+            foreach (var inline in inlines)
+            {
+                if (inline is InlineUIContainer { Child: Control child } && child.Tag is Action) linkControls.Add(child);
+                else if (inline is Span { Inlines: { } children }) CollectLinks(children);
+            }
+        }
+        CollectLinks(items);
+        Action? LinkAt(Point inText)
+        {
+            foreach (var control in linkControls)
+                if (control.TranslatePoint(default, text) is { } origin && new Rect(origin, control.Bounds.Size).Contains(inText)) return (Action)control.Tag!;
+            return null;
+        }
         // Not attached to the host (ContextMenu property): the long press of a finger asks for such a menu, and opening or even refusing it let go of the finger.
         var contextMenu = new ContextMenu
         {
@@ -3199,6 +3235,8 @@ public partial class BibleTextBlock : Panel
             // A finger does not report a button: it is always the primary press.
             if (e.Pointer.Type == PointerType.Mouse && !properties.IsLeftButtonPressed) return;
             pressedAt = e.GetPosition(text);
+            // A click on a link opens its entry; a finger does it when it lifts (OnRelease), as the press may be the start of a swipe.
+            if (e.Pointer.Type == PointerType.Mouse && LinkAt(pressedAt) is { } link) { link(); e.Handled = true; return; }
             int at = IndexAt(pressedAt);
             int low = Math.Min(text.SelectionStart, text.SelectionEnd), high = Math.Max(text.SelectionStart, text.SelectionEnd);
             bool onSelection = low != high && at >= low && at <= high;
@@ -3238,6 +3276,7 @@ public partial class BibleTextBlock : Panel
             if (e.Timestamp == lastMove) return;
             lastMove = e.Timestamp;
             var now = e.GetPosition(text);
+            if (e.Pointer.Type == PointerType.Mouse && !selecting) host.Cursor = LinkAt(now) is not null ? new Cursor(StandardCursorType.Hand) : null;
             if (!moved && (touchDown || pressedOnSelection) && Math.Abs(now.X - pressedAt.X) + Math.Abs(now.Y - pressedAt.Y) > 10)
             {
                 moved = true; // a swipe, or a drag: not a tap
@@ -3258,7 +3297,8 @@ public partial class BibleTextBlock : Panel
             if (e.Pointer.Captured == host) e.Pointer.Capture(null);
             if (!wasSelecting && !moved)
             {
-                if (pressedOnSelection)
+                if (e.Pointer.Type == PointerType.Touch && !pressedOnSelection && LinkAt(pressedAt) is { } tapped) tapped(); // a tap on a link
+                else if (pressedOnSelection)
                 {
                     // The menu waits a moment: a second press (a double click that selects a word) must not meet it.
                     StopMenuTimer();
@@ -3293,8 +3333,46 @@ public partial class BibleTextBlock : Panel
     private const int TabletDisableGestures = 0x00000001 | 0x00000008 | 0x00000010; // press and hold, pen tap feedback, pen barrel feedback
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TopLevel, object> GestureFreePopups = new();
 
+    // The popup is light dismiss, but for a popup that is a window of its own Avalonia only reacts to the main window losing the focus or being deactivated (and to a
+    // click on its frame): a press in the client area of the main window is not what closes it. How well that works depends on the window manager: on some a first click
+    // only activates the main window and the popup stays until the second. So the popup is put away here by what is certain: a press anywhere in the window, and the window
+    // being activated again (the popup took the activation when it opened, and a click on the window brings it back).
+    private TopLevel? _dismissRoot;
+    private long _popupOpenedTick;
+    private const long PopupActivationGraceMs = 400; // the window may be activated again while the popup is opening: that is not a click
+
+    private void AttachDismiss()
+    {
+        DetachDismiss();
+        _popupOpenedTick = Environment.TickCount64;
+        if (TopLevel.GetTopLevel(this) is not { } root) return;
+        _dismissRoot = root;
+        root.AddHandler(PointerPressedEvent, OnRootPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        if (root is WindowBase window) window.Activated += OnRootActivated;
+    }
+
+    private void DetachDismiss()
+    {
+        if (_dismissRoot is not { } root) return;
+        _dismissRoot = null;
+        root.RemoveHandler(PointerPressedEvent, OnRootPressed);
+        if (root is WindowBase window) window.Activated -= OnRootActivated;
+    }
+
+    // Tunnelling: before any control has it, whether one handles it or not. (A press in the popup itself is not outside it.)
+    private void OnRootPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_popup.IsOpen && !FromPopup(e)) _popup.IsOpen = false;
+    }
+
+    private void OnRootActivated(object? sender, EventArgs e)
+    {
+        if (_popup.IsOpen && Environment.TickCount64 - _popupOpenedTick > PopupActivationGraceMs) _popup.IsOpen = false;
+    }
+
     private void OnPopupOpened(object? sender, EventArgs e)
     {
+        AttachDismiss();
         if (!OperatingSystem.IsWindows() || TopLevel.GetTopLevel(_popup.Child) is not { } root || GestureFreePopups.TryGetValue(root, out _)) return;
         GestureFreePopups.Add(root, root);
         Win32Properties.AddWndProcHookCallback(root, TabletGestureHook);
@@ -3397,7 +3475,14 @@ public partial class BibleTextBlock : Panel
         _scrollRecognizer = new ScrollGestureRecognizer { CanVerticallyScroll = true, CanHorizontallyScroll = true, IsScrollInertiaEnabled = true };
         GestureRecognizers.Add(_scrollRecognizer);
         // Where a press began, whatever else handles it: in the popup or not (see _gestureFromPopup).
-        AddHandler(PointerPressedEvent, (_, e) => _gestureFromPopup = FromPopup(e), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        _popup.Closed += (_, _) => { _popupClosedTick = Environment.TickCount64; DetachDismiss(); };
+        AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            _gestureFromPopup = FromPopup(e);
+            // A press outside the popup puts it away (light dismiss does, before or after this runs, depending on the platform) and does nothing else.
+            _pressDismissedPopup = !_gestureFromPopup && (_popup.IsOpen || Environment.TickCount64 - _popupClosedTick < PopupDismissWindowMs);
+            if (_pressDismissedPopup) _popup.IsOpen = false;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(InputElement.ScrollGestureEvent, OnScrollGesture);
         AddHandler(InputElement.ScrollGestureInertiaStartingEvent, OnScrollInertiaStarting);
         AddHandler(InputElement.ScrollGestureEndedEvent, OnScrollGestureEnded);

@@ -5,6 +5,6 @@ param([string]$version, [string]$folder, [string]$architecture)
 $spec_file = Join-Path $folder "SPECS/crossbible.spec"
 $spec = Get-Content $spec_file -Raw
 $spec = [Regex]::Replace($spec, "(?<=^Version:\s*)[0-9.:]*?$", $version, [Text.RegularExpressions.RegexOptions]::Multiline)
-$spec = [Regex]::Replace($spec, "(?<=^BuildArch:)[^\r\n]*", " $architecture", [Text.RegularExpressions.RegexOptions]::Multiline)
+$spec = [Regex]::Replace($spec, "(?<=^# wpkg-target:)[^\r\n]*", " $architecture", [Text.RegularExpressions.RegexOptions]::Multiline)
 $Utf8NoBomEncoding = New-Object System.Text.UTF8Encoding $False
 [IO.File]::WriteAllText((Resolve-Path $spec_file).Path, $spec, $Utf8NoBomEncoding)

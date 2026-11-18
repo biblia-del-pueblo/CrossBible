@@ -6,8 +6,9 @@ License: MIT
 URL: https://www.crossbible.org
 Requires: /bin/sh, sed, zlib, libicu, openssl-libs, libX11, libICE, libSM, fontconfig, mesa-libGL
 AutoReqProv: no
-# Replaced for each architecture by src/scripts/ConfigureFedora.ps1 (x86_64, aarch64 or armv7hl).
-BuildArch: x86_64
+# The architecture of the package: replaced for each one by src/scripts/ConfigureFedora.ps1 (x86_64, aarch64 or armv7hl). It is not BuildArch: that tag is
+# for noarch only, and rpmbuild (and rpmlint) refuse a spec for another architecture than the one of the machine. wpkg gives rpmbuild the line as --target.
+# wpkg-target: x86_64
 # The package holds a native AOT binary of another architecture than the build machine may have: it must not be stripped or scanned.
 %global debug_package %{nil}
 %global __strip /bin/true
