@@ -237,7 +237,16 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
         public string Id { get; set; }
         public string Description { get; set; }
         public string File { get; set; }
-        public string Markdown { get => field ??= System.IO.File.ReadAllText(File, System.Text.Encoding.UTF8); set => field = value; }
+        public string Markdown {
+            get
+            {
+                if (field != null) return field;
+                field = System.IO.File.ReadAllText(File, System.Text.Encoding.UTF8);
+                if (Environment.NewLine != "\r\n") field = field.Replace("\r\n", Environment.NewLine);
+                return field;
+            }
+            set => field = value;
+        }
         bool? isBible = null;
         public bool IsBible => isBible ??= BookText.IsBibleRegex().IsMatch(Markdown);
         private List<Run>? _runs;

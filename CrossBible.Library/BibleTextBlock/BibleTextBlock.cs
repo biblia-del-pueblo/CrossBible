@@ -3041,9 +3041,11 @@ public partial class BibleTextBlock : Panel
     }
 
     /// <summary>The inlines of a text in Bible Markdown (bold, italic, small caps, ...), to show it outside the text block.</summary>
-    internal static IEnumerable<Inline> MarkdownInlines(string markdown, double size) =>
-        ToInlines(BookText.ParseText(markdown, new BookText.VersePosition()), size, upperCase: false);
-
+    internal static IEnumerable<Inline> MarkdownInlines(string markdown, double size)
+    {
+        if (Environment.NewLine != "\r\n") markdown = markdown.Replace("\r\n", Environment.NewLine);
+        return ToInlines(BookText.ParseText(markdown, new BookText.VersePosition()), size, upperCase: false);
+    }
     /// <summary>The plain text of inlines (their runs, also in spans).</summary>
     internal static string PlainText(IEnumerable<Inline> inlines, List<string>? linkTexts = null)
     {

@@ -26,6 +26,7 @@
         <StagingFolder>$(PackagesFolder)staging</StagingFolder>
         <BinFolder>$(PackagesFolder)bin</BinFolder>
 
+
         <GZipCmd Condition=" '$(OS)' == 'Windows_NT' ">"$(PackagesFolder)tools/gzip/bin/gzip.exe"</GZipCmd>
         <GZipCmd Condition=" '$(OS)' != 'Windows_NT' ">gzip</GZipCmd>
         <WpkgCmd Condition=" '$(OS)' == 'Windows_NT' ">wpkg.exe</WpkgCmd>
@@ -40,15 +41,31 @@
         <PackageArch Include="linux-x64">
             <DebArch>amd64</DebArch>
             <RpmArch>x86_64</RpmArch>
+            <PacmanArch>x86_64</PacmanArch>
         </PackageArch>
         <PackageArch Include="linux-arm64">
             <DebArch>arm64</DebArch>
             <RpmArch>aarch64</RpmArch>
+            <PacmanArch>aarch64</PacmanArch>
         </PackageArch>
         <PackageArch Include="linux-arm">
             <DebArch>armhf</DebArch>
             <RpmArch>armv7hl</RpmArch>
+            <PacmanArch>armv7h</PacmanArch>
         </PackageArch>
+    </ItemGroup>
+
+    <!-- Alpine uses musl, not glibc: its packages are made from the musl runtimes, with the architecture names of apk (see PackageAlpine). -->
+    <ItemGroup>
+        <AlpineArch Include="linux-musl-x64">
+            <ApkArch>x86_64</ApkArch>
+        </AlpineArch>
+        <AlpineArch Include="linux-musl-arm64">
+            <ApkArch>aarch64</ApkArch>
+        </AlpineArch>
+        <AlpineArch Include="linux-musl-arm">
+            <ApkArch>armv7</ApkArch>
+        </AlpineArch>
     </ItemGroup>
 
     <Target Name="BuildWpkg">
@@ -58,7 +75,7 @@
 
     <Target Name="CleanOutput">
         <ItemGroup>
-            <OutputPackageFiles Include="$(BinFolder)/*.deb;$(BinFolder)/*.rpm;$(BinFolder)/*.tar.gz" />
+            <OutputPackageFiles Include="$(BinFolder)/*.deb;$(BinFolder)/*.rpm;$(BinFolder)/*.pkg.tar.zst;$(BinFolder)/*.tar.gz" />
         </ItemGroup>
         <Delete Files="@(OutputPackageFiles)" />
         <RemoveDir Directories="$(StagingFolder)" />
@@ -89,16 +106,24 @@
             <RuntimeTarball>$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz</RuntimeTarball>
         </PropertyGroup>
 
-        <!-- dotnet publish restores the packages of its runtime by itself. UseAot is the switch of CrossBible.Desktop.csproj for PublishAot (with ReadyToRun off).
-             The build is made apart, with -no-incremental (publish has no such switch): the XAML of Avalonia is compiled into the assembly after the C# compiler
-             has run, and a build that is incremental on top of the obj folder of an earlier one (of Visual Studio on Windows, say) can leave it out: the app
-             then stops at start with "No precompiled XAML found". -->
-        <Exec Command="dotnet build &quot;$(DesktopProject)&quot; -c $(Configuration) -r $(AotRuntimeId) --self-contained true --no-incremental -p:UseAot=true -p:Version=$(Version)" />
-        <Exec Command="dotnet publish &quot;$(DesktopProject)&quot; -c $(Configuration) -r $(AotRuntimeId) --self-contained true --no-build -p:UseAot=true -p:Version=$(Version) -o &quot;$(RuntimeFolder)&quot;" />
+        <!-- Building for ARM on a x64 machine: ILCompiler strips the debug symbols with objcopy, which has to be the one of the target (the linker is found by clang
+             by its name with the target: gcc-aarch64-linux-gnu and binutils-aarch64-linux-gnu, or gcc-arm-linux-gnueabihf and binutils-arm-linux-gnueabihf). -->
+        <PropertyGroup Condition=" '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'X64' ">
+            <CrossOption Condition=" '$(AotRuntimeId)' == 'linux-arm64' ">-p:ObjCopyName=aarch64-linux-gnu-objcopy</CrossOption>
+            <CrossOption Condition=" '$(AotRuntimeId)' == 'linux-arm' ">-p:ObjCopyName=arm-linux-gnueabihf-objcopy</CrossOption>
+        </PropertyGroup>
+
+        <!-- UseAot is the switch of CrossBible.Desktop.csproj for PublishAot (with ReadyToRun off).
+             Restore, Rebuild and Publish are one msbuild call. Rebuild: the XAML of Avalonia is compiled into the assembly after the C# compiler has run, and a build
+             that is incremental on top of the obj folder of an earlier one (of Visual Studio on Windows, say) can leave it out: the app then stops at start with
+             "No precompiled XAML found". One call: Visual Studio restores the projects in the background when it is open, and overwrites project.assets.json
+             with the NuGet folders of Windows (the build then stops with "Unable to find fallback package folder"): close it while the packages are built. -->
+        <!-- -p:SkipPublish=true uses the build in the publish folder, that is already there (of a musl runtime, that was built on an Alpine machine, say). -->
+        <Exec Condition=" '$(SkipPublish)' != 'true' " Command="dotnet msbuild &quot;$(DesktopProject)&quot; -restore -t:Rebuild -t:Publish -p:Configuration=$(Configuration) -p:RuntimeIdentifier=$(AotRuntimeId) -p:SelfContained=true $(CrossOption) -p:UseAot=true -p:Version=$(Version) -p:PublishDir=&quot;$(RuntimeFolder)/&quot;" />
 
         <!-- The debug symbols are not part of the package. -->
-        <Exec Command="tar -czf &quot;$(RuntimeTarball)&quot; --exclude=&quot;*.pdb&quot; --exclude=&quot;*.dbg&quot; -C &quot;$(RuntimeFolder)&quot; ." />
-        <Message Importance="high" Text="Packed $(RuntimeTarball)" />
+        <Exec Condition=" '$(SkipPublish)' != 'true' " Command="tar -czf &quot;$(RuntimeTarball)&quot; --exclude=&quot;*.pdb&quot; --exclude=&quot;*.dbg&quot; -C &quot;$(RuntimeFolder)&quot; ." />
+        <Message Condition=" '$(SkipPublish)' != 'true' " Importance="high" Text="Packed $(RuntimeTarball)" />
     </Target>
 
     <Target Name="PublishDesktopAot">
@@ -157,13 +182,46 @@
         </ItemGroup>
         <Move SourceFiles="@(RpmBuilt)" DestinationFolder="$(BinFolder)" />
 
+        <!-- Arch Linux (pacman), from the same glibc build. -->
+        <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="StageRoot" Properties="AotRuntimeId=$(AotRuntimeId);StageDir=$(StagingFolder)/pacman-$(PacmanArch)" />
+        <Exec Command="sh &quot;$(PackagesFolder)src/scripts/MakeArchPackage.sh&quot; &quot;$(StagingFolder)/pacman-$(PacmanArch)&quot; &quot;$(FileVersion)-1&quot; &quot;$(PacmanArch)&quot; &quot;$(BinFolder)/crossbible-$(FileVersion)-1-$(PacmanArch).pkg.tar.zst&quot;" />
+
         <!-- The .tar.gz of the same build. -->
-        <Copy SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
+        <Copy Condition="Exists('$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz')" SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
+    </Target>
+
+    <!-- Puts together the usr tree of a package of the runtime AotRuntimeId in the folder StageDir: the files of Debian and Fedora are put together in
+         PackageRuntime, the ones of Arch Linux and Alpine use this. -->
+    <Target Name="StageRoot">
+        <ItemGroup>
+            <RootAotFiles Include="$(AotPublishFolder)/$(AotRuntimeId)/**/*.*" Exclude="$(AotPublishFolder)/$(AotRuntimeId)/**/*.pdb;$(AotPublishFolder)/$(AotRuntimeId)/**/*.dbg" />
+            <RootDocFiles Include="$(PackagesFolder)src/doc/*.*" Exclude="$(PackagesFolder)src/doc/changelog.Debian" />
+        </ItemGroup>
+        <RemoveDir Directories="$(StageDir)" />
+        <Copy SourceFiles="@(RootAotFiles)" DestinationFolder="$(StageDir)/usr/share/crossbible/%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)src/bin/crossbible" DestinationFiles="$(StageDir)/usr/bin/crossbible" />
+        <Copy SourceFiles="$(PackagesFolder)src/icon/crossbible.png" DestinationFiles="$(StageDir)/usr/share/pixmaps/crossbible.png" />
+        <Copy SourceFiles="$(PackagesFolder)src/desktop/crossbible.desktop" DestinationFolder="$(StageDir)/usr/share/applications" />
+        <Copy SourceFiles="@(RootDocFiles)" DestinationFolder="$(StageDir)/usr/share/doc/crossbible" />
     </Target>
 
     <Target Name="PackageLinux" DependsOnTargets="BuildWpkg;Dos2Unix;CleanOutput">
         <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="PackageRuntime"
-                 Properties="AotRuntimeId=%(PackageArch.Identity);DebArch=%(PackageArch.DebArch);RpmArch=%(PackageArch.RpmArch)" />
+                 Properties="AotRuntimeId=%(PackageArch.Identity);DebArch=%(PackageArch.DebArch);RpmArch=%(PackageArch.RpmArch);PacmanArch=%(PackageArch.PacmanArch)" />
+    </Target>
+
+    <!-- The apk packages of Alpine Linux, from the musl runtimes. Not part of Build: native AOT for musl needs a musl toolchain (see PublishRuntime), that is
+         best on an Alpine machine or container. Two ways: run -t:PackageAlpine there (it needs GNU tar: apk add tar), or publish the musl runtimes
+         there (-t:PublishDesktopAot, then copy the publish folder) and make the packages anywhere with -t:PackageAlpine -p:SkipPublish=true. -->
+    <Target Name="PackageAlpineRuntime" DependsOnTargets="PublishRuntime">
+        <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="StageRoot" Properties="AotRuntimeId=$(AotRuntimeId);StageDir=$(StagingFolder)/apk-$(ApkArch)" />
+        <Exec Command="sh &quot;$(PackagesFolder)src/scripts/MakeAlpinePackage.sh&quot; &quot;$(StagingFolder)/apk-$(ApkArch)&quot; &quot;$(FileVersion)-r0&quot; &quot;$(ApkArch)&quot; &quot;$(BinFolder)/crossbible-$(FileVersion)-r0-$(ApkArch).apk&quot;" />
+        <Copy Condition="Exists('$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz')" SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
+    </Target>
+
+    <Target Name="PackageAlpine">
+        <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="PackageAlpineRuntime"
+                 Properties="AotRuntimeId=%(AlpineArch.Identity);ApkArch=%(AlpineArch.ApkArch)" />
     </Target>
 
     <Target Name="Build" DependsOnTargets="PackageLinux" />
