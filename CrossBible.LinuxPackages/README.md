@@ -28,8 +28,22 @@ sudo dnf install rpmdevtools rpmlint
 
 # Build the Packages
 
-In order to build the Packages use
+The packages hold the native AOT build of CrossBible (no .NET runtime is needed to run them). Native AOT does not build for another
+operating system, so the packages are built on Linux, in WSL on Windows (`make.bat` calls `make.sh` in WSL). There are packages for three architectures:
 
-msbuild -p:FileVersion=<Version>
+| .NET runtime | Debian (.deb) | Fedora (.rpm) |
+|--------------|---------------|---------------|
+| linux-x64    | amd64         | x86_64        |
+| linux-arm64  | arm64         | aarch64       |
+| linux-arm    | armhf         | armv7hl       |
 
-where <Version> is the version number of HostPanelPro.
+Install in the WSL distro: the .NET SDK, `clang`, `zlib1g-dev`, `rpm`, PowerShell (`pwsh`), and the cross compiler for the ARM
+architectures (for linux-arm64: `gcc-aarch64-linux-gnu` and `binutils-aarch64-linux-gnu`; for linux-arm: the arm ones). Then run
+
+    sh make.sh -p:FileVersion=<Version>
+
+(`make.sh` checks that the tools are installed and runs `dotnet msbuild LinuxPackages.proj`.)
+
+The packages (`crossbible_<Version>-1_<arch>.deb`, `crossbible-<Version>-1.<arch>.rpm`) and a `.tar.gz` of each architecture are written to the bin
+folder. Each package is put together in its own folder in staging (Debian and Fedora are the templates), the AOT build of each runtime is in
+`..\publish`. `-t:PublishDesktopAot` only publishes the `.tar.gz` files, with the musl ones (Alpine) too.

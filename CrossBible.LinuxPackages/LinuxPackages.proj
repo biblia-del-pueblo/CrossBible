@@ -1,6 +1,15 @@
 <Project DefaultTargets="Build"
     xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
 
+    <!-- Builds the Linux packages of CrossBible: for every architecture a Debian (.deb) and a Fedora (.rpm) package, and a .tar.gz, each with
+         the native AOT build of CrossBible.Desktop (no .NET runtime is needed to run them).
+
+             dotnet msbuild LinuxPackages.proj -p:FileVersion=<version>
+
+         Native AOT does not build for another operating system: run it on Linux (WSL on Windows). It needs the tools of the target PublishRuntime below,
+         "dotnet tool install -g CrossPlatformPackager" (wpkg) and rpmbuild (the rpm package) for the Fedora packages.
+         -t:PublishDesktopAot publishes only the .tar.gz of every runtime, with the musl ones (Alpine) too. -->
+
     <PropertyGroup>
         <netlatest>net11.0</netlatest>
         <BUILD_NUMBER Condition=" '$(BUILD_NUMBER)' == '' ">1.0.0</BUILD_NUMBER>
@@ -9,108 +18,59 @@
         <VersionLabel Condition=" '$(VersionLabel)' == '' ">$(BUILD_NUMBER)</VersionLabel>
         <ReleaseDate Condition=" '$(ReleaseDate)' == '' ">2026-11-17</ReleaseDate>
         <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
-        <BuildConfiguration>$(Configuration)</BuildConfiguration>
-        <RootFolder>..\</RootFolder>
-        <Platform>Any CPU</Platform>
 
-        <DesktopFolder>$(RootFolder)CrossBible.Desktop</DesktopFolder>
-        <BuildFolder>$(DesktopFolder)\bin\$(BuildConfiguration)</BuildFolder>
-        <PackagesFolder>$(RootFolder)\CrossBible.LinuxPackages</PackagesFolder>
+        <PackagesFolder>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)'))</PackagesFolder>
+        <RootFolder>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..'))</RootFolder>
+        <DesktopProject>$(RootFolder)CrossBible.Desktop/CrossBible.Desktop.csproj</DesktopProject>
+        <AotPublishFolder>$(RootFolder)publish</AotPublishFolder>
+        <StagingFolder>$(PackagesFolder)staging</StagingFolder>
+        <BinFolder>$(PackagesFolder)bin</BinFolder>
 
-        <GZipCmd Condition=" '$(OS)' == 'Windows_NT' ">"tools\gzip\bin\gzip.exe"</GZipCmd>
-        <GZipCmd Condition=" '$(OS)' == 'Unix' ">gzip</GZipCmd>
- 		<ZipCmd>"tools\7-Zip\7z.exe"</ZipCmd>
- 		<ZipLevel> -mx9 -mmt=on</ZipLevel>
-        <NuGetCmd Condition=" '$(OS)' == 'Windows_NT' ">dotnet</NuGetCmd>
-        <NuGetCmd Condition=" '$(OS)' == 'Unix' ">dotnet</NuGetCmd>
-        <WpkgCmd>wpkg.exe</WpkgCmd>
-
-        <IncludeReleasePdbs Condition="'$(IncludeReleasePdbs)' == '' And '$(Configuration)' == 'Release'">false</IncludeReleasePdbs>
-        <IncludeReleasePdbs Condition="'$(IncludeReleasePdbs)' == '' And '$(Configuration)' != 'Release'">true</IncludeReleasePdbs>
+        <GZipCmd Condition=" '$(OS)' == 'Windows_NT' ">"$(PackagesFolder)tools/gzip/bin/gzip.exe"</GZipCmd>
+        <GZipCmd Condition=" '$(OS)' != 'Windows_NT' ">gzip</GZipCmd>
+        <WpkgCmd Condition=" '$(OS)' == 'Windows_NT' ">wpkg.exe</WpkgCmd>
+        <WpkgCmd Condition=" '$(OS)' != 'Windows_NT' ">wpkg</WpkgCmd>
+        <PwshCmd Condition=" '$(OS)' == 'Windows_NT' ">powershell</PwshCmd>
+        <PwshCmd Condition=" '$(OS)' != 'Windows_NT' ">pwsh</PwshCmd>
     </PropertyGroup>
 
+    <!-- The architectures of the Debian and Fedora packages. Identity: the .NET runtime (linux-arm is 32 bit ARM, there is no "arm32"); DebArch and RpmArch: the
+         name of the architecture for dpkg and for rpm. The musl runtimes (Alpine) have no .deb or .rpm: they are only published as .tar.gz. -->
     <ItemGroup>
-        <BinFiles Include="$(PackagesFolder)\bin\*.*" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <BuildOutputExclude Condition="'$(IncludeReleasePdbs)' != 'true'"
-            Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\**\*.pdb" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\**\*.xml" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-arm\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-x64\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\android-x86\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\browser-wasm\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\ios-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x64\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\iossimulator-x86\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win-x64\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win-arm64\**\*.*" />
-        <BuildOutputExclude Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\runtimes\win-x86\**\*.*" />
-        <BuildOutput Include="$(DesktopFolder)\bin\$(Configuration)\$(netlatest)\**\*.*"
-            Exclude="@(BuildOutputExclude)" />
+        <PackageArch Include="linux-x64">
+            <DebArch>amd64</DebArch>
+            <RpmArch>x86_64</RpmArch>
+        </PackageArch>
+        <PackageArch Include="linux-arm64">
+            <DebArch>arm64</DebArch>
+            <RpmArch>aarch64</RpmArch>
+        </PackageArch>
+        <PackageArch Include="linux-arm">
+            <DebArch>armhf</DebArch>
+            <RpmArch>armv7hl</RpmArch>
+        </PackageArch>
     </ItemGroup>
 
     <Target Name="BuildWpkg">
-        <Exec Command="dotnet tool install -g CrossPlatformPackager" />
+        <!-- Installs the tool, or updates it when it is installed already (install fails then and would leave an old version). -->
+        <Exec Command="dotnet tool update -g CrossPlatformPackager" IgnoreExitCode="true" />
     </Target>
 
-    <Target Name="BuildCrossBibleDesktop">
-        <Exec Command="dotnet restore $(RootFolder)BibleMarkdown\BibleMarkdown\BibleMarkdown.csproj" />
-        <Exec Command="dotnet restore $(RootFolder)CrossBible.Library\CrossBible.Library.csproj" />
-        <Exec Command="dotnet restore $(RootFolder)CrossBible.Desktop\CrossBible.Desktop.csproj" />
-        <MSBuild Projects="$(RootFolder)CrossBible.Desktop\CrossBible.Desktop.csproj" Properties="Configuration=$(Configuration);Platform=Any CPU" />
-    </Target>
-
-    <!-- Publishes CrossBible.Desktop with native AOT for every Linux runtime, and packs each result as publish/crossbible-<version>-<runtime>.tar.gz.
-         Run it on Linux (native AOT does not build for another operating system), as: dotnet msbuild LinuxPackages.proj -t:PublishDesktopAot
-         It needs clang and zlib1g-dev (the zlib development package); the ARM runtimes also the cross compiler of the machine (on a x64 machine, for linux-arm64:
-         gcc-aarch64-linux-gnu, binutils-aarch64-linux-gnu and the arm64 libraries; for linux-arm the arm ones), and the musl runtimes a musl toolchain (an Alpine
-         machine or container builds them best). The runtime of 32 bit ARM is linux-arm, and linux-musl-arm for musl: there is no "arm32" runtime. -->
-    <Target Name="PublishDesktopAot">
-        <PropertyGroup>
-            <DesktopProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', 'CrossBible.Desktop', 'CrossBible.Desktop.csproj'))</DesktopProject>
-            <AotPublishFolder>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', 'publish'))</AotPublishFolder>
-        </PropertyGroup>
+    <Target Name="CleanOutput">
         <ItemGroup>
-            <AotRuntime Include="linux-x64" />
-            <AotRuntime Include="linux-arm64" />
-            <AotRuntime Include="linux-arm" />
-            <AotRuntime Include="linux-musl-x64" />
-            <AotRuntime Include="linux-musl-arm64" />
-            <AotRuntime Include="linux-musl-arm" />
+            <OutputPackageFiles Include="$(BinFolder)/*.deb;$(BinFolder)/*.rpm;$(BinFolder)/*.tar.gz" />
         </ItemGroup>
-
-        <!-- dotnet publish restores the packages of its runtime by itself. UseAot is the switch of CrossBible.Desktop.csproj for PublishAot (with ReadyToRun off). -->
-        <Exec Command="dotnet publish &quot;$(DesktopProject)&quot; -c $(Configuration) -r %(AotRuntime.Identity) --self-contained true -p:UseAot=true -p:Version=$(Version) -o &quot;$(AotPublishFolder)/%(AotRuntime.Identity)&quot;" />
-
-        <!-- The debug symbols are not part of the package. -->
-        <Exec Command="tar -czf &quot;$(AotPublishFolder)/crossbible-$(Version)-%(AotRuntime.Identity).tar.gz&quot; --exclude=&quot;*.pdb&quot; --exclude=&quot;*.dbg&quot; -C &quot;$(AotPublishFolder)/%(AotRuntime.Identity)&quot; ." />
-        <Message Importance="high" Text="Packed $(AotPublishFolder)/crossbible-$(Version)-%(AotRuntime.Identity).tar.gz" />
-    </Target>
-    
-    <Target Name="CleanOutput" DependsOnTargets="BuildWpkg;BuildCrossBibleDesktop">
-        <ItemGroup>
-            <OutputPackageFiles Include="$(PackagesFolder)\bin\*.*" />
-        </ItemGroup>
-
         <Delete Files="@(OutputPackageFiles)" />
+        <RemoveDir Directories="$(StagingFolder)" />
     </Target>
 
-    <Target Name="Dos2Unix" DependsOnTargets="CleanOutput">
+    <Target Name="Dos2Unix">
         <ItemGroup>
-            <TextFiles Include="$(PackagesFolder)\src\bin\crossbible" />
-            <TextFiles Include="$(PackagesFolder)\src\doc\*.*" />
-            <TextFiles Include="$(PackagesFolder)\src\man\*.*" />
-            <TextFiles Include="$(PackagesFolder)\src\desktop\*.*" />
-            <TextFiles Include="$(PackagesFolder)\Debian\DEBIAN\*.*" />
-            <TextFiles Include="$(PackagesFolder)\Fedora\SPECS\*.*" />
-            <!--<TextFiles Include="$(PackagesFolder)\Debian\usr\bin\*.*" />-->
-            <!--<TextFiles Include="$(PackagesFolder)\Fedora\usr\bin\*.*" />-->
+            <TextFiles Include="$(PackagesFolder)src/bin/crossbible" />
+            <TextFiles Include="$(PackagesFolder)src/doc/*.*" />
+            <TextFiles Include="$(PackagesFolder)src/desktop/*.*" />
+            <TextFiles Include="$(PackagesFolder)Debian/DEBIAN/*.*" />
+            <TextFiles Include="$(PackagesFolder)Fedora/SPECS/*.*" />
         </ItemGroup>
 
         <Exec Command="$(WpkgCmd) -d2u &quot;@(TextFiles)&quot;" LogStandardErrorAsError="true">
@@ -119,83 +79,92 @@
         <Message Text="$(OutputOfDos2Unix)" />
     </Target>
 
-    <Target Name="Debian" DependsOnTargets="Dos2Unix">
+    <!-- Publishes CrossBible.Desktop with native AOT for the runtime AotRuntimeId and packs it as publish/crossbible-<version>-<runtime>.tar.gz.
+         It needs clang and zlib1g-dev (the zlib development package); for the ARM runtimes the cross compiler of the machine too (on a x64 machine, for
+         linux-arm64: gcc-aarch64-linux-gnu, binutils-aarch64-linux-gnu and the arm64 libraries; for linux-arm the arm ones), and for the musl runtimes a musl
+         toolchain (an Alpine machine or container builds them best). -->
+    <Target Name="PublishRuntime">
+        <PropertyGroup>
+            <RuntimeFolder>$(AotPublishFolder)/$(AotRuntimeId)</RuntimeFolder>
+            <RuntimeTarball>$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz</RuntimeTarball>
+        </PropertyGroup>
 
-        <Message Text="Preparing Debian Files" Importance="high" />
+        <!-- dotnet publish restores the packages of its runtime by itself. UseAot is the switch of CrossBible.Desktop.csproj for PublishAot (with ReadyToRun off).
+             The build is made apart, with -no-incremental (publish has no such switch): the XAML of Avalonia is compiled into the assembly after the C# compiler
+             has run, and a build that is incremental on top of the obj folder of an earlier one (of Visual Studio on Windows, say) can leave it out: the app
+             then stops at start with "No precompiled XAML found". -->
+        <Exec Command="dotnet build &quot;$(DesktopProject)&quot; -c $(Configuration) -r $(AotRuntimeId) --self-contained true --no-incremental -p:UseAot=true -p:Version=$(Version)" />
+        <Exec Command="dotnet publish &quot;$(DesktopProject)&quot; -c $(Configuration) -r $(AotRuntimeId) --self-contained true --no-build -p:UseAot=true -p:Version=$(Version) -o &quot;$(RuntimeFolder)&quot;" />
 
-        <ItemGroup>
-            <DocFilesDebianExclude Include="$(PackagesFolder)\src\doc\ChangeLog" />
-            <DocFilesDebian Include="$(PackagesFolder)\src\doc\*.*" Exclude="@(DocFilesDebianExclude)" />
-            <PreviousReleaseFiles Include="$(PackagesFolder)\Debian\usr\share\crossbible\**\*.*" />
-        </ItemGroup>
-
-        <!--<Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.dll" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible" />
-        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible" />
-        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible" />-->
-        <Delete Files="@(PreviousReleaseFiles)" />
-        <Message Importance="high" Text="BuildOutput: @(BuildOutput)" />
-        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\crossbible\%(RecursiveDir)" />
-        <Copy SourceFiles="$(PackagesFolder)\src\bin\crossbible" DestinationFiles="$(PackagesFolder)\Debian\usr\bin\crossbible" />
-        <Copy SourceFiles="$(PackagesFolder)\src\icon\crossbible.png" DestinationFiles="$(PackagesFolder)\Debian\usr\share\pixmaps\crossbible.png" />
-        <Copy SourceFiles="$(PackagesFolder)\src\desktop\crossbible.desktop" DestinationFolder="$(PackagesFolder)\Debian\usr\share\applications" />
-        <Copy SourceFiles="@(DocFilesDebian)" DestinationFolder="$(PackagesFolder)\Debian\usr\share\doc\crossbible" />
-
-        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\crossbible\changelog.Debian.gz" />
-        <Exec Command="$(GZipCmd) -9 -n &quot;$(PackagesFolder)\Debian\usr\share\doc\crossbible\changelog.Debian&quot;" LogStandardErrorAsError="true">
-            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfGZip" />
-        </Exec>
-        <Message Text="$(OutputOfGZip)" />
-        <Delete Files="$(PackagesFolder)\Debian\usr\share\doc\crossbible\changelog.Debian" />
-
-        <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -command  &quot;&amp; { .\src\scripts\ConfigureDebian.ps1 '$(FileVersion)' }&quot;" LogStandardErrorAsError="true" />
-
-        <Exec Command="$(WpkgCmd) -b &quot;$(PackagesFolder)\Debian&quot;" LogStandardErrorAsError="true">
-            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfWpkg" />
-        </Exec>
-        <Message Text="$(OutputOfWpkg)" />
-        <Move SourceFiles="$(PackagesFolder)\Debian\crossbible.deb" DestinationFiles="$(PackagesFolder)\bin\crossbible_$(FileVersion)-1_all.deb" />
-
+        <!-- The debug symbols are not part of the package. -->
+        <Exec Command="tar -czf &quot;$(RuntimeTarball)&quot; --exclude=&quot;*.pdb&quot; --exclude=&quot;*.dbg&quot; -C &quot;$(RuntimeFolder)&quot; ." />
+        <Message Importance="high" Text="Packed $(RuntimeTarball)" />
     </Target>
 
-    <Target Name="Fedora" DependsOnTargets="Debian">
-
-        <Message Text="Preparing Fedora Files"/>
-
+    <Target Name="PublishDesktopAot">
         <ItemGroup>
-            <DocFilesFedoraExclude Include="$(PackagesFolder)\src\doc\changelog.Debian" />
-            <DocFilesFedora Include="$(PackagesFolder)\src\doc\*.*" Exclude="@(DocFilesFedoraExclude)" />
-            <BinFilesFedora Include="$(PackagesFolder)\src\bin\*.*" />
-            <PreviousReleaseFiles Include="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer\**\*.*" />
+            <AotRuntime Include="@(PackageArch)" />
+            <AotRuntime Include="linux-musl-x64" />
+            <AotRuntime Include="linux-musl-arm64" />
+            <AotRuntime Include="linux-musl-arm" />
         </ItemGroup>
-        <!--<Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.dll" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer" />
-        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.deps.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer" />
-        <Copy SourceFiles="$(SetupRootFolderr)\Sources\crossbible.UniversalInstaller\bin\$(Configuration)\$(netlatest)\crossbible.Installer.runtimeconfig.json" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer" />-->
-        <Delete Files="@(PreviousReleaseFiles)" />
-        <Copy SourceFiles="@(BuildOutput)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\crossbible\Installer\%(RecursiveDir)" />
-        <Copy SourceFiles="$(PackagesFolder)\src\bin\crossbible" DestinationFiles="$(PackagesFolder)\Fedora\usr\bin\crossbible" />
-        <Copy SourceFiles="$(PackagesFolder)\src\icon\crossbible.png" DestinationFiles="$(PackagesFolder)\Fedora\usr\share\pixmaps\crossbible.png" />
-        <Copy SourceFiles="$(PackagesFolder)\src\desktop\crossbible.desktop" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\applications" />
-        <Copy SourceFiles="@(DocFilesFedora)" DestinationFolder="$(PackagesFolder)\Fedora\usr\share\doc\crossbible" />
-
-        <Exec Command="powershell -NonInteractive -ExecutionPolicy Unrestricted -command  &quot;&amp; { .\src\scripts\ConfigureFedora.ps1 '$(FileVersion)' }&quot;" LogStandardErrorAsError="true" />
-
-        <Exec Command="$(WpkgCmd) -rd &quot;$(PackagesFolder)\Fedora&quot;" LogStandardErrorAsError="true">
-            <Output TaskParameter="ConsoleOutput" PropertyName="OutputOfWpkg" />
-        </Exec>
-        <Message Text="$(OutputOfWpkg)" />
-
-        <ItemGroup>
-            <RpmFiles Include="$(PackagesFolder)\Fedora\*.rpm" />
-        </ItemGroup>
-
-        <Move SourceFiles="@(RpmFiles)" DestinationFolder="$(PackagesFolder)\bin" />
+        <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="PublishRuntime" Properties="AotRuntimeId=%(AotRuntime.Identity)" />
     </Target>
 
-    <Target Name="CreateZipPackage" DependsOnTargets="Fedora">
-        <Exec Command="$(ZipCmd) -ttar -so &quot;bin\crossbible-$(Version).tar&quot; &quot;..\CrossBible.Desktop\bin\$(Configuration)\net11.0&quot; | 7z a -tgzip -si &quot;bin\crossbible-$(Version).tar.gz&quot;" />
+    <!-- Makes the .deb and the .rpm of one architecture (AotRuntimeId, DebArch and RpmArch are set by PackageLinux) from the AOT build of PublishRuntime.
+         The files of each package are put together in a folder of their own in staging, as the Debian and Fedora folders are the templates for all of them. -->
+    <Target Name="PackageRuntime" DependsOnTargets="PublishRuntime">
+        <PropertyGroup>
+            <DebStage>$(StagingFolder)/deb-$(DebArch)</DebStage>
+            <RpmStage>$(StagingFolder)/rpm-$(RpmArch)</RpmStage>
+        </PropertyGroup>
+        <ItemGroup>
+            <AotFiles Include="$(AotPublishFolder)/$(AotRuntimeId)/**/*.*" Exclude="$(AotPublishFolder)/$(AotRuntimeId)/**/*.pdb;$(AotPublishFolder)/$(AotRuntimeId)/**/*.dbg" />
+            <DebTemplate Include="$(PackagesFolder)Debian/DEBIAN/**/*.*" />
+            <RpmTemplate Include="$(PackagesFolder)Fedora/SPECS/**/*.*" />
+            <DocFilesDebian Include="$(PackagesFolder)src/doc/*.*" Exclude="$(PackagesFolder)src/doc/ChangeLog" />
+            <DocFilesFedora Include="$(PackagesFolder)src/doc/*.*" Exclude="$(PackagesFolder)src/doc/changelog.Debian" />
+        </ItemGroup>
+
+        <RemoveDir Directories="$(DebStage);$(RpmStage)" />
+
+        <!-- Debian -->
+        <Copy SourceFiles="@(DebTemplate)" DestinationFolder="$(DebStage)/DEBIAN/%(RecursiveDir)" />
+        <Copy SourceFiles="@(AotFiles)" DestinationFolder="$(DebStage)/usr/share/crossbible/%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)src/bin/crossbible" DestinationFiles="$(DebStage)/usr/bin/crossbible" />
+        <Copy SourceFiles="$(PackagesFolder)src/icon/crossbible.png" DestinationFiles="$(DebStage)/usr/share/pixmaps/crossbible.png" />
+        <Copy SourceFiles="$(PackagesFolder)src/desktop/crossbible.desktop" DestinationFolder="$(DebStage)/usr/share/applications" />
+        <Copy SourceFiles="@(DocFilesDebian)" DestinationFolder="$(DebStage)/usr/share/doc/crossbible" />
+        <Exec Command="$(GZipCmd) -9 -n -f &quot;$(DebStage)/usr/share/doc/crossbible/changelog.Debian&quot;" LogStandardErrorAsError="true" />
+        <Exec Command="$(PwshCmd) -NonInteractive -ExecutionPolicy Unrestricted -File &quot;$(PackagesFolder)src/scripts/ConfigureDebian.ps1&quot; &quot;$(FileVersion)&quot; &quot;$(DebStage)&quot; &quot;$(DebArch)&quot;" LogStandardErrorAsError="true" />
+        <Exec Command="$(WpkgCmd) -b &quot;$(DebStage)&quot;" LogStandardErrorAsError="true" />
+        <ItemGroup>
+            <DebBuilt Include="$(DebStage)/*.deb" />
+        </ItemGroup>
+        <Move SourceFiles="@(DebBuilt)" DestinationFiles="$(BinFolder)/crossbible_$(FileVersion)-1_$(DebArch).deb" />
+
+        <!-- Fedora -->
+        <Copy SourceFiles="@(RpmTemplate)" DestinationFolder="$(RpmStage)/SPECS/%(RecursiveDir)" />
+        <Copy SourceFiles="@(AotFiles)" DestinationFolder="$(RpmStage)/usr/share/crossbible/%(RecursiveDir)" />
+        <Copy SourceFiles="$(PackagesFolder)src/bin/crossbible" DestinationFiles="$(RpmStage)/usr/bin/crossbible" />
+        <Copy SourceFiles="$(PackagesFolder)src/icon/crossbible.png" DestinationFiles="$(RpmStage)/usr/share/pixmaps/crossbible.png" />
+        <Copy SourceFiles="$(PackagesFolder)src/desktop/crossbible.desktop" DestinationFolder="$(RpmStage)/usr/share/applications" />
+        <Copy SourceFiles="@(DocFilesFedora)" DestinationFolder="$(RpmStage)/usr/share/doc/crossbible" />
+        <Exec Command="$(PwshCmd) -NonInteractive -ExecutionPolicy Unrestricted -File &quot;$(PackagesFolder)src/scripts/ConfigureFedora.ps1&quot; &quot;$(FileVersion)&quot; &quot;$(RpmStage)&quot; &quot;$(RpmArch)&quot;" LogStandardErrorAsError="true" />
+        <Exec Command="$(WpkgCmd) -rd &quot;$(RpmStage)&quot;" LogStandardErrorAsError="true" />
+        <ItemGroup>
+            <RpmBuilt Include="$(RpmStage)/*.rpm" />
+        </ItemGroup>
+        <Move SourceFiles="@(RpmBuilt)" DestinationFolder="$(BinFolder)" />
+
+        <!-- The .tar.gz of the same build. -->
+        <Copy SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
     </Target>
 
-    <Target Name="Build" DependsOnTargets="CreateZipPackage" />
+    <Target Name="PackageLinux" DependsOnTargets="BuildWpkg;Dos2Unix;CleanOutput">
+        <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="PackageRuntime"
+                 Properties="AotRuntimeId=%(PackageArch.Identity);DebArch=%(PackageArch.DebArch);RpmArch=%(PackageArch.RpmArch)" />
+    </Target>
 
+    <Target Name="Build" DependsOnTargets="PackageLinux" />
 </Project>
-

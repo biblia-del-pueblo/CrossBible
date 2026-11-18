@@ -1,2 +1,2 @@
 #!/bin/sh
-exec dotnet /usr/share/crossbible/crossbible $@
+exec /usr/share/crossbible/CrossBible.Desktop "$@"

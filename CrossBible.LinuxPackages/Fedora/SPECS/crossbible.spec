@@ -4,9 +4,14 @@ Release: 1%{?dist}
 Summary: This is Cross Bible, a cross platform bible reader.
 License: MIT  
 URL: https://www.crossbible.org
-Requires: /bin/sh, sed, dotnet-runtime-11.0, libX11, libICE, libSM, fontconfig, mesa-libGL
+Requires: /bin/sh, sed, zlib, libicu, openssl-libs, libX11, libICE, libSM, fontconfig, mesa-libGL
 AutoReqProv: no
-BuildArch: noarch
+# Replaced for each architecture by src/scripts/ConfigureFedora.ps1 (x86_64, aarch64 or armv7hl).
+BuildArch: x86_64
+# The package holds a native AOT binary of another architecture than the build machine may have: it must not be stripped or scanned.
+%global debug_package %{nil}
+%global __strip /bin/true
+%global __os_install_post %{nil}
 Source0: %{name}-%{version}.tar.gz
 
 %description
@@ -27,6 +32,8 @@ cp -rp usr/bin/* $RPM_BUILD_ROOT%{_bindir}
 cp -rp usr/share/* $RPM_BUILD_ROOT/usr/share
 
 %post
+# The files are packaged on a Windows drive, where they lose their execute permission.
+chmod 755 /usr/share/crossbible/CrossBible.Desktop /usr/bin/crossbible
 if [ $1 -ge 1 ];then
     sed -i 's|/usr/bin/crossbible|%{_bindir}/crossbible|g' /usr/share/applications/crossbible.desktop
 #  %{_bindir}/crossbible

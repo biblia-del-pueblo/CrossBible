@@ -1,1 +1,1 @@
-dotnet build LinuxPackages.proj
+wsl sh ./make.sh %*

@@ -10,3 +10,4 @@ src/**/*.png -text -eol binary
 src/**/*.jpg -text -eol binary
 src/**/*.jpeg -text -eol binary
 src/**/*.gif -text -eol binary
+*.sh text eol=lf

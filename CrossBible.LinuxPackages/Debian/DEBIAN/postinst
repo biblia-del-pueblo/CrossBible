@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+# The files are packaged on a Windows drive, where they lose their execute permission.
+chmod 755 /usr/share/crossbible/CrossBible.Desktop /usr/bin/crossbible
+exit 0

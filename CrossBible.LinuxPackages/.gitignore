@@ -9,3 +9,5 @@ Debian/*.deb
 Fedora/*.rpm
 Debian/usr/
 Fedora/usr/
+# Per architecture staging folders of LinuxPackages.proj
+staging/
