@@ -26,7 +26,9 @@ sealed class Program
         // In WSL (WSLg) the popups (the footnotes and the Strong's entries) are drawn inside the window, not in windows of their own: WSLg shows the last picture of a
         // closed popup window again for about a second after a click (the popup went away, came back and went away again). Elsewhere the popups are windows, as usual.
         // CROSSBIBLE_OVERLAY_POPUPS=1 or 0 decides it, whatever the system is.
-        if (UseOverlayPopups()) builder = builder.With(new X11PlatformOptions { OverlayPopups = true });
+        // The window class is "crossbible", as the crossbible.desktop file (its name and StartupWMClass): the taskbar of GNOME and KDE finds the icon and the name of the
+        // program by it. Avalonia takes the name of the executable (CrossBible.Desktop), that no .desktop file has, and the taskbar shows a gear.
+        if (OperatingSystem.IsLinux()) builder = builder.With(new X11PlatformOptions { WmClass = "crossbible", OverlayPopups = UseOverlayPopups() });
         return builder.WithInterFont().LogToTrace();
     }
 

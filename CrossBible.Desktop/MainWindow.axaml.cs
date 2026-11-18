@@ -10,6 +10,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = "Cross Bible";
 
         // The window opens as large as it was when the app was closed (sizes that make no sense, or that no screen has, are not taken).
         if (Settings.Current is { WindowWidth: >= 300 and <= 10000, WindowHeight: >= 200 and <= 10000 } settings)
