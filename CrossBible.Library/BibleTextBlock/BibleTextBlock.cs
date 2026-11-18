@@ -2970,6 +2970,8 @@ public partial class BibleTextBlock : Panel
         }
         if (string.IsNullOrWhiteSpace(markdown))
             markdown = Localizer.Format("NoStrongsEntry", strong);
+ 
+        if (Environment.NewLine != "\r\n") markdown = markdown.Replace("\r\n", Environment.NewLine);
 
         // The markdown of the dictionaries is the same Bible Markdown as the text: bold, italic and paragraphs.
         var runs = BookText.ParseText(markdown, new BookText.VersePosition());
