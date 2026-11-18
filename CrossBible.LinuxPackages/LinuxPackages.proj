@@ -12,10 +12,10 @@
 
     <PropertyGroup>
         <netlatest>net11.0</netlatest>
-        <BUILD_NUMBER Condition=" '$(BUILD_NUMBER)' == '' ">1.0.0</BUILD_NUMBER>
-        <Version Condition=" '$(Version)' == '' ">1.0.0</Version>
-        <FileVersion Condition=" '$(FileVersion)' == '' ">$(BUILD_NUMBER)</FileVersion>
-        <VersionLabel Condition=" '$(VersionLabel)' == '' ">$(BUILD_NUMBER)</VersionLabel>
+        <Version Condition=" '$(Version)' == '' ">0.8.1</Version>
+        <FileVersion Condition=" '$(FileVersion)' == '' ">$(Version)</FileVersion>
+        <VersionLabel Condition=" '$(VersionLabel)' == '' ">$(Version)</VersionLabel>
+        <BUILD_NUMBER>$(Version)</BUILD_NUMBER>
         <ReleaseDate Condition=" '$(ReleaseDate)' == '' ">2026-11-17</ReleaseDate>
         <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
 
