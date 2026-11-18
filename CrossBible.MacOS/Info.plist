@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The Info.plist of CrossBible.app. make.sh replaces @VERSION@ by the version of Directory.Build.props. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Cross Bible</string>
+	<key>CFBundleDisplayName</key>
+	<string>Cross Bible</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.estrellasdeesperanza.CrossBible</string>
+	<key>CFBundleExecutable</key>
+	<string>CrossBible.Desktop</string>
+	<key>CFBundleIconFile</key>
+	<string>logo.icns</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.reference</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Biblia del Pueblo. MIT License.</string>
+</dict>
+</plist>

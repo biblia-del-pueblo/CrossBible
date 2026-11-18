@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Solution Items/">
+    <File Path="CrossBible.MacOS/make.bat" />
     <File Path="CrossBible.Msi/make.bat" />
     <File Path="CrossBible.Msix/make.bat" />
   </Folder>
