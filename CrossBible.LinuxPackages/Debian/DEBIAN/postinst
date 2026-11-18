@@ -1,5 +1,0 @@
-#!/bin/sh
-rm /usr/share/hostpanelpro/Installer/Setup2.*
-echo "================================================================"
-echo "Please run 'sudo hostpanelpro-installer' to install HostPanelPro"
-echo "================================================================"
