@@ -109,6 +109,17 @@ if [ -n "$missing" ]; then
     fi
 fi
 
+# Debian, Ubuntu: native AOT links the 32 bit ARM program (linux-arm) with "clang --target=armv7-linux-gnueabihf -fuse-ld=bfd". An old clang (14, Ubuntu 22.04) then looks for
+# the linker of the target by the name "armv7-linux-gnueabihf-ld.bfd", which the package binutils-arm-linux-gnueabihf does not have (it is arm-linux-gnueabihf-ld.bfd): clang
+# falls back to the ld.bfd of the machine, which cannot link ARM ("unrecognised emulation mode: armelf_linux_eabi"). A newer clang finds it by itself. The name is added.
+case "$ID" in
+    debian|ubuntu)
+        if [ -x /usr/bin/arm-linux-gnueabihf-ld.bfd ] && [ ! -e /usr/local/bin/armv7-linux-gnueabihf-ld.bfd ]; then
+            $SUDO ln -s /usr/bin/arm-linux-gnueabihf-ld.bfd /usr/local/bin/armv7-linux-gnueabihf-ld.bfd
+        fi
+        ;;
+esac
+
 # Musl for ARM on a x64 machine (Alpine): the sysroots with the C library of the target, for the cross build of the PublishRuntime target.
 if [ "$ID" = "alpine" ] && [ "$(uname -m)" = "x86_64" ]; then
     case " $* " in
