@@ -3,7 +3,7 @@ rem
 rem   crossbible-<version>-android-arm64.apk   64 bit ARM phones (nearly all phones of the last years)
 rem   crossbible-<version>-android-arm.apk     32 bit ARM (older phones)
 rem   crossbible-<version>-android-x64.apk     x86_64 (emulators, Chromebooks)
-rem   crossbible-<version>.aab         the app bundle for the Google Play Store: contains all three, Play delivers the fitting one
+rem   crossbible-<version>-android.aab         the app bundle for the Google Play Store: contains all three, Play delivers the fitting one
 rem   upload.keystore, signing.cmd     the upload key and its passwords (created on the first run, never commit them, back them up)
 rem
 rem   make.bat           builds the three APKs and the bundle
@@ -51,7 +51,7 @@ if defined DOAAB (
     if exist "%OUT%\build-aab" rmdir /s /q "%OUT%\build-aab"
     dotnet build-server shutdown >nul 2>&1
     dotnet publish "%PROJECT%" -c Release -f net11.0-android -p:UseSharedCompilation=false -p:AndroidAbis=all -p:AndroidPackageFormat=aab %SIGN% -o "%OUT%\build-aab" || exit /b 1
-    for %%f in ("%OUT%\build-aab\*-Signed.aab") do copy /y "%%f" "%OUT%\crossbible-%VERSION%.aab" >nul
+    for %%f in ("%OUT%\build-aab\*-Signed.aab") do copy /y "%%f" "%OUT%\crossbible-%VERSION%-android.aab" >nul
     rmdir /s /q "%OUT%\build-aab"
 )
 
