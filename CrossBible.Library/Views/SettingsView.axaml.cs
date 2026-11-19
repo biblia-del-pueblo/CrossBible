@@ -112,13 +112,95 @@ public partial class SettingsView : UserControl
             .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
         // Each box gets a list of its own, and keeps its selection when the list is filled again.
-        foreach (var box in new[] { FontBox, GreekFontBox, HebrewFontBox })
+        foreach (var (box, samples) in new[] { (FontBox, CjkSet), (GreekFontBox, GreekSet), (HebrewFontBox, HebrewSet) })
         {
             var selected = box.SelectedItem;
+            box.ItemTemplate = FontTemplate(samples);
             box.ItemsSource = fonts.ToList();
             if (selected is not null) box.SelectedItem = selected;
         }
     }
+
+    /// <summary>
+    /// The samples that a list of fonts shows after the names, in the font: the ones the font has all the characters of. Key names the list (for the cache). FirstOnly: only the
+    /// first sample that the font has (the samples are better the earlier they are), else all of them.
+    /// </summary>
+    private sealed record SampleSet(string Key, string[] Samples, bool FirstOnly);
+
+    /// <summary>Font: the scripts of Chinese, Japanese and Korean (Han characters, kana, Hangul), whose fonts have a Latin name that says little about them.</summary>
+    private static readonly SampleSet CjkSet = new("cjk", new[] { "漢字", "かな", "한글" }, false);
+    /// <summary>Greek font: the Greek text with its breathings and accents (the New Testament has them), else plain letters.</summary>
+    private static readonly SampleSet GreekSet = new("greek", new[] { "Ἐν ἀρχῇ ἦν", "αβγ" }, true);
+    /// <summary>Hebrew font: Hebrew with its points (the Old Testament has them), else plain letters.</summary>
+    private static readonly SampleSet HebrewSet = new("hebrew", new[] { "בְּרֵאשִׁית", "אבג" }, true);
+
+    private static readonly Dictionary<string, string> _samples = new(StringComparer.Ordinal);
+
+    /// <summary>The sample for a font, or "" when it has none of the characters. The list asks again for every name that scrolls into view, so the answer is kept.</summary>
+    private static string SampleOf(string name, SampleSet set)
+    {
+        var key = set.Key + "|" + name;
+        if (_samples.TryGetValue(key, out var known)) return known;
+        var sample = "";
+        try
+        {
+            if (FontManager.Current.TryGetGlyphTypeface(new Typeface(FamilyOf(name)), out var glyphs))
+            {
+                var map = glyphs.CharacterToGlyphMap;
+                var covered = set.Samples.Where(s => s.EnumerateRunes().All(r => System.Text.Rune.IsWhiteSpace(r) || map.ContainsGlyph(r.Value)));
+                sample = string.Join(" ", set.FirstOnly ? covered.Take(1) : covered);
+            }
+        }
+        catch (Exception) { }
+        return _samples[key] = sample;
+    }
+
+    private static readonly Dictionary<string, string?> _nativeNames = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The name of the font in its own language ("ＭＳ 明朝" for MS Mincho), from the names that the font file has for each language: the one in Chinese, Japanese or Korean
+    /// (the language of the interface first when it is one of them), else the one in the language of the interface. Null when the font has no other name than the one it is
+    /// listed with. The list asks again for every name that scrolls into view, so the answer is kept.
+    /// </summary>
+    private static string? NativeNameOf(string name)
+    {
+        if (_nativeNames.TryGetValue(name, out var known)) return known;
+        string? native = null;
+        try
+        {
+            if (FontManager.Current.TryGetGlyphTypeface(new Typeface(FamilyOf(name)), out var glyphs))
+            {
+                var ui = Localizer.Culture.TwoLetterISOLanguageName;
+                var others = glyphs.FamilyNames
+                    .Where(p => p.Key.Name.Length > 0 && !string.IsNullOrWhiteSpace(p.Value) && !string.Equals(p.Value, name, StringComparison.OrdinalIgnoreCase))
+                    .Select(p => (Language: p.Key.TwoLetterISOLanguageName, p.Value))
+                    .ToList();
+                static bool IsCjk(string language) => language is "zh" or "ja" or "ko";
+                native = (others.FirstOrDefault(o => IsCjk(o.Language) && o.Language == ui).Value
+                    ?? others.FirstOrDefault(o => IsCjk(o.Language)).Value
+                    ?? others.FirstOrDefault(o => o.Language == ui).Value);
+            }
+        }
+        catch (Exception) { }
+        return _nativeNames[name] = native;
+    }
+
+    /// <summary>
+    /// How a font is shown in a list (the list is virtualised, so only the names in view are made): its name in its own font, with the name in its own language first when it
+    /// has one ("ＭＳ 明朝 (MS Mincho)"), and a sample of what it can write after it (not the CJK sample when the native name already shows the characters).
+    /// </summary>
+    private static Avalonia.Controls.Templates.FuncDataTemplate<string> FontTemplate(SampleSet set) => new((name, _) =>
+    {
+        if (name is null) return null; // a row that left the view is cleared: its content is null for a moment
+        var family = FamilyOf(name);
+        var text = new TextBlock { FontFamily = family };
+        var native = NativeNameOf(name);
+        text.Inlines!.Add(new Avalonia.Controls.Documents.Run(native is null ? name : $"{native} ({name})"));
+        if ((native is null || set != CjkSet) && SampleOf(name, set) is { Length: > 0 } sample)
+            text.Inlines.Add(new Avalonia.Controls.Documents.Run("   " + sample) { FontFamily = family });
+        return text;
+        // No recycling: the control is made from the name, it is not bound, so a recycled one (the box that shows the selected font) would keep the first name and font.
+    }, false);
 
     /// <summary>Picks a font file or a zip of fonts and installs it into <see cref="UserFonts.Folder"/>.</summary>
     private async void OnInstallFontClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
