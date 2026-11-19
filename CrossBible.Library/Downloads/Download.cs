@@ -43,9 +43,23 @@ public class Download
         return null;
     }*/
 
+    /// <summary>
+    /// Whether the internet may be used: only when the user said that there is no persecution of Christians in their country
+    /// (<see cref="Settings.InMyCountryThereIsNoPersecution"/> is true; null means the question was not answered yet).
+    /// </summary>
+    public static bool IsAllowed => Settings.Current.InMyCountryThereIsNoPersecution == true;
+
+    /// <summary>Every method that uses the internet starts with it, before it changes anything on the disk.</summary>
+    private static void EnsureAllowed()
+    {
+        if (!IsAllowed)
+            throw new InvalidOperationException("The internet is not used until the user confirms that there is no persecution in their country (Settings.InMyCountryThereIsNoPersecution).");
+    }
+
     public static async Task DownloadFileAndUnzipAsync(string url, string destinationFile, string destinationPath = null, Func<string, bool> filter = null,
         Action<long, long> progress = null)
     {
+        EnsureAllowed();
         if (string.IsNullOrEmpty(destinationPath)) destinationPath = Path.GetDirectoryName(destinationFile);
         if (!Directory.Exists(destinationPath)) Directory.CreateDirectory(destinationPath);
 
@@ -62,6 +76,7 @@ public class Download
     }
     public static async Task<long> GetFileSizeAsync(string url)
     {
+        EnsureAllowed();
         using var request = new HttpRequestMessage(HttpMethod.Head, url);
         using var response = await Download.Client.SendAsync(request, Cancel.Token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -70,6 +85,7 @@ public class Download
 
     public static async Task<bool> FileExistsAsync(string url)
     {
+        EnsureAllowed();
         using var request = new HttpRequestMessage(HttpMethod.Head, url);
         using var response = await Client.SendAsync(request, Cancel.Token).ConfigureAwait(false);
         return response.IsSuccessStatusCode;
@@ -77,6 +93,7 @@ public class Download
     public static async Task<long> DownloadFileChunkAsync(string url, long offset, long length, byte[] buffer)
     {
         if (length <= 0) return 0;
+        EnsureAllowed();
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(offset, offset + length - 1);
         using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Cancel.Token).ConfigureAwait(false);
@@ -95,6 +112,7 @@ public class Download
     public static async Task<long> DownloadFileChunkAsync(string url, long offset, long length, Stream stream)
     {
         if (length <= 0) return 0;
+        EnsureAllowed();
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(offset, offset + length - 1);
         using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Cancel.Token).ConfigureAwait(false);
@@ -106,12 +124,14 @@ public class Download
 
     public static async Task DownloadAndUnzip(string url, string destination)
     {
+        EnsureAllowed(); // before the folder of the destination is deleted
         if (Directory.Exists(destination)) Directory.Delete(destination, true);
         await DownloadFileAndUnzipAsync(url, Path.GetTempFileName() + Path.GetExtension(url), destination);
     }
 
     public static async Task<string> DownloadStringAsync(string url)
     {
+        EnsureAllowed();
         using var response = await Client.GetAsync(url, Cancel.Token);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();

@@ -50,8 +50,11 @@ namespace CrossBible.Library
                 CrossBible.Library.Downloads.StrongsDictionaries.Refresh();
             }
         } = true;
-        /// <summary>The user confirmed that there is no persecution of Christians in their country; only then are online Bibles listed.</summary>
-        public bool InMyCountryThereIsNoPersecution { get; set; }
+        /// <summary>
+        /// Whether there is no persecution of Christians in the country of the user: null while the question was not answered (the online Bibles view asks it once),
+        /// true when the user confirmed it, false when there is persecution. Only when it is true the online Bibles view uses the internet (it lists and downloads Bibles).
+        /// </summary>
+        public bool? InMyCountryThereIsNoPersecution { get; set; }
         /// <summary>The language of the texts: "en", "de" ...; null for the language of the device. It is taken when the app starts.</summary>
         public string? Language { get; set; }
         /// <summary>The size of the text of the interface as a factor (1.25 is 25% larger); null for the size of the system (see <see cref="UiScale"/>).</summary>

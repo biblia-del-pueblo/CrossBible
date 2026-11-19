@@ -319,14 +319,14 @@ public partial class OnlineBiblesView : UserControl
         UpdateInstalled();
         // The setting is changed in the settings page, so it is read again every time this view is shown.
         ApplyFilter(); // without the confirmation this shows the hint instead of a list
-        if (!Settings.Current.InMyCountryThereIsNoPersecution && NoneInstalled && !_persecutionAsked)
+        if (Settings.Current.InMyCountryThereIsNoPersecution is null && NoneInstalled && !_persecutionAsked)
         {
-            // Nothing to read yet and the answer is not known: ask once, then the list is shown or not.
+            // Nothing to read yet and the answer is not known (it was never given): ask once, then the list is shown or not.
             _persecutionAsked = true;
             PersecutionPanel.IsVisible = true;
             return;
         }
-        if (!Settings.Current.InMyCountryThereIsNoPersecution || _loadStarted || _items.Count > 0) return;
+        if (Settings.Current.InMyCountryThereIsNoPersecution != true || _loadStarted || _items.Count > 0) return;
         _loadStarted = true;
         await LoadAsync();
     }
@@ -443,7 +443,8 @@ public partial class OnlineBiblesView : UserControl
                 !Directory.EnumerateFiles(bible.ConfigPath, "*.db").Any())
                 throw new InvalidDataException(Localizer.Get("NoBooksImported"));
 
-            await BibliaLibreBible.GetImagesAsync(bible);
+            // The covers come from the internet: only when the user said there is no persecution.
+            if (Settings.Current.InMyCountryThereIsNoPersecution == true) await BibliaLibreBible.GetImagesAsync(bible);
 
             var settings = Settings.Current;
             settings.Books ??= new List<BookText>();
@@ -517,7 +518,7 @@ public partial class OnlineBiblesView : UserControl
 
     public async Task LoadAsync()
     {
-        if (_loading || !Settings.Current.InMyCountryThereIsNoPersecution) return;
+        if (_loading || Settings.Current.InMyCountryThereIsNoPersecution != true) return; // no internet unless the user said there is no persecution
         _loading = true;
         LoadSpinner.IsVisible = true;
         StatusText.Text = Localizer.Get("LoadingModules");
@@ -686,7 +687,7 @@ public partial class OnlineBiblesView : UserControl
     private void ApplyFilter()
     {
         if (LanguageBox is null || SearchBox is null || StatusText is null) return; // during InitializeComponent
-        if (!Settings.Current.InMyCountryThereIsNoPersecution)
+        if (Settings.Current.InMyCountryThereIsNoPersecution != true)
         {
             _shown = Array.Empty<OnlineBibleItem>();
             SetList(List, _shown);
@@ -794,6 +795,7 @@ public partial class OnlineBiblesView : UserControl
     private async void OnInstallClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is not OnlineBibleItem item || !item.CanInstall) return;
+        if (Settings.Current.InMyCountryThereIsNoPersecution != true) return; // the download is internet too
         item.Error = null;
         item.IsBusy = true;
         try

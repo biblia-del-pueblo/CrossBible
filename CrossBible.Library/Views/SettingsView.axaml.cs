@@ -187,7 +187,7 @@ public partial class SettingsView : UserControl
             JesusBox.IsChecked = settings.ShowWordsOfJesus ?? true;
             GreenVerseBox.IsChecked = settings.ShowVerseNumbersInGreen ?? false;
             HyphenateBox.IsChecked = settings.Hyphenate ?? true;
-            NoPersecutionBox.IsChecked = settings.InMyCountryThereIsNoPersecution;
+            NoPersecutionBox.IsChecked = settings.InMyCountryThereIsNoPersecution == true; // unanswered (null) shows as not checked
             UpdateSample();
             PathText.Text = settings.ConfigPath;
             int count = settings.Books?.Count ?? 0;
