@@ -3,9 +3,9 @@
 # built on the oldest system that is still supported: the programs then run on it and on all the newer ones.
 #   Ubuntu: Ubuntu 22.04 (the oldest Ubuntu with glibc that the packages support), installed from the Microsoft Store catalog of WSL (wsl --install), with root as its
 #           default user (no question for a user name). Other Ubuntu versions that are installed are not used.
-#   Alpine: the oldest Alpine release that is supported (by the end of support dates in https://alpinelinux.org/releases.json, and not older than 3.21: the packages are
+#   Alpine: the oldest Alpine release that is supported (by the end of support dates in https://alpinelinux.org/releases.json, and not older than 3.23: the packages are
 #           made by "apk mkpkg" of apk-tools 3). It is not in the catalog of WSL, so its minimal root file system is downloaded from alpinelinux.org and imported
-#           (wsl --import) as Alpine-<version>, for example Alpine-3.22. An Alpine of another version (or "Alpine") that is installed is not used.
+#           (wsl --import) as Alpine-<version>, for example Alpine-3.23. An Alpine of another version (or "Alpine") that is installed is not used.
 # The name of the distribution to use is the last line of the output (DISTRO=<name>); the exit code is 0 when it can be used.
 param([Parameter(Mandatory)][ValidateSet('Ubuntu', 'Alpine')][string]$Distro)
 
@@ -18,10 +18,10 @@ if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
 
 $UbuntuRelease = '22.04'
 $UbuntuName = "Ubuntu-$UbuntuRelease"
-$AlpineMinimum = [version]'3.21'   # apk-tools 3 (apk mkpkg), which makes the packages
-$AlpineFallback = '3.22'           # when the list of releases cannot be read
+$AlpineMinimum = [version]'3.23'   # apk-tools 3 (apk mkpkg), which makes the packages: Alpine 3.21 and 3.22 have apk-tools 2.14, 3.23 is the first with 3
+$AlpineFallback = '3.23'           # when the list of releases cannot be read
 
-# The oldest Alpine release that is supported today, as "3.22".
+# The oldest Alpine release that is supported today, as "3.23".
 function Get-OldestSupportedAlpine()
 {
     try {
@@ -74,7 +74,7 @@ else {
     $folder = Join-Path $env:LOCALAPPDATA "CrossBible\wsl\$AlpineName"
     New-Item -ItemType Directory -Force $folder | Out-Null
 
-    # The latest minimal root file system of the release (3.22.2, not 3.22.0): it has the security fixes.
+    # The latest minimal root file system of the release (3.23.8, not 3.23.0): it has the security fixes.
     $base = "https://dl-cdn.alpinelinux.org/alpine/v$AlpineRelease/releases/x86_64"
     $releases = (Invoke-WebRequest "$base/latest-releases.yaml" -UseBasicParsing).Content
     # The server sends the file with a type that PowerShell does not take for text: Content is then an array of bytes.

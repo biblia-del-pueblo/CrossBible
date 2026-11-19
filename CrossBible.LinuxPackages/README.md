@@ -36,7 +36,7 @@ operating system, so the packages are built on Linux, in WSL on Windows. Run
 It builds both: the packages for Debian, Fedora and Arch Linux in Ubuntu 22.04, then the packages for Alpine in Alpine (the musl builds only work there).
 `make.bat ubuntu` or `make.bat alpine` builds only one of them. A native AOT program does not run on a system whose C library is older than the one of the machine that
 built it, so the oldest systems that are still supported build the packages: Ubuntu 22.04 (`Ubuntu-22.04`), and the oldest Alpine release that is supported (read from
-https://alpinelinux.org/releases.json, and not older than 3.21: 3.22 on 2026-11-19; the distribution is called `Alpine-3.22`, and a newer release takes its place
+https://alpinelinux.org/releases.json, and not older than 3.23, the first with apk-tools 3 that makes the packages: 3.23 on 2026-11-19; the distribution is called `Alpine-3.23`, and a newer release takes its place
 when the older one is no longer supported). Other Ubuntu or Alpine distributions that are installed are not used. What is missing is installed: the WSL distribution
 (Ubuntu from the catalog of WSL, Alpine imported from alpinelinux.org: `src\scripts\WslSetup.ps1`) and, in it, the tools (`make.sh`: .NET SDK, `clang`, `zlib1g-dev`, `rpm`, `zstd`,
 PowerShell, the cross compilers for ARM; on Alpine `clang`, `build-base`, `tar` and the .NET SDK). The Windows part needs WSL itself: `wsl --install --no-distribution`
@@ -70,7 +70,7 @@ Without Windows, `sh make.sh [msbuild arguments]` does the same in a Linux shell
 # Alpine Linux
 
 Alpine uses musl, so its packages (`crossbible-<Version>-r0-linux-<arch>.apk`, for x86_64, aarch64 and armv7) are made from the musl runtimes. Native AOT for musl
-needs a musl toolchain, and the package is made by `apk mkpkg` (apk-tools 3, Alpine 3.21 or later), so the build runs in Alpine (`make.bat alpine`, or in an
+needs a musl toolchain, and the package is made by `apk mkpkg` (apk-tools 3, Alpine 3.23 or later), so the build runs in Alpine (`make.bat alpine`, or in an
 Alpine machine or container, with `apk add tar clang build-base zlib-dev rsync` and the .NET SDK for musl):
 
     sh make.sh -p:FileVersion=<Version>

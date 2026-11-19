@@ -4,7 +4,7 @@
 #   <version>       version and release of Alpine, as 1.0.0-r0
 #   <architecture>  x86_64, aarch64 or armv7
 #   <output>        the file to write, as crossbible-1.0.0-r0-linux-x86_64.apk
-# The package is made by "apk mkpkg" of apk-tools 3 (Alpine 3.21 and later), as a package of its own format cannot be made by hand: apk 3 refuses the files of a
+# The package is made by "apk mkpkg" of apk-tools 3 (Alpine 3.23 and later: 3.21 and 3.22 have apk-tools 2.14, which has no "apk mkpkg"), as a package of its own format cannot be made by hand: apk 3 refuses the files of a
 # package that has no checksum for each of them ("file format is obsolete"). So it runs on Alpine (make.bat alpine does). The package is not signed: install it
 # with apk add --allow-untrusted.
 set -e
@@ -19,7 +19,7 @@ if [ -z "$root" ] || [ -z "$version" ] || [ -z "$arch" ] || [ -z "$output" ]; th
 fi
 
 if ! command -v apk >/dev/null 2>&1 || ! apk mkpkg --help 2>&1 | grep -q "creates a package file"; then
-    echo "apk mkpkg (apk-tools 3, Alpine 3.21 or later) is needed to make the package for Alpine: run the build in Alpine (make.bat alpine)." >&2
+    echo "apk mkpkg (apk-tools 3, Alpine 3.23 or later) is needed to make the package for Alpine: run the build in Alpine (make.bat alpine)." >&2
     exit 1
 fi
 
