@@ -528,6 +528,7 @@ public partial class OnlineBiblesView : UserControl
             FillLanguages();
             FillClasses();
             ApplyFilter();
+            PresetLanguage();
         }
         catch (Exception ex)
         {
@@ -656,6 +657,23 @@ public partial class OnlineBiblesView : UserControl
         LanguageBox.ItemsSource = new[] { AllLanguages }.Concat(languages).ToList();
         if (selected is not null && ((IEnumerable<string>)LanguageBox.ItemsSource).Contains(selected)) LanguageBox.SelectedItem = selected;
         else LanguageBox.Text = typed ?? "";
+    }
+
+    private bool _languagePreset;
+
+    /// <summary>
+    /// The first time the list is there, the language filter is the language of the interface ("de"; ApplyFilter turns the code into the names of the language). It is
+    /// not set when the reader chose a language already, nor when no module is in that language (the list would be empty), and not again after a reload.
+    /// </summary>
+    private void PresetLanguage()
+    {
+        if (_languagePreset || _items.Count == 0) return;
+        _languagePreset = true;
+        if (!string.IsNullOrWhiteSpace(LanguageBox.Text)) return;
+        var culture = Localizer.Culture;
+        if (culture.Name.Length == 0) return; // the invariant culture has no language
+        LanguageBox.Text = culture.TwoLetterISOLanguageName; // filters the list
+        if (_shown.Count == 0) LanguageBox.Text = ""; // no module in this language: all of them
     }
 
     private static string LanguageOf(InstallableBook bible) =>
