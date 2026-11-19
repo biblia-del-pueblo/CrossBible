@@ -5,6 +5,7 @@
     <File Path="CrossBible.Msix/make.bat" />
   </Folder>
   <Project Path="BibleMarkdown/BibleMarkdown/BibleMarkdown.csproj" />
+  <Project Path="BibleMarkdown/BibleMarkdown.Tests/BibleMarkdown.Tests.csproj" />
   <Project Path="CrossBible.Desktop/CrossBible.Desktop.csproj" />
   <Project Path="CrossBible.iOS/CrossBible.iOS.csproj" />
   <Project Path="CrossBible.Android/CrossBible.Android.csproj">
