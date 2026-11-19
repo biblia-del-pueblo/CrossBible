@@ -3894,7 +3894,7 @@ public partial class BibleTextBlock : Panel
     public const double BookTitleScale = 1.3;
     public const double TitleScale = 1.1;
 
-    private const double SmallCapsScale = 0.85;
+    public const double SmallCapsScale = 0.85;
 
     // The dotted underline of words that have a Strong's number is drawn by the text layer (see DrawStrongsUnderlines),
     // not made a decoration of the text: it then does not belong to the laid-out lines, and switching it on or off, or
