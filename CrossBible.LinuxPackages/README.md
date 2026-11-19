@@ -2,9 +2,9 @@
 
 For this project to fully build you need to have a WSL distro with rpmbuild installed. If not, the Fedora rpm package won't be built. This has been tested with Ubuntu & Fedora Remix.
 
-To install WSL Ubuntu run:
+To install WSL Ubuntu 22.04 (the oldest Ubuntu that is supported: the packages are built on it, so that they run on it and on newer ones) run:
 
-wsl --install Ubuntu
+wsl --install Ubuntu-22.04
 
 and inside Ubuntu run
 
@@ -23,7 +23,7 @@ sudo dnf install rpmdevtools rpmlint
 * The content of the Debian package resides in the Debian folder.
 * The content of the RPM package resides in the Fedora folder. For Fedora, the .specs file must reside in
   the Fedora\SPECS folder.
-* In the src folder there are the some common files that will be copied to the Debian and Fedora
+* In the src folder there are some common files that will be copied to the Debian and Fedora
   folder before build.
 
 # Build the Packages
@@ -33,9 +33,12 @@ operating system, so the packages are built on Linux, in WSL on Windows. Run
 
     make.bat [msbuild arguments, as -p:FileVersion=<Version>]
 
-It builds both: the packages for Debian, Fedora and Arch Linux in Ubuntu, then the packages for Alpine in Alpine (the musl builds only work there).
-`make.bat ubuntu` or `make.bat alpine` builds only one of them. What is missing is installed: the WSL distribution (an Ubuntu that is installed already is
-used, Alpine is imported from alpinelinux.org: `src\scripts\WslSetup.ps1`) and, in it, the tools (`make.sh`: .NET SDK, `clang`, `zlib1g-dev`, `rpm`, `zstd`,
+It builds both: the packages for Debian, Fedora and Arch Linux in Ubuntu 22.04, then the packages for Alpine in Alpine (the musl builds only work there).
+`make.bat ubuntu` or `make.bat alpine` builds only one of them. A native AOT program does not run on a system whose C library is older than the one of the machine that
+built it, so the oldest systems that are still supported build the packages: Ubuntu 22.04 (`Ubuntu-22.04`), and the oldest Alpine release that is supported (read from
+https://alpinelinux.org/releases.json, and not older than 3.21: 3.22 on 2026-11-19; the distribution is called `Alpine-3.22`, and a newer release takes its place
+when the older one is no longer supported). Other Ubuntu or Alpine distributions that are installed are not used. What is missing is installed: the WSL distribution
+(Ubuntu from the catalog of WSL, Alpine imported from alpinelinux.org: `src\scripts\WslSetup.ps1`) and, in it, the tools (`make.sh`: .NET SDK, `clang`, `zlib1g-dev`, `rpm`, `zstd`,
 PowerShell, the cross compilers for ARM; on Alpine `clang`, `build-base`, `tar` and the .NET SDK). The Windows part needs WSL itself: `wsl --install --no-distribution`
 in an administrator terminal, once.
 

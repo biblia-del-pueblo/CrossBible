@@ -1,10 +1,12 @@
 @echo off
 rem Builds the Linux packages in WSL (see README.md):
-rem   make.bat [msbuild arguments]          both: Ubuntu (Debian, Fedora and Arch Linux packages), then Alpine (Alpine packages)
+rem   make.bat [msbuild arguments]          both: Ubuntu 22.04 (Debian, Fedora and Arch Linux packages), then Alpine (Alpine packages)
 rem   make.bat ubuntu [msbuild arguments]   only the packages of Ubuntu
 rem   make.bat alpine [msbuild arguments]   only the packages of Alpine (the musl builds only work in Alpine)
-rem The WSL distribution is installed when it is not there (an Ubuntu that is installed already is used), and so are the tools that are missing in it
-rem (make.sh does it).
+rem The programs are compiled to native code, which does not run on a system with an older C library than the one that built it: so Ubuntu 22.04 builds the glibc
+rem packages, and the oldest Alpine that is still supported (the release is read from alpinelinux.org: Alpine-3.22, for example) the musl ones.
+rem The WSL distribution is installed when it is not there (only these versions are used, not the other Ubuntu or Alpine that are installed), and so are the tools
+rem that are missing in it (make.sh does it).
 setlocal
 
 set "WHAT=both"
