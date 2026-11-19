@@ -3867,7 +3867,7 @@ public partial class BibleTextBlock : Panel
                 break;
             case BookText.Run.Classes.Title:
             case BookText.Run.Classes.Book:
-                size *= 1.25;
+                size *= TitleScale;
                 span.FontSize = size;
                 span.FontWeight = FontWeight.Bold;
                 lineAfter = true;
@@ -3891,7 +3891,8 @@ public partial class BibleTextBlock : Panel
     }
 
     /// <summary>The title of a book is this much larger than the text: large enough to be the heading, small enough for a long name (DEUTERONOMIO) to fit a line of a phone without being split.</summary>
-    private const double BookTitleScale = 1.5;
+    public const double BookTitleScale = 1.3;
+    public const double TitleScale = 1.1;
 
     private const double SmallCapsScale = 0.85;
 

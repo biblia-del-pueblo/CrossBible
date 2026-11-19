@@ -460,7 +460,7 @@ public partial class BibleTextBlock
                 case BookText.Run.Classes.Link: style = style with { Decorations = TextDecorations.Underline, Foreground = LinkBrush }; break;
                 case BookText.Run.Classes.Title:
                 case BookText.Run.Classes.Book:
-                    size *= 1.25;
+                    size *= TitleScale;
                     style = style with { Size = size, Weight = FontWeight.Bold };
                     lineAfter = true;
                     break;
