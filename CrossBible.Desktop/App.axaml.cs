@@ -11,6 +11,14 @@ namespace CrossBible.Desktop;
 
 public partial class App : Application
 {
+    public App()
+    {
+        // Only macOS has a menu of the application: "About Cross Bible…" and the entries of the Main Menu of the toolbar (see MacOSMenu). It is set here, when the App is
+        // created, not in Initialize: Avalonia gives the menu of the application to macOS while the platform starts, and it makes its own default menu ("About Avalonia",
+        // Hide, Quit) when the App has none by then.
+        if (System.OperatingSystem.IsMacOS()) NativeMenu.SetMenu(this, MacOSMenu.Create(this));
+    }
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);

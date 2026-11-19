@@ -165,6 +165,9 @@
   <data name="VersesFound" xml:space="preserve">
     <value>{0} verses, best match first</value>
   </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>About Cross Bible…</value>
+  </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Install Bibles…</value>
   </data>

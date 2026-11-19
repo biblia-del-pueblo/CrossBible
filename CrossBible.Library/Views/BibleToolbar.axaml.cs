@@ -117,7 +117,14 @@ public partial class BibleToolbar : UserControl
     {
         if (!ShowOnlineBibles && !ShowSettings && OnlineBiblesView.NoneInstalled) { ShowOnlineBibles = true; return; }
         ShowText = !ShowOnlineBibles && !ShowSettings;
+        MenuStateChanged?.Invoke(null, EventArgs.Empty);
     }
+
+    /// <summary>The toolbar that is shown (null while there is none): the menu of the application of macOS (see MacOSMenu) has the entries of its Main Menu and acts on it.</summary>
+    public static BibleToolbar? Current { get; private set; }
+
+    /// <summary>Raised when <see cref="Current"/> changed, or what it shows (the text, the online Bibles, the settings): the entries of the menu of the application follow it.</summary>
+    public static event EventHandler? MenuStateChanged;
 
     /// <summary>Whether the toolbar is the title bar of its window (the desktop app, whose window has no title bar of its own): an empty part of it moves the window, a double click maximizes it.</summary>
     public static readonly StyledProperty<bool> IsTitleBarProperty = AvaloniaProperty.Register<BibleToolbar, bool>(nameof(IsTitleBar));
@@ -154,6 +161,13 @@ public partial class BibleToolbar : UserControl
         Bar.PointerPressed += OnBarPressed;
         PropertyChanged += (_, e) => { if (e.Property == TitleBarInsetProperty) UpdateBarPadding(); };
         SizeChanged += (_, e) => IsWide = e.NewSize.Width > WideWidth;
+        AttachedToVisualTree += (_, _) => { Current = this; MenuStateChanged?.Invoke(null, EventArgs.Empty); };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            if (Current != this) return;
+            Current = null;
+            MenuStateChanged?.Invoke(null, EventArgs.Empty);
+        };
         if (ReturnToSettings) { ReturnToSettings = false; ShowSettings = true; }
         FlowDirection = Localizer.FlowDirection; // mirrored for Arabic and Hebrew
         UpdateBarPadding();

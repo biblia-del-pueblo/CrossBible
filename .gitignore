@@ -456,3 +456,6 @@ CrossBible.Msix/BundleArtifacts/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+publish-osx-x64/
+/CrossBible.zip

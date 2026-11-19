@@ -40,7 +40,8 @@
         <PackageReference Include="EstrellasDeEsperanza.AsyncLock" />
         <PackageReference Include="NHyphenator" />
         <PackageReference Include="HtmlAgilityPack" />
-        <!--<PackageReference Include=" System.Linq.AsyncEnumerable" />-->
+        <PackageReference Include="LiteDB" />
+       <!--<PackageReference Include=" System.Linq.AsyncEnumerable" />-->
     </ItemGroup>
 
     <ItemGroup>

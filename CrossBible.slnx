@@ -5,10 +5,10 @@
     <File Path="CrossBible.Msix/make.bat" />
   </Folder>
   <Project Path="BibleMarkdown/BibleMarkdown/BibleMarkdown.csproj" />
+  <Project Path="CrossBible.Desktop/CrossBible.Desktop.csproj" />
+  <!--<Project Path="CrossBible.iOS/CrossBible.iOS.csproj" />
   <Project Path="CrossBible.Android/CrossBible.Android.csproj">
     <Deploy Solution="Debug|*" />
-  </Project>
-  <Project Path="CrossBible.Desktop/CrossBible.Desktop.csproj" />
-  <Project Path="CrossBible.iOS/CrossBible.iOS.csproj" />
+  </Project>-->
   <Project Path="CrossBible.Library/CrossBible.Library.csproj" />
 </Solution>

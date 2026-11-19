@@ -3,7 +3,6 @@ using Avalonia.Controls.Platform;
 using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using BibleMarkdown;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.VisualBasic;
 using Svg.FilterEffects;
 using System;

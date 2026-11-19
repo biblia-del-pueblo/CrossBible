@@ -22,7 +22,9 @@ sealed class Program
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
     {
-        var builder = AppBuilder.Configure<App>().UsePlatformDetect();
+        // macOS: the name of the program is set when the App is created, before the platform builds the menu of the application (its title and its entries: "About ...",
+        // "Hide ...", "Quit ..."): Avalonia calls it "Avalonia Application" while Application.Name is empty. (The NativeMenu is set in the constructor of the App.)
+        var builder = (OperatingSystem.IsMacOS() ? AppBuilder.Configure(() => new App { Name = "Cross Bible" }) : AppBuilder.Configure<App>()).UsePlatformDetect();
         // In WSL (WSLg) the popups (the footnotes and the Strong's entries) are drawn inside the window, not in windows of their own: WSLg shows the last picture of a
         // closed popup window again for about a second after a click (the popup went away, came back and went away again). Elsewhere the popups are windows, as usual.
         // CROSSBIBLE_OVERLAY_POPUPS=1 or 0 decides it, whatever the system is.
