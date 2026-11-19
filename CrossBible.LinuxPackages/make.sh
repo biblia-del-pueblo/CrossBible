@@ -9,6 +9,11 @@ cd "$(dirname "$0")"
 . /etc/os-release
 export PATH="$PATH:$HOME/.dotnet/tools:/usr/share/dotnet"
 
+# WSL sets XDG_RUNTIME_DIR to /mnt/wslg/runtime-dir (the folder of WSLg, which belongs to user 1000). .NET keeps its named mutexes in that folder when it is set, and stops with
+# "The directory '/mnt/wslg/runtime-dir' does not have the expected owner or permissions" when it is not the folder of the user that runs it (root, here). The build needs no
+# runtime folder of the desktop: without the variable .NET uses its own folder in /tmp.
+unset XDG_RUNTIME_DIR
+
 if [ "$(id -u)" = "0" ]; then SUDO=""; else SUDO="sudo"; fi
 
 # Installs PowerShell (pwsh) from the package repository of Microsoft: Debian, Ubuntu, Fedora (the .NET SDK is not enough, the scripts of src/scripts need pwsh).
