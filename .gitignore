@@ -180,6 +180,9 @@ DocProject/Help/html
 
 # Click-Once directory
 publish/
+# The output of dotnet publish -o publish-osx-x64 on the Mac, and the zip of the sources made for the test there
+publish-*/
+/CrossBible.zip
 
 # Publish Web Output
 *.[Pp]ublish.xml
@@ -433,6 +436,10 @@ $RECYCLE.BIN/
 # Windows Installer files
 *.cab
 *.msi
+# ... but not the CrossBible.Msi project folder, which the pattern above also matches by name (its bin and obj folders are build output, as in every project)
+!CrossBible.Msi/
+CrossBible.Msi/bin/
+CrossBible.Msi/obj/
 *.msix
 # ... but not the CrossBible.Msix project folder, which the pattern above also matches by name
 !CrossBible.Msix/

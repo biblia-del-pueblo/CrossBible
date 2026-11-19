@@ -1,0 +1,48 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+    <!-- The installer of CrossBible: the files of the native AOT build (see CrossBible.Msi.wixproj) in Program Files, and a shortcut in the Start menu. The same
+         source makes the amd64 and the arm64 installer; the platform of the package is the one of the project (InstallerPlatform). -->
+    <Package Name="Cross Bible"
+             Manufacturer="Estrellas de Esperanza"
+             Version="$(ProductVersion)"
+             UpgradeCode="f2d8be99-5f1b-4c91-b847-b57e6f1ad3ec"
+             Scope="perMachine"
+             Language="1033">
+
+        <SummaryInformation Description="CrossBible, a cross platform bible reader" />
+
+        <!-- A newer version replaces an older one (the older is removed first); an older one does not replace a newer. -->
+        <MajorUpgrade DowngradeErrorMessage="A newer version of Cross Bible is installed already." />
+        <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+        <!-- The same minimum as the Store package (Windows 10, version 1809). -->
+        <Launch Condition="Installed OR VersionNT &gt;= 1000" Message="Cross Bible needs Windows 10 or newer." />
+
+        <Icon Id="AppIcon.ico" SourceFile="$(IconFile)" />
+        <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+        <Property Id="ARPURLINFOABOUT" Value="https://www.crossbible.org" />
+
+        <!-- Every file of the publish folder, except the debug symbols. They belong to the default feature that WiX makes (all the components of the package). -->
+        <StandardDirectory Id="ProgramFiles64Folder">
+            <Directory Id="INSTALLFOLDER" Name="Cross Bible" />
+        </StandardDirectory>
+        <DirectoryRef Id="INSTALLFOLDER">
+            <Files Include="$(PublishFolder)\**">
+                <Exclude Files="$(PublishFolder)\**\*.pdb" />
+            </Files>
+        </DirectoryRef>
+
+        <StandardDirectory Id="ProgramMenuFolder">
+            <Component Id="StartMenuShortcut" Guid="6b1d7b0e-35c0-4a0f-9c0b-52c1a9f0a1d4">
+                <Shortcut Id="AppShortcut" Name="Cross Bible" Description="Read the Bible in columns" Target="[INSTALLFOLDER]CrossBible.Desktop.exe" WorkingDirectory="INSTALLFOLDER" />
+                <RegistryValue Root="HKCU" Key="Software\Estrellas de Esperanza\Cross Bible" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+            </Component>
+        </StandardDirectory>
+
+        <!-- Installer dialogs: license, the folder to install in, progress. -->
+        <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+        <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+        <ui:WixUI Id="WixUI_InstallDir" />
+
+    </Package>
+</Wix>

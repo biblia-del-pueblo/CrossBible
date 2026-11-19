@@ -1,0 +1,43 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+
+    <!-- Builds the Windows installer (.msi) of CrossBible for one architecture, with the native AOT build of CrossBible.Desktop (no .NET runtime is needed):
+
+             dotnet build CrossBible.Msi.wixproj -c Release -p:InstallerPlatform=x64
+             dotnet build CrossBible.Msi.wixproj -c Release -p:InstallerPlatform=arm64
+
+         make.bat builds both. The app is published first (a native AOT publish of CrossBible.Desktop for win-x64 or win-arm64 into obj\publish\<platform>), unless
+         -p:SkipPublish=true is given and that folder is there already. The version is the one of Directory.Build.props.
+         The result is bin\<platform>\CrossBible-<version>-<platform>.msi. -->
+
+    <PropertyGroup>
+        <InstallerPlatform Condition="'$(InstallerPlatform)' == ''">x64</InstallerPlatform>
+        <Platform>$(InstallerPlatform)</Platform>
+        <RuntimeId Condition="'$(InstallerPlatform)' == 'arm64'">win-arm64</RuntimeId>
+        <RuntimeId Condition="'$(InstallerPlatform)' != 'arm64'">win-x64</RuntimeId>
+
+        <!-- An MSI version has three numbers (the fourth is ignored by Windows Installer). -->
+        <ProductVersion Condition="'$(ProductVersion)' == ''">$(Version)</ProductVersion>
+        <OutputName>CrossBible-$(ProductVersion)-$(InstallerPlatform)</OutputName>
+        <OutputPath>bin\$(InstallerPlatform)\</OutputPath>
+        <IntermediateOutputPath>obj\$(InstallerPlatform)\</IntermediateOutputPath>
+
+        <DesktopProject>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '..', 'CrossBible.Desktop', 'CrossBible.Desktop.csproj'))</DesktopProject>
+        <PublishFolder>$(MSBuildProjectDirectory)\obj\publish\$(InstallerPlatform)</PublishFolder>
+        <IconFile>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', '..', 'CrossBible.Desktop', 'Assets', 'logo.ico'))</IconFile>
+
+        <DefineConstants>$(DefineConstants);ProductVersion=$(ProductVersion);PublishFolder=$(PublishFolder);IconFile=$(IconFile)</DefineConstants>
+        <SuppressValidation Condition="'$(SuppressValidation)' == ''">false</SuppressValidation>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- The dialogs of the installer (WixUI_InstallDir); the version is the one that the WiX SDK is. Not the central one: the project has no packages of the app. -->
+        <PackageReference Include="WixToolset.UI.wixext" VersionOverride="7.0.0" />
+    </ItemGroup>
+
+    <!-- Native AOT for the architecture of the installer. It is linked by the C++ tools of Visual Studio (for the ARM64 one: "MSVC build tools for ARM64/ARM64EC"). -->
+    <Target Name="PublishDesktop" BeforeTargets="BeforeBuild" Condition="'$(SkipPublish)' != 'true'">
+        <RemoveDir Directories="$(PublishFolder)" />
+        <Exec Command="dotnet publish &quot;$(DesktopProject)&quot; -c Release -r $(RuntimeId) -p:UseAot=true -p:Version=$(ProductVersion) -o &quot;$(PublishFolder)&quot;" />
+    </Target>
+
+</Project>
