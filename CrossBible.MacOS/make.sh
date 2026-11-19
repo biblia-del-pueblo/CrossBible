@@ -56,7 +56,7 @@ for ARCH in $ARCHS; do
     sed "s/@VERSION@/$VERSION/g" "$HERE/Info.plist" > "$APP/Contents/Info.plist"
     chmod 755 "$APP/Contents/MacOS/CrossBible.Desktop"
 
-    NAME="CrossBible-$VERSION-macos-$ARCH"
+    NAME="crossbible-$VERSION-macos-$ARCH"
     if [ -n "$MAC" ]; then
         # Ad hoc ("-") unless CODESIGN_IDENTITY is a certificate ("Developer ID Application: ..."): a Mac with Apple silicon does not run code that is not signed at all.
         IDENTITY="${CODESIGN_IDENTITY:--}"

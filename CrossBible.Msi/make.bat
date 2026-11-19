@@ -9,7 +9,7 @@ rem
 rem Native AOT is linked by the C++ tools of Visual Studio: for the amd64 installer "MSVC build tools for x64/x86" and for the arm64 installer "MSVC build tools
 rem for ARM64/ARM64EC" (Visual Studio Installer > Modify > Individual components), with the Windows SDK. The installer itself is built by the WiX SDK
 rem (CrossBible.Msi.wixproj), which dotnet restores as a NuGet package.
-rem The result is in bin\<platform>\CrossBible-<version>-<platform>.msi
+rem The result is in bin\<platform>\crossbible-<version>-windows-<platform>.msi
 setlocal
 set "HERE=%~dp0"
 

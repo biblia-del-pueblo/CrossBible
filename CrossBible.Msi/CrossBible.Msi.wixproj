@@ -7,7 +7,7 @@
 
          make.bat builds both. The app is published first (a native AOT publish of CrossBible.Desktop for win-x64 or win-arm64 into obj\publish\<platform>), unless
          -p:SkipPublish=true is given and that folder is there already. The version is the one of Directory.Build.props.
-         The result is bin\<platform>\CrossBible-<version>-<platform>.msi. -->
+         The result is bin\<platform>\crossbible-<version>-windows-<platform>.msi. -->
 
     <PropertyGroup>
         <InstallerPlatform Condition="'$(InstallerPlatform)' == ''">x64</InstallerPlatform>
@@ -17,7 +17,7 @@
 
         <!-- An MSI version has three numbers (the fourth is ignored by Windows Installer). -->
         <ProductVersion Condition="'$(ProductVersion)' == ''">$(Version)</ProductVersion>
-        <OutputName>CrossBible-$(ProductVersion)-$(InstallerPlatform)</OutputName>
+        <OutputName>crossbible-$(ProductVersion)-windows-$(InstallerPlatform)</OutputName>
         <OutputPath>bin\$(InstallerPlatform)\</OutputPath>
         <IntermediateOutputPath>obj\$(InstallerPlatform)\</IntermediateOutputPath>
 
