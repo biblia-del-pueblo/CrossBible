@@ -3614,18 +3614,21 @@ public partial class BibleTextBlock : Panel
     private static double _buildChapterHeight = double.NaN;
 
     /// <summary>
-    /// The height of a chapter number: two lines of the text, less the gap that is kept under a float. The number is
-    /// much larger than the text, so its line box would be three lines tall, but digits stay above the baseline and
-    /// two lines are enough. NaN (the height of the text itself) when the line height is not known.
+    /// The height of a chapter number in the layout: it makes the text of two lines go around it, not of three. The number is much larger than the text, so its
+    /// line box would be three lines tall, but digits stay above the baseline and two lines are enough. NaN (the height of the text itself) when the line height
+    /// is not known.
     /// </summary>
     private double ChapterFloatHeight()
     {
-        var probe = new TextBlock { Text = "Ag", FontFamily = FontFamily, FontSize = FontSize, FontWeight = FontWeight.Normal };
+        // The lines of the text are as tall as the font says, not rounded to pixels. A control that is not in a window is rounded up to whole pixels (its layout
+        // scale is 1), which made the line taller than it is by up to a pixel: the float then was longer than two lines of the text, and took the third one.
+        var probe = new TextBlock { Text = "Ag", FontFamily = FontFamily, FontSize = FontSize, FontWeight = FontWeight.Normal, UseLayoutRounding = false };
         probe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double lineHeight = probe.DesiredSize.Height;
         if (lineHeight <= 0) return double.NaN;
-        // The float takes its height plus the gap (see PlaceFloat); a little less keeps the third line free.
-        return Math.Max(1, 2 * lineHeight - FloatSpacing - 0.5);
+        // The float takes its height plus the gap (see PlaceFloat): the slot ends a line and a half below the top, in the middle of the second line. The second
+        // line then goes around it and the third one never does, with half a line to spare on both sides, for lines that are not exactly as tall as the probe.
+        return Math.Max(1, 1.5 * lineHeight - FloatSpacing);
     }
 
     /// <summary>
