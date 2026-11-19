@@ -639,8 +639,7 @@ public partial class OnlineBiblesView : UserControl
     private void FillLanguages()
     {
         var languages = _items
-            .Select(i => LanguageOf(i.Bible))
-            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .SelectMany(i => LanguagesOf(i.Bible))
             .Distinct()
             .OrderBy(l => l, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
@@ -677,9 +676,8 @@ public partial class OnlineBiblesView : UserControl
         if (_shown.Count == 0) LanguageBox.Text = ""; // no module in this language: all of them
     }
 
-    private static string LanguageOf(InstallableBook bible) =>
-        string.IsNullOrWhiteSpace(bible.LanguageEnglishName) ? bible.Language : bible.LanguageEnglishName;
-
+    private static IEnumerable<string> LanguagesOf(InstallableBook bible) => new[] { bible.Language, bible.LanguageEnglishName }
+        .Where(lang => !string.IsNullOrWhiteSpace(lang));
     private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e) => ApplyFilter();
 
     private void OnSearchChanged(object? sender, TextChangedEventArgs e) => ApplyFilter();

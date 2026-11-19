@@ -1,10 +1,11 @@
-﻿using System;
+﻿using CrossBible.Library.Downloads;
+using Microsoft.CodeAnalysis;
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Linq;
-using System.IO;
-using CrossBible.Library.Downloads;
 
 
 namespace CrossBible.Library;
@@ -43,6 +44,10 @@ public class eBible : InstallableBook
                         var englishName = cells[4].Descendants("a").FirstOrDefault()?.InnerText.Trim();
                         var name = cells[3].Descendants("a").FirstOrDefault()?.InnerText.Trim();
                         var detailsUrl = cells[3].Descendants("a").FirstOrDefault().GetAttributeValue("href", string.Empty);
+                        // Exceptions for Tunisian language wrong language entry on ebible.org
+                        if (languageName == "العهد الجديد بالدارجة التونسية 2022") languageName = "Gaolkheel";
+                        if (languageEnglishName == "العهد الجديد بالدارجة التونسية 2022") languageEnglishName = "Arabic, Tunisian Spoken";
+
                         return new eBible
                         {
                             CountryName = countryName,
