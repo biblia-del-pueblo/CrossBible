@@ -36,6 +36,26 @@ fi
 
 OUT="$HERE/bin"
 mkdir -p "$OUT"
+
+# The checkout is often on a network share or a Windows drive, used by Visual Studio too: its restore overwrites obj/project.assets.json with the NuGet folders of
+# Windows, and a build in the middle of it stops with "Unable to find fallback package folder" (or does not find the packages of the app, like WithInterFont). So the
+# app is built in a copy of the sources in the local file system (MAKE_INPLACE=1 builds in place, in the checkout, which is not cleaned). The obj and bin folders of
+# the copy are deleted before every build; the checkout is not changed. The packages are made in $OUT, in the checkout.
+if [ "${MAKE_INPLACE:-}" != "1" ]; then
+    COPY="$HOME/crossbible-build"
+    mkdir -p "$COPY"
+    echo "Copying the sources to $COPY (the build is not made in the checkout)"
+    rsync -a --delete \
+        --exclude='.git' --exclude='.vs' --exclude='/publish' \
+        --exclude='/CrossBible.Msix' --exclude='/CrossBible.iOS' --exclude='/CrossBible.Android' --exclude='/CrossBible.Browser' --exclude='/CrossBible.Test' \
+        --exclude='/CrossBible.LinuxPackages' --exclude='/CrossBible.Msi' \
+        --exclude='/BibleMarkdown/BibleMarkdown/runtimes' --exclude='/BibleMarkdown/MigrateFramework' --exclude='/BibleMarkdown/UncapitalizeReinaValera1909Chapters' \
+        --exclude='bin/' --exclude='obj/' \
+        "$ROOT/" "$COPY/"
+    ROOT="$COPY"
+    HERE="$COPY/CrossBible.MacOS"
+    (cd "$ROOT" && find . -type d \( -name obj -o -name bin \) -not -path "./CrossBible.MacOS/bin" -prune -exec rm -rf {} +)
+fi
 # The .app is made in a folder of the Linux/macOS file system (not on a Windows drive, which does not keep the permission to execute).
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
