@@ -2984,7 +2984,8 @@ public partial class BibleTextBlock : Panel
         if (generation != _dismissGeneration) { PopupTrace("Strong's entry dropped: the popup was put away while it was looked up"); return; } // the popup was put away while the entry was looked up (a press outside it): the entry is not wanted any more
         if (string.IsNullOrWhiteSpace(markdown))
             markdown = Localizer.Format("NoStrongsEntry", strong);
-
+        else
+            markdown = $"## {strong}{Environment.NewLine}{markdown}";
         if (Environment.NewLine != "\r\n") markdown = markdown.Replace("\r\n", Environment.NewLine);
 
         // The markdown of the dictionaries is the same Bible Markdown as the text: bold, italic and paragraphs.
