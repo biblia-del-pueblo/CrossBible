@@ -61,6 +61,7 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia.Desktop" />
+        <PackageReference Include="Avalonia.Fonts.Inter" />
         <PackageReference Include="Svg.Controls.Skia.Avalonia" />
     </ItemGroup>
 
