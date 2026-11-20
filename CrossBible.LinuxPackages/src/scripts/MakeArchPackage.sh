@@ -1,9 +1,9 @@
 #!/bin/sh
 # Makes a package for pacman (Arch Linux): MakeArchPackage.sh <root> <version> <architecture> <output>
 #   <root>          folder with the usr tree of the package (see the StageRoot target of LinuxPackages.proj)
-#   <version>       pkgver-pkgrel, as 1.0.0-1
+#   <version>       pkgver-pkgrel, as 1.0.1-1
 #   <architecture>  x86_64, aarch64 or armv7h
-#   <output>        the file to write, as crossbible-1.0.0-1-x86_64.pkg.tar.zst
+#   <output>        the file to write, as crossbible-1.0.1-1-x86_64.pkg.tar.zst
 # A pacman package is a tar archive (zstd compressed) with a .PKGINFO file first and the files after it. It is not signed: install it with pacman -U.
 set -e
 
