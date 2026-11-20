@@ -82,6 +82,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem The packaging targets name the files after the project (CrossBible.Msix_<version>_...): rename the results to crossbible_<version>_..., lowercase. (Renaming
+rem the project itself would break the Store upload layout.) Only the outer files are renamed, the packages inside the bundle keep their names.
+powershell -NoProfile -Command "Get-ChildItem -LiteralPath '%HERE%AppPackages' -Recurse -File | Where-Object { $_.Extension -in '.msixupload','.msixbundle','.appxsym' } | ForEach-Object { $n = ($_.Name -replace '^CrossBible\.Msix_','crossbible_').ToLowerInvariant(); if ($n -cne $_.Name) { Rename-Item -LiteralPath $_.FullName -NewName $n } }"
+
 echo.
 echo Done. The packages are in %HERE%AppPackages\
 dir /b "%HERE%AppPackages\*.msixupload" "%HERE%AppPackages\*\*.msixbundle" 2>nul

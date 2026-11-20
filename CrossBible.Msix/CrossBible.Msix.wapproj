@@ -33,7 +33,6 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <DefaultLanguage>en-US</DefaultLanguage>
     <!-- The names of the packages are made from the project name (<name>_<version>_<platform>.msix, <name>_<version>_x64_arm64_bundle.msixupload): lowercase. -->
-    <ProjectName>crossbible</ProjectName>
     <!-- The package is not signed: the Store signs what it publishes. Signing here with a certificate of our own would also replace the Publisher in the manifest
          by the subject of that certificate (CN=Estrellas de Esperanza), and Partner Center refuses a package whose Publisher is not the one of the product identity
          (CN=057A2C88-...). To sideload a package, sign it with signtool and a certificate whose subject is the Publisher of the manifest. -->
