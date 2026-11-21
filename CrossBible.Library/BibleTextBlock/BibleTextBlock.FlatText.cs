@@ -404,11 +404,12 @@ public partial class BibleTextBlock
                 case BookText.Run.Classes.Chapter:
                     if (run.Position is not null) EmitVerseRun(null, run.Position, parent, ref top); // chapter start (verse 0)
                     if (run.Runs?.Any() == true && firstRun?.Class == BookText.Run.Classes.Title)
-                    {   // swap chapter & first title
-                        EmitRun(firstRun, parent, size, upper, ref top);
+                    {   // swap chapter & the titles that start it (one or more in a row): the number comes after the last of them
+                        int titleCount = run.Runs.TakeWhile(r => r.Class == BookText.Run.Classes.Title).Count();
+                        foreach (var title in run.Runs.Take(titleCount)) EmitRun(title, parent, size, upper, ref top);
                         EmitFloat(run.Chapter.ToString(), size, ref top);
                         // The chapter number is already shown as a left float, so it is not repeated in the text.
-                        EmitRuns(run.Runs.Skip(1), parent, size, upper, true, ref top);
+                        EmitRuns(run.Runs.Skip(titleCount), parent, size, upper, true, ref top);
                     }
                     else
                     {

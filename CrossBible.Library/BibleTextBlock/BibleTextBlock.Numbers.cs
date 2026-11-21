@@ -49,15 +49,23 @@ public partial class BibleTextBlock
             if (spec.Control is not { } control) continue;
             int slot = _arranged.FindIndex(a => ReferenceEquals(a.Child, control));
             if (slot < 0) continue;
-            var rect = _arranged[slot].Slot;
+            // Where the numeral is drawn, not the room that the layout reserved for it: the reserved height is only two lines of the text, which the numeral
+            // is taller than (see ArrangeOverride, which arranges it at its full size). Its second line is part of it too.
+            var (_, reserved) = _arranged[slot];
+            var rect = GetLayoutHeight(control) is var layoutHeight && !double.IsNaN(layoutHeight) && control.DesiredSize.Height > reserved.Height
+                ? new Rect(reserved.X, reserved.Y, reserved.Width, control.DesiredSize.Height) : reserved;
             if (!rect.Inflate(slop).Contains(point)) continue;
-            // The chapter's own mark (verse 0) is at the place where its numeral floats.
+            // The chapter's own mark (verse 0) is the last mark before the place where its numeral floats. It is at that very place when the chapter has no
+            // title; a title comes between them (the numeral floats behind the title, see EmitRun), so the mark is not looked for at the anchor alone.
+            // A mark of a verse in between would be that of another chapter: the numeral is not of the mark before it then. The mark of the first verse is at the
+            // anchor itself (the numeral floats where the verses begin), but it comes after the numeral: only a mark of verse 0 counts at the anchor.
+            BookText.VersePosition? last = null;
             foreach (var (index, pos) in _markers)
             {
-                if (index < anchor) continue;
-                if (index > anchor) break;
-                if (pos.Verse == 0 && pos.Chapter >= 1 && pos.Book is { } book) { bounds = rect; return book; }
+                if (index > anchor || (index == anchor && pos.Verse != 0)) break;
+                last = pos;
             }
+            if (last is { Verse: 0, Chapter: >= 1, Book: { } book }) { bounds = rect; return book; }
         }
         return null;
     }

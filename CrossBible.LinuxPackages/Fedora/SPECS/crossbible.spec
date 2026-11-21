@@ -1,5 +1,5 @@
 Name: crossbible
-Version: 1.0.4
+Version: 1.0.5
 Release: 1%{?dist}
 Summary: This is Cross Bible, a cross platform bible reader.
 License: MIT  

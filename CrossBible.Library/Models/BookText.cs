@@ -653,10 +653,21 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
             Chapter = chapterNumber,
             Position = position,
             Text = chapterText,
-            Runs = ChapterParts().Matches(chapterText)
+            Runs = TightenTitles(ChapterParts().Matches(chapterText)
                 .SelectMany(verse => ParseVerse(verse, position))
-                .ToList()
+                .ToList())
         };
+    }
+
+    /// <summary>
+    /// A title that comes right after another title has no blank lines before it (a title ends with a line break itself): it is marked <see cref="Run.First"/>,
+    /// which both renderers take as "no blank lines before this title". The list is returned for chaining.
+    /// </summary>
+    static List<Run> TightenTitles(List<Run> runs)
+    {
+        for (int i = 1; i < runs.Count; i++)
+            if (runs[i].Class == Run.Classes.Title && runs[i - 1].Class == Run.Classes.Title) runs[i].First = true;
+        return runs;
     }
 
     /// <summary>

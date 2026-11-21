@@ -3794,8 +3794,10 @@ public partial class BibleTextBlock : Panel
             case BookText.Run.Classes.Chapter:
                 if (run.Position is not null) yield return new VerseRun { Position = run.Position }; // chapter start (verse 0)
                 if (run.Runs.Any() && firstRun?.Class == BookText.Run.Classes.Title)
-                { // Swap chapter & first title
-                    foreach (var child in ToInlines(firstRun, size, upperCase)) yield return child;
+                { // Swap chapter & the titles that start it (one or more in a row): the number comes after the last of them
+                    int titleCount = run.Runs.TakeWhile(r => r.Class == BookText.Run.Classes.Title).Count();
+                    foreach (var title in run.Runs.Take(titleCount))
+                        foreach (var child in ToInlines(title, size, upperCase)) yield return child;
                     yield return new FloatRun(run.Chapter.ToString())
                     {
                         Side = FloatSide.Left,
@@ -3804,7 +3806,7 @@ public partial class BibleTextBlock : Panel
                         FloatHeight = _buildChapterHeight, // two lines of the text, not three
                     };
                     // The chapter number is already shown as a left float, so don't repeat it in the text.
-                    foreach (var child in ToInlines(run.Runs.Skip(1), size, upperCase)) yield return child;
+                    foreach (var child in ToInlines(run.Runs.Skip(titleCount), size, upperCase)) yield return child;
                     yield break;
                 }
                 else
