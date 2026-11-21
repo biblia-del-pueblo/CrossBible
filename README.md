@@ -57,23 +57,38 @@ The packages:
 Native AOT only builds for the operating system it runs on: the Windows packages on Windows, the Linux packages on Linux (WSL on Windows), and the macOS app on a Mac.
 
 All the make scripts put their packages into the `publish` folder at the root of the repository, directly in the folder (it has no subfolders), so it holds the packages
-of all of them, and of the older versions too. The folder is not in git.
+of all of them, and of the older versions too. The folder is not in git. The release workflow below builds the packages the same way, on GitHub.
 
 ### Releases
 
-A push to the branch `publish` makes a [GitHub release](.github/workflows/release.yml): it takes the files of the branch that begin with `crossbible` (the packages), finds the
-newest version in their names and releases the files of that version as `v<version>` (when that release is there already, its files are replaced). So the branch only
-has to hold the packages. Because the packages have nothing to do with the history of the sources, it is best a branch of its own, with a single commit:
+A push to the branch `publish` (for example `git push origin main:publish`, after you raised `Version` in `Directory.Build.props`) builds the packages and makes a
+[GitHub release](.github/workflows/release.yml) of them, `v<Version>` (when that release is there already, its files are replaced):
 
-```sh
-git worktree add --orphan -b publish ../CrossBible-publish   # once (Git 2.42 or later)
-cp publish/crossbible-1.0.4-* ../CrossBible-publish/         # the files of the version that is released
-cd ../CrossBible-publish
-git add -A && git commit -m "Cross Bible 1.0.4" && git push --force origin publish
+| Built on | With | Packages |
+|---|---|---|
+| Windows | `CrossBible.Msi\make.bat` | the installers (x64 and ARM64) |
+| macOS 15 (the oldest that GitHub has) | `CrossBible.MacOS/make.sh` | the app (Apple silicon and Intel), signed ad hoc |
+| Ubuntu 22.04 | `CrossBible.LinuxPackages/make.sh` | Debian, Fedora, Arch Linux packages and `.tar.gz` |
+| Alpine 3.23 (in Docker) | the same script | Alpine packages and the `.tar.gz` of the musl builds |
+| Windows | `CrossBible.Android\make.bat` | the three `.apk` and the `.aab`, signed with your upload key (a secret, see below) |
+
+The packages are built on the oldest systems that are still supported (not on the `-latest` images): a native AOT program does not run on a system whose C library
+is older than the one that built it, and the macOS app is built against the system of the build machine. The release is only made when all of them were built, and every package has to have the version of the release.
+
+The Microsoft Store package (`CrossBible.Msix`, it needs Visual Studio and the identity of the Store) is not built there: build it with its script. Start the workflow by hand
+(Actions > Release) to make a draft, which you look at before you publish it.
+
+The Android packages are signed with your upload key, which is not in the repository: it is two secrets of the repository (Settings > Secrets and variables > Actions), and
+the release stops, saying so, while they are not set. The key is the one that `CrossBible.Android\make.bat` makes on its first run, in `CrossBible.Android\publish` (the
+same key as for the packages that you build yourself, so the updates of the app in the Play Store fit). With the [GitHub CLI](https://cli.github.com):
+
+```powershell
+gh secret set ANDROID_KEYSTORE_BASE64 --body ([Convert]::ToBase64String([IO.File]::ReadAllBytes("CrossBible.Android\publish\upload.keystore")))
+gh secret set ANDROID_KEYSTORE_PASSWORD   # asks for the value: CB_PASS in CrossBible.Android\publish\signing.cmd
 ```
 
-GitHub does not accept a file of more than 100 MB in a branch. The workflow can also be started by hand (Actions > Release the publish branch), as a draft that you look at
-before you publish it.
+The password must only have letters and digits (the one that `make.bat` makes has). Keep a copy of the keystore and the password somewhere else as well: a secret of GitHub cannot
+be read again.
 
 ## Repository
 

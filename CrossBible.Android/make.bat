@@ -40,9 +40,14 @@ if not defined VERSION (
 if not exist "%OUT%" mkdir "%OUT%"
 if not exist "%PUBLISH%" mkdir "%PUBLISH%"
 
-rem The upload key: created once.
+rem The upload key: created once. (On GitHub the key is a secret: the workflow puts upload.keystore into this folder and the password into the environment as CB_PASS, so there
+rem is no signing.cmd. Use letters and digits in that password, like the one that is made here: it is part of a command line.)
 if not exist "%OUT%\upload.keystore" call :createkey || exit /b 1
-call "%OUT%\signing.cmd"
+if exist "%OUT%\signing.cmd" call "%OUT%\signing.cmd"
+if not defined CB_PASS (
+    echo The password of the upload key is not known: signing.cmd in %OUT% sets CB_PASS, or it is in the environment.
+    exit /b 1
+)
 
 set SIGN=-p:AndroidKeyStore=true -p:AndroidSigningKeyStore="%OUT%\upload.keystore" -p:AndroidSigningKeyAlias=crossbible -p:AndroidSigningKeyPass=%CB_PASS% -p:AndroidSigningStorePass=%CB_PASS%
 

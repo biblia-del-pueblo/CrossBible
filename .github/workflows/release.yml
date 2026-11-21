@@ -1,15 +1,22 @@
-# Makes a GitHub release of the files that are pushed to the branch "publish".
+# Builds the packages of CrossBible and makes a GitHub release of them, when something is pushed to the branch "publish".
 #
-# The branch holds what the make scripts put into the publish folder at the root of the repository (the Windows installers, the Store package, the Linux packages, the
-# Android packages and the macOS packages, all of them directly in the folder, no subfolders; see README.md). The release is made for the newest version that is in the
-# names of the files, and gets the files of that version (the branch may still have the files of older releases).
+# Every kind of package is built on the system it needs, with the make script of the repository (they put their packages into the publish folder at the root, directly
+# in the folder, no subfolders; see README.md). Native AOT links the program against the C library of the machine that builds it, and it does not run on a system whose
+# C library is older: so the Linux packages are built on Ubuntu 22.04 (the glibc ones) and in Alpine 3.23 (the musl ones, the oldest Alpine that has apk-tools 3), not on
+# ubuntu-latest.
 #
-#   tag    v<version>, for example v1.0.4
-#   title  Cross Bible <version>
+#   Windows   the installers (.msi, x64 and ARM64)               CrossBible.Msi\make.bat
+#   macOS     the app (.dmg and .zip, Apple silicon and Intel)   CrossBible.MacOS/make.sh, on macOS 15 (the oldest that GitHub has)
+#   Linux     .deb, .rpm, Arch Linux, .tar.gz                    CrossBible.LinuxPackages/make.sh, on Ubuntu 22.04
+#   Alpine    .apk and the .tar.gz of the musl builds            CrossBible.LinuxPackages/make.sh, in Alpine 3.23
+#   Android   three .apk and the .aab                            CrossBible.Android\make.bat, signed with the upload key of the secrets
+#             ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD (see README.md)
 #
-# When the release of that version is there already, the files are uploaded to it again (replacing the ones of the same name).
+# Not built here: the Microsoft Store package (CrossBible.Msix, which needs Visual Studio and the identity of the Store).
+#
+# The release is v<Version> (Version in Directory.Build.props), titled "Cross Bible <Version>". When it is there already, its files are replaced.
 
-name: Release the publish branch
+name: Release
 
 on:
   push:
@@ -23,70 +30,254 @@ on:
         default: false
 
 permissions:
-  contents: write # the release and its files
+  contents: read
 
 concurrency:
   group: release-publish
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  version:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the version
+        id: read
+        run: |
+          version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -n 1)"
+          if [ -z "$version" ]; then
+            echo "::error::The version was not found in Directory.Build.props."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version $version"
+
+  windows:
+    runs-on: windows-latest
+    needs: version
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: publish
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.x'
+
+      # Native AOT is linked with the C++ tools of Visual Studio, for the x64 and for the ARM64 installer. They are added when the image of the runner does not have them.
+      - name: Make sure the C++ tools for x64 and ARM64 are there
+        shell: pwsh
+        run: |
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          $vswhere = Join-Path $installer 'vswhere.exe'
+          $components = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          $missing = @($components | Where-Object { -not (& $vswhere -latest -products * -requires $_ -property installationPath) })
+          if ($missing.Count -eq 0) { 'The C++ tools are there.'; return }
+          'Installing: ' + ($missing -join ', ')
+          $path = & $vswhere -latest -products * -property installationPath
+          $arguments = @('modify', '--installPath', "`"$path`"", '--quiet', '--norestart', '--noUpdateInstaller')
+          foreach ($component in $missing) { $arguments += '--add'; $arguments += $component }
+          $process = Start-Process -FilePath (Join-Path $installer 'setup.exe') -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -notin 0, 3010) { throw "The setup of Visual Studio failed (exit code $($process.ExitCode))." }
+
+      - name: Build the installers
+        shell: cmd
+        run: call CrossBible.Msi\make.bat
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-windows
+          path: publish/crossbible-*
+          if-no-files-found: error
+
+  macos:
+    # The oldest macOS image that GitHub still has (macOS 14 was retired on 2026-11-02; macos-latest is macOS 26), for the same reason as the Linux ones: the app is built
+    # against the system of the build machine, and runs on it and on the newer ones. It is an Apple silicon machine: make.sh builds the Intel app on it too. Look at
+    # https://github.com/actions/runner-images when this one is retired, and take the next oldest.
+    runs-on: macos-15
+    needs: version
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.x'
+
+      # On a Mac the app is compiled with native AOT and signed ad hoc (no certificate: see CrossBible.MacOS/README.md).
+      - name: Build the app
+        run: sh CrossBible.MacOS/make.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-macos
+          path: publish/crossbible-*
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-22.04
+    needs: version
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.x'
+
+      # make.sh installs the tools that are missing (apt) without asking when MAKE_YES is set. The version is the one of the release: the packages have a version of their
+      # own in LinuxPackages.proj, which would otherwise be another one.
+      - name: Build the Linux packages
+        working-directory: CrossBible.LinuxPackages
+        env:
+          MAKE_YES: '1'
+          VERSION: ${{ needs.version.outputs.version }}
+        run: sh ./make.sh "-p:Version=$VERSION" "-p:FileVersion=$VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-linux
+          path: publish/crossbible-*
+          if-no-files-found: error
+
+  alpine:
+    runs-on: ubuntu-22.04
+    needs: version
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # The musl builds only work in Alpine (see CrossBible.LinuxPackages/README.md): make.sh runs in a container of the oldest Alpine that makes the packages (apk-tools 3),
+      # as root, and installs the tools and the .NET SDK there.
+      - name: Build the Alpine packages
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          docker run --rm -e MAKE_YES=1 -v "$PWD:/src" -w /src/CrossBible.LinuxPackages alpine:3.23 \
+            sh ./make.sh "-p:Version=$VERSION" "-p:FileVersion=$VERSION"
+
+      # The container wrote the files as root.
+      - name: Give the files back to the runner
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-alpine
+          path: publish/crossbible-*
+          if-no-files-found: error
+
+  android:
+    runs-on: windows-latest
+    needs: version
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.x'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # The upload key is a secret of the repository (see README.md): the keystore as base64 and its password, which is the password of the key too. It is put where make.bat
+      # looks for it, and the password goes into the environment of the build step only. The secrets are not shown in the log.
+      - name: Restore the upload key
+        shell: pwsh
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if (-not $env:ANDROID_KEYSTORE_BASE64 -or -not $env:ANDROID_KEYSTORE_PASSWORD) {
+            throw 'The secrets ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD are not set: see the Releases section of README.md.'
+          }
+          $folder = Join-Path (Get-Location) 'CrossBible.Android\publish'
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $folder 'upload.keystore'), [Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
+
+      - name: Install the Android workload
+        run: dotnet workload install android
+
+      # The parts of the Android SDK that the workload needs (platform, build tools, NDK for native AOT), with their licenses accepted.
+      - name: Install the Android SDK parts
+        shell: pwsh
+        run: dotnet build CrossBible.Android\CrossBible.Android.csproj -t:InstallAndroidDependencies -f net11.0-android "-p:AndroidSdkDirectory=$env:ANDROID_HOME" -p:AcceptAndroidSDKLicenses=True
+
+      - name: Build the Android packages
+        shell: cmd
+        env:
+          CB_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: call CrossBible.Android\make.bat
+
+      - name: Remove the upload key
+        if: always()
+        shell: pwsh
+        run: Remove-Item -Force -ErrorAction SilentlyContinue 'CrossBible.Android\publish\upload.keystore'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-android
+          path: publish/crossbible-*
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-22.04
+    needs: [version, windows, macos, linux, alpine, android]
+    permissions:
+      contents: write # the release and its files
+    steps:
+      - name: Collect the packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          merge-multiple: true
+          path: publish
 
       - name: Make the release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
           DRAFT: ${{ inputs.draft }}
         run: |
           set -euo pipefail
 
-          # The packages: the files of the branch itself (not of subfolders) whose names begin with crossbible, as all the packages of the make scripts do. Nothing else is
-          # released, whatever else is on the branch (a README, and not a key or a script that was pushed by mistake).
-          files=()
-          for f in crossbible*; do
-            [ -f "$f" ] || continue
-            case "$f" in
-              *.keystore|*.jks|*.pfx|*.cmd|*.bat|*.sh|*.pem|*.key) continue ;;
-            esac
-            files+=("$f")
-          done
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "::error::The branch has no files to release."
+          files=(publish/crossbible*)
+          if [ ! -f "${files[0]}" ]; then
+            echo "::error::No packages were built."
             exit 1
           fi
 
-          # The newest version in the names: crossbible-1.0.4-linux-x64.tar.gz, crossbible_1.0.4-1_amd64.deb, crossbible_1.0.4.0_x64_arm64_bundle.msixupload ...
-          version="$(printf '%s\n' "${files[@]}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -uV | tail -n 1)"
-          if [ -z "$version" ]; then
-            echo "::error::No version was found in the names of the files."
-            exit 1
-          fi
-
-          # The files of that version: the version is a part of the name of its own (not the end of a longer number).
-          pattern="(^|[-_])${version//./\\.}([-_.]|$)"
-          assets=()
+          # Every package has the version of the release in its name (crossbible-1.0.4-linux-x64.tar.gz, crossbible_1.0.4-1_amd64.deb, crossbible_1.0.4.0_x64_arm64_bundle...):
+          # a package of another version means that a make script does not use the version of Directory.Build.props, and the release would be a mixture.
+          pattern="(^|[-_])${VERSION//./\\.}([-_.]|$)"
+          wrong=()
           for f in "${files[@]}"; do
-            if [[ "$f" =~ $pattern ]]; then assets+=("$f"); fi
+            if ! [[ "${f##*/}" =~ $pattern ]]; then wrong+=("${f##*/}"); fi
           done
-          if [ ${#assets[@]} -eq 0 ]; then
-            echo "::error::No file has the version $version."
+          if [ ${#wrong[@]} -gt 0 ]; then
+            echo "::error::These packages do not have the version $VERSION: ${wrong[*]}"
             exit 1
           fi
 
-          tag="v$version"
-          echo "Release $tag with ${#assets[@]} files:"
-          printf '  %s\n' "${assets[@]}"
+          tag="v$VERSION"
+          echo "Release $tag with ${#files[@]} files:"
+          printf '  %s\n' "${files[@]##*/}"
 
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "The release $tag is there already: its files are replaced."
-            gh release upload "$tag" "${assets[@]}" --clobber
+            gh release upload "$tag" "${files[@]}" --clobber
           else
-            options=(--title "Cross Bible $version" --notes "Cross Bible $version" --target "$GITHUB_SHA")
+            options=(--title "Cross Bible $VERSION" --notes "Cross Bible $VERSION" --target "$GITHUB_SHA")
             if [ "${DRAFT:-}" = "true" ]; then options+=(--draft); fi
-            gh release create "$tag" "${assets[@]}" "${options[@]}"
+            gh release create "$tag" "${files[@]}" "${options[@]}"
           fi
