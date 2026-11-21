@@ -52,8 +52,28 @@ The packages:
 | Microsoft Store | `CrossBible.Msix\make.bat` | needs Visual Studio |
 | Linux packages | `CrossBible.LinuxPackages\make.bat` (Windows, builds in WSL) or `sh make.sh` (Linux) | see its [README](CrossBible.LinuxPackages/README.md) |
 | macOS | `sh CrossBible.MacOS/make.sh` (on a Mac) or `CrossBible.MacOS\make.bat` | see its [README](CrossBible.MacOS/README.md) |
+| Android | `CrossBible.Android\make.bat` | needs the Android workload of .NET; signs with an upload key that is made on the first run, in `CrossBible.Android\publish` (never commit it) |
 
 Native AOT only builds for the operating system it runs on: the Windows packages on Windows, the Linux packages on Linux (WSL on Windows), and the macOS app on a Mac.
+
+All the make scripts put their packages into the `publish` folder at the root of the repository, directly in the folder (it has no subfolders), so it holds the packages
+of all of them, and of the older versions too. The folder is not in git.
+
+### Releases
+
+A push to the branch `publish` makes a [GitHub release](.github/workflows/release.yml): it takes the files of the branch that begin with `crossbible` (the packages), finds the
+newest version in their names and releases the files of that version as `v<version>` (when that release is there already, its files are replaced). So the branch only
+has to hold the packages. Because the packages have nothing to do with the history of the sources, it is best a branch of its own, with a single commit:
+
+```sh
+git worktree add --orphan -b publish ../CrossBible-publish   # once (Git 2.42 or later)
+cp publish/crossbible-1.0.4-* ../CrossBible-publish/         # the files of the version that is released
+cd ../CrossBible-publish
+git add -A && git commit -m "Cross Bible 1.0.4" && git push --force origin publish
+```
+
+GitHub does not accept a file of more than 100 MB in a branch. The workflow can also be started by hand (Actions > Release the publish branch), as a draft that you look at
+before you publish it.
 
 ## Repository
 

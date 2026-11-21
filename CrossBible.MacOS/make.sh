@@ -10,6 +10,9 @@ set -e
 cd "$(dirname "$0")"
 HERE="$(pwd)"
 ROOT="$(cd .. && pwd)"
+# The packages are put into the publish folder at the root of the repository (the checkout, not the copy that is built in): all of them in the folder itself, no
+# subfolders, with the ones of the other make scripts.
+PUBLISH="$ROOT/publish"
 export PATH="$PATH:$HOME/.dotnet/tools:/usr/share/dotnet:/usr/local/share/dotnet"
 
 case "${1:-both}" in
@@ -34,13 +37,13 @@ if [ -n "$MAC" ]; then
     }
 fi
 
-OUT="$HERE/bin"
+OUT="$PUBLISH"
 mkdir -p "$OUT"
 
 # The checkout is often on a network share or a Windows drive, used by Visual Studio too: its restore overwrites obj/project.assets.json with the NuGet folders of
 # Windows, and a build in the middle of it stops with "Unable to find fallback package folder" (or does not find the packages of the app, like WithInterFont). So the
 # app is built in a copy of the sources in the local file system (MAKE_INPLACE=1 builds in place, in the checkout, which is not cleaned). The obj and bin folders of
-# the copy are deleted before every build; the checkout is not changed. The packages are made in $OUT, in the checkout.
+# the copy are deleted before every build; the checkout is not changed. The packages are made in $OUT (the publish folder), in the checkout.
 if [ "${MAKE_INPLACE:-}" != "1" ]; then
     COPY="$HOME/crossbible-build"
     mkdir -p "$COPY"

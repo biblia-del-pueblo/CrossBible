@@ -11,7 +11,7 @@ rem Native AOT is linked by the C++ tools of Visual Studio: for the x64 package 
 rem for ARM64/ARM64EC" (Visual Studio Installer > Modify > Individual components), with the Windows SDK.
 rem
 rem The packaging targets belong to Visual Studio, so the project is built with the MSBuild of Visual Studio, not with "dotnet build".
-rem The result is in AppPackages\
+rem The result is in AppPackages\, and the .msixupload is copied to the publish folder at the root of the repository, with the packages of the other make scripts.
 
 setlocal
 set "HERE=%~dp0"
@@ -106,7 +106,23 @@ rem The packaging targets name the files after the project (CrossBible.Msix_<ver
 rem the project itself would break the Store upload layout.) Only the outer files are renamed, the packages inside the bundle keep their names.
 powershell -NoProfile -Command "Get-ChildItem -LiteralPath '%HERE%AppPackages' -Recurse -File | Where-Object { $_.Extension -in '.msixupload','.msixbundle','.appxsym' } | ForEach-Object { $n = ($_.Name -replace '^CrossBible\.Msix_','crossbible_').ToLowerInvariant(); if ($n -cne $_.Name) { Move-Item -LiteralPath $_.FullName -Destination (Join-Path $_.DirectoryName $n) -Force } }"
 
+rem The package for Partner Center also goes into the publish folder at the root of the repository, where the packages of all the make scripts are collected (all
+rem of them in the folder itself, no subfolders). The newest one: AppPackages may still have the ones of older versions.
+set "PUBLISH=%ROOT%\publish"
+if not exist "%PUBLISH%" mkdir "%PUBLISH%"
+set "UPLOAD="
+for /f "usebackq delims=" %%f in (`dir /b /a-d /o-d "%HERE%AppPackages\*.msixupload" 2^>nul`) do if not defined UPLOAD set "UPLOAD=%%f"
+if not defined UPLOAD (
+    echo No .msixupload was made.
+    exit /b 1
+)
+copy /y "%HERE%AppPackages\%UPLOAD%" "%PUBLISH%\" >nul
+if errorlevel 1 (
+    echo The package could not be copied to %PUBLISH%.
+    exit /b 1
+)
+
 echo.
-echo Done. The packages are in %HERE%AppPackages\
+echo Done. The packages are in %HERE%AppPackages\, the one for Partner Center is also in %PUBLISH%\
 dir /b "%HERE%AppPackages\*.msixupload" "%HERE%AppPackages\*\*.msixbundle" 2>nul
 exit /b 0

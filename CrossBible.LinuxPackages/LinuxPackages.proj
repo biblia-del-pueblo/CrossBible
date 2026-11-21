@@ -22,9 +22,13 @@
         <PackagesFolder>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)'))</PackagesFolder>
         <RootFolder>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..'))</RootFolder>
         <DesktopProject>$(RootFolder)CrossBible.Desktop/CrossBible.Desktop.csproj</DesktopProject>
+        <!-- The packages and the .tar.gz files that are made are put into the publish folder at the root of the repository, all of them in the folder itself (no subfolders),
+             with the ones of the other make scripts: a release is made of that folder. The builds of the runtimes (a folder with the program for each of them) are
+             only what the packages are made of: they are in obj/publish, not in the publish folder. -->
         <AotPublishFolder>$(RootFolder)publish</AotPublishFolder>
+        <BuildsFolder>$(PackagesFolder)obj/publish</BuildsFolder>
         <StagingFolder>$(PackagesFolder)staging</StagingFolder>
-        <BinFolder>$(PackagesFolder)bin</BinFolder>
+        <BinFolder>$(AotPublishFolder)</BinFolder>
 
 
         <GZipCmd Condition=" '$(OS)' == 'Windows_NT' ">"$(PackagesFolder)tools/gzip/bin/gzip.exe"</GZipCmd>
@@ -75,7 +79,7 @@
 
     <Target Name="CleanOutput">
         <ItemGroup>
-            <OutputPackageFiles Include="$(BinFolder)/*.deb;$(BinFolder)/*.rpm;$(BinFolder)/*.pkg.tar.zst;$(BinFolder)/*.tar.gz" />
+            <OutputPackageFiles Include="$(BinFolder)/crossbible_$(FileVersion)-1_*.deb;$(BinFolder)/crossbible-$(FileVersion)-1.*.rpm;$(BinFolder)/crossbible-$(FileVersion)-1-*.pkg.tar.zst" />
         </ItemGroup>
         <Delete Files="@(OutputPackageFiles)" />
         <RemoveDir Directories="$(StagingFolder)" />
@@ -102,9 +106,10 @@
          toolchain (an Alpine machine or container builds them best). -->
     <Target Name="PublishRuntime">
         <PropertyGroup>
-            <RuntimeFolder>$(AotPublishFolder)/$(AotRuntimeId)</RuntimeFolder>
+            <RuntimeFolder>$(BuildsFolder)/$(AotRuntimeId)</RuntimeFolder>
             <RuntimeTarball>$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz</RuntimeTarball>
         </PropertyGroup>
+        <MakeDir Directories="$(AotPublishFolder)" />
 
         <!-- Building for ARM on a x64 machine: ILCompiler strips the debug symbols with objcopy, which has to be the one of the target (the linker is found by clang
              by its name with the target: gcc-aarch64-linux-gnu and binutils-aarch64-linux-gnu, or gcc-arm-linux-gnueabihf and binutils-arm-linux-gnueabihf). -->
@@ -171,7 +176,7 @@
             <RpmStage>$(StagingFolder)/rpm-$(RpmArch)</RpmStage>
         </PropertyGroup>
         <ItemGroup>
-            <AotFiles Include="$(AotPublishFolder)/$(AotRuntimeId)/**/*.*" Exclude="$(AotPublishFolder)/$(AotRuntimeId)/**/*.pdb;$(AotPublishFolder)/$(AotRuntimeId)/**/*.dbg" />
+            <AotFiles Include="$(BuildsFolder)/$(AotRuntimeId)/**/*.*" Exclude="$(BuildsFolder)/$(AotRuntimeId)/**/*.pdb;$(BuildsFolder)/$(AotRuntimeId)/**/*.dbg" />
             <DebTemplate Include="$(PackagesFolder)Debian/DEBIAN/**/*.*" />
             <RpmTemplate Include="$(PackagesFolder)Fedora/SPECS/**/*.*" />
             <DocFilesDebian Include="$(PackagesFolder)src/doc/*.*" Exclude="$(PackagesFolder)src/doc/ChangeLog" />
@@ -213,15 +218,13 @@
         <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="StageRoot" Properties="AotRuntimeId=$(AotRuntimeId);StageDir=$(StagingFolder)/pacman-$(PacmanArch)" />
         <Exec Command="sh &quot;$(PackagesFolder)src/scripts/MakeArchPackage.sh&quot; &quot;$(StagingFolder)/pacman-$(PacmanArch)&quot; &quot;$(FileVersion)-1&quot; &quot;$(PacmanArch)&quot; &quot;$(BinFolder)/crossbible-$(FileVersion)-1-$(PacmanArch).pkg.tar.zst&quot;" />
 
-        <!-- The .tar.gz of the same build. -->
-        <Copy Condition="Exists('$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz')" SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
     </Target>
 
     <!-- Puts together the usr tree of a package of the runtime AotRuntimeId in the folder StageDir: the files of Debian and Fedora are put together in
          PackageRuntime, the ones of Arch Linux and Alpine use this. -->
     <Target Name="StageRoot">
         <ItemGroup>
-            <RootAotFiles Include="$(AotPublishFolder)/$(AotRuntimeId)/**/*.*" Exclude="$(AotPublishFolder)/$(AotRuntimeId)/**/*.pdb;$(AotPublishFolder)/$(AotRuntimeId)/**/*.dbg" />
+            <RootAotFiles Include="$(BuildsFolder)/$(AotRuntimeId)/**/*.*" Exclude="$(BuildsFolder)/$(AotRuntimeId)/**/*.pdb;$(BuildsFolder)/$(AotRuntimeId)/**/*.dbg" />
             <RootDocFiles Include="$(PackagesFolder)src/doc/*.*" Exclude="$(PackagesFolder)src/doc/changelog.Debian" />
         </ItemGroup>
         <RemoveDir Directories="$(StageDir)" />
@@ -243,7 +246,6 @@
     <Target Name="PackageAlpineRuntime" DependsOnTargets="PublishRuntime">
         <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="StageRoot" Properties="AotRuntimeId=$(AotRuntimeId);StageDir=$(StagingFolder)/apk-$(ApkArch)" />
         <Exec Command="sh &quot;$(PackagesFolder)src/scripts/MakeAlpinePackage.sh&quot; &quot;$(StagingFolder)/apk-$(ApkArch)&quot; &quot;$(FileVersion)-r0&quot; &quot;$(ApkArch)&quot; &quot;$(BinFolder)/crossbible-$(FileVersion)-r0-linux-$(ApkArch).apk&quot;" />
-        <Copy Condition="Exists('$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz')" SourceFiles="$(AotPublishFolder)/crossbible-$(Version)-$(AotRuntimeId).tar.gz" DestinationFolder="$(BinFolder)" />
     </Target>
 
     <!-- All three architectures are built (ARM from a x64 machine with the sysroots of make.sh, see PublishRuntime). -p:AlpineAllArchs=false builds only the one of
@@ -268,7 +270,7 @@
     <Target Name="PackageNoarch">
         <PropertyGroup>
             <NoarchName>crossbible-$(FileVersion)-noarch</NoarchName>
-            <NoarchPublish>$(AotPublishFolder)/noarch</NoarchPublish>
+            <NoarchPublish>$(BuildsFolder)/noarch</NoarchPublish>
             <NoarchStage>$(StagingFolder)/noarch/$(NoarchName)</NoarchStage>
         </PropertyGroup>
 

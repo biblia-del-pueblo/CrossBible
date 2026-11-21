@@ -136,7 +136,8 @@ fi
 # In WSL the sources are on a Windows drive (/mnt/c), where Visual Studio, when it is open, restores the projects in the background and overwrites project.assets.json
 # with the NuGet folders of Windows: a build in the middle of it stops with "Unable to find fallback package folder". The files of Windows also have no execute permission,
 # and every access to them is slow. So the packages are built in a copy of the sources in the file system of Linux (MAKE_INPLACE=1 builds in place), and what is
-# made (the packages in bin, the builds in publish) is copied back. obj and bin stay in the copy: nothing of the Windows builds gets into it.
+# made (the packages and the .tar.gz files, all of them in the publish folder at the root of the checkout, which has no subfolders) is copied back. The builds of
+# the runtimes (CrossBible.LinuxPackages/obj/publish), obj and bin stay in the copy: nothing of the Windows builds gets into it.
 src="$(cd .. && pwd)"
 copy=0
 case "$src" in
@@ -155,9 +156,12 @@ if [ "$copy" = "1" ]; then
         --exclude='/BibleMarkdown/BibleMarkdown/runtimes' --exclude='/BibleMarkdown/MigrateFramework' --exclude='/BibleMarkdown/UncapitalizeReinaValera1909Chapters' \
         --exclude='bin/' --exclude='obj/' \
         "$src/" "$work/"
-    # SkipPublish uses the builds that are in the publish folder already.
+    # SkipPublish uses the builds of the runtimes that are in CrossBible.LinuxPackages/obj/publish already (made on another machine, or in the checkout), and the
+    # .tar.gz files of the publish folder.
     case " $* " in
-        *SkipPublish*) [ -d "$src/publish" ] && { mkdir -p "$work/publish"; rsync -a "$src/publish/" "$work/publish/"; } ;;
+        *SkipPublish*)
+            [ -d "$src/publish" ] && { mkdir -p "$work/publish"; rsync -a "$src/publish/" "$work/publish/"; }
+            [ -d "$src/CrossBible.LinuxPackages/obj/publish" ] && { mkdir -p "$work/CrossBible.LinuxPackages/obj/publish"; rsync -a "$src/CrossBible.LinuxPackages/obj/publish/" "$work/CrossBible.LinuxPackages/obj/publish/"; } ;;
     esac
     cd "$work/CrossBible.LinuxPackages"
 fi
@@ -166,9 +170,8 @@ status=0
 dotnet msbuild LinuxPackages.proj "$@" || status=$?
 
 if [ "$copy" = "1" ]; then
-    mkdir -p "$src/publish" "$src/CrossBible.LinuxPackages/bin"
+    mkdir -p "$src/publish"
     [ -d "$work/publish" ] && rsync -a "$work/publish/" "$src/publish/"
-    [ -d "$work/CrossBible.LinuxPackages/bin" ] && rsync -a "$work/CrossBible.LinuxPackages/bin/" "$src/CrossBible.LinuxPackages/bin/"
-    echo "Packages and builds are copied back to $src"
+    echo "Packages are copied back to $src/publish"
 fi
 exit "$status"

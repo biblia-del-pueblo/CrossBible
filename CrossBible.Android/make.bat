@@ -1,22 +1,26 @@
-rem Builds the Android packages of CrossBible (Release, native AOT) into the folder publish\:
+rem Builds the Android packages of CrossBible (Release, native AOT) into the folder publish\ at the root of the repository (the folder of all the make scripts,
+rem with the packages in the folder itself and no subfolders):
 rem
 rem   crossbible-<version>-android-arm64.apk   64 bit ARM phones (nearly all phones of the last years)
 rem   crossbible-<version>-android-arm.apk     32 bit ARM (older phones)
 rem   crossbible-<version>-android-x64.apk     x86_64 (emulators, Chromebooks)
 rem   crossbible-<version>-android.aab         the app bundle for the Google Play Store: contains all three, Play delivers the fitting one
-rem   upload.keystore, signing.cmd     the upload key and its passwords (created on the first run, never commit them, back them up)
+rem
+rem The upload key and its passwords are not in that folder, which is published: they are in the folder publish\ of this project (CrossBible.Android\publish), with the
+rem temporary builds. upload.keystore, signing.cmd: created on the first run, never commit them, back them up.
 rem
 rem   make.bat           builds the three APKs and the bundle
 rem   make.bat aab       builds only the bundle
 rem   make.bat apk       builds only the APKs
 rem
-rem The packages are signed with the upload key in publish\upload.keystore. Play Store: upload the .aab in the Play Console (Release > Production);
+rem The packages are signed with the upload key in CrossBible.Android\publish\upload.keystore. Play Store: upload the .aab in the Play Console (Release > Production);
 rem with Play App Signing, Google signs the apps for the users with its own key and this one only proves that the upload comes from you.
 rem The version is Version in Directory.Build.props, the version code (ApplicationVersion) must grow with every upload to the Play Store.
 
 setlocal
 set "HERE=%~dp0"
 set "OUT=%HERE%publish"
+set "PUBLISH=%HERE%..\publish"
 set "PROJECT=%HERE%CrossBible.Android.csproj"
 
 set "DOAPK=1"
@@ -34,6 +38,7 @@ if not defined VERSION (
 )
 
 if not exist "%OUT%" mkdir "%OUT%"
+if not exist "%PUBLISH%" mkdir "%PUBLISH%"
 
 rem The upload key: created once.
 if not exist "%OUT%\upload.keystore" call :createkey || exit /b 1
@@ -51,13 +56,13 @@ if defined DOAAB (
     if exist "%OUT%\build-aab" rmdir /s /q "%OUT%\build-aab"
     dotnet build-server shutdown >nul 2>&1
     dotnet publish "%PROJECT%" -c Release -f net11.0-android -p:UseSharedCompilation=false -p:AndroidAbis=all -p:AndroidPackageFormat=aab %SIGN% -o "%OUT%\build-aab" || exit /b 1
-    for %%f in ("%OUT%\build-aab\*-Signed.aab") do copy /y "%%f" "%OUT%\crossbible-%VERSION%-android.aab" >nul
+    for %%f in ("%OUT%\build-aab\*-Signed.aab") do copy /y "%%f" "%PUBLISH%\crossbible-%VERSION%-android.aab" >nul
     rmdir /s /q "%OUT%\build-aab"
 )
 
 echo.
-echo Done: %OUT%
-dir /b "%OUT%"
+echo Done: %PUBLISH%
+dir /b "%PUBLISH%\crossbible-%VERSION%-android*"
 exit /b 0
 
 rem One APK for one architecture: %1 is the name in the file, %2 the runtime identifier.
@@ -65,11 +70,11 @@ rem One APK for one architecture: %1 is the name in the file, %2 the runtime ide
 if exist "%OUT%\build-%1" rmdir /s /q "%OUT%\build-%1"
 dotnet build-server shutdown >nul 2>&1
 dotnet publish "%PROJECT%" -c Release -f net11.0-android -p:UseSharedCompilation=false -p:AndroidAbis=%2 -p:AndroidPackageFormat=apk %SIGN% -o "%OUT%\build-%1" || exit /b 1
-for %%f in ("%OUT%\build-%1\*-Signed.apk") do copy /y "%%f" "%OUT%\crossbible-%VERSION%-android-%1.apk" >nul
+for %%f in ("%OUT%\build-%1\*-Signed.apk") do copy /y "%%f" "%PUBLISH%\crossbible-%VERSION%-android-%1.apk" >nul
 rmdir /s /q "%OUT%\build-%1"
 exit /b 0
 
-rem Creates the upload key and publish\signing.cmd with its password.
+rem Creates the upload key and CrossBible.Android\publish\signing.cmd with its password.
 :createkey
 set "KEYTOOL="
 for /d %%j in ("%ProgramFiles%\Android\openjdk\*" "%ProgramFiles(x86)%\Android\openjdk\*") do if exist "%%~j\bin\keytool.exe" set "KEYTOOL=%%~j\bin\keytool.exe"

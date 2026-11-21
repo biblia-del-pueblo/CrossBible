@@ -1,0 +1,92 @@
+# Makes a GitHub release of the files that are pushed to the branch "publish".
+#
+# The branch holds what the make scripts put into the publish folder at the root of the repository (the Windows installers, the Store package, the Linux packages, the
+# Android packages and the macOS packages, all of them directly in the folder, no subfolders; see README.md). The release is made for the newest version that is in the
+# names of the files, and gets the files of that version (the branch may still have the files of older releases).
+#
+#   tag    v<version>, for example v1.0.4
+#   title  Cross Bible <version>
+#
+# When the release of that version is there already, the files are uploaded to it again (replacing the ones of the same name).
+
+name: Release the publish branch
+
+on:
+  push:
+    branches:
+      - 'publish'
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Make a draft (a release that only you see, to look at before you publish it)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # the release and its files
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: publish
+
+      - name: Make the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          set -euo pipefail
+
+          # The packages: the files of the branch itself (not of subfolders) whose names begin with crossbible, as all the packages of the make scripts do. Nothing else is
+          # released, whatever else is on the branch (a README, and not a key or a script that was pushed by mistake).
+          files=()
+          for f in crossbible*; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.keystore|*.jks|*.pfx|*.cmd|*.bat|*.sh|*.pem|*.key) continue ;;
+            esac
+            files+=("$f")
+          done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::The branch has no files to release."
+            exit 1
+          fi
+
+          # The newest version in the names: crossbible-1.0.4-linux-x64.tar.gz, crossbible_1.0.4-1_amd64.deb, crossbible_1.0.4.0_x64_arm64_bundle.msixupload ...
+          version="$(printf '%s\n' "${files[@]}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -uV | tail -n 1)"
+          if [ -z "$version" ]; then
+            echo "::error::No version was found in the names of the files."
+            exit 1
+          fi
+
+          # The files of that version: the version is a part of the name of its own (not the end of a longer number).
+          pattern="(^|[-_])${version//./\\.}([-_.]|$)"
+          assets=()
+          for f in "${files[@]}"; do
+            if [[ "$f" =~ $pattern ]]; then assets+=("$f"); fi
+          done
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "::error::No file has the version $version."
+            exit 1
+          fi
+
+          tag="v$version"
+          echo "Release $tag with ${#assets[@]} files:"
+          printf '  %s\n' "${assets[@]}"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "The release $tag is there already: its files are replaced."
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            options=(--title "Cross Bible $version" --notes "Cross Bible $version" --target "$GITHUB_SHA")
+            if [ "${DRAFT:-}" = "true" ]; then options+=(--draft); fi
+            gh release create "$tag" "${assets[@]}" "${options[@]}"
+          fi

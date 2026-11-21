@@ -43,7 +43,7 @@ PowerShell, the cross compilers for ARM; on Alpine `clang`, `build-base`, `tar` 
 in an administrator terminal, once.
 
 The packages are not built in the folder of Windows (`/mnt/c`): `make.sh` copies the sources to `~/crossbible-build` in the file system of Linux (`rsync`, without
-`bin`, `obj` and the projects that are not needed), builds there, and copies the packages (`bin`) and the builds (`publish`) back. That is faster, the files have
+`bin`, `obj` and the projects that are not needed), builds there, and copies the packages (they are in the `publish` folder at the root of the repository) back. That is faster, the files have
 their execute permission, and Visual Studio, which restores the projects in the background and overwrites `project.assets.json` with the NuGet folders of Windows
 (a build in the middle of it stops with "Unable to find fallback package folder"), cannot get in the way. `MAKE_INPLACE=1` builds in place.
 
@@ -56,8 +56,9 @@ There are packages for three architectures:
 | linux-arm    | armhf         | armv7hl       | armv7h                    |
 
 The packages (`crossbible_<Version>-1_<arch>.deb`, `crossbible-<Version>-1.<arch>.rpm`, `crossbible-<Version>-1-<arch>.pkg.tar.zst`) and a `.tar.gz` of
-each architecture are written to the bin folder. Each package is put together in its own folder in staging (Debian and Fedora are the templates), the AOT
-build of each runtime is in `..\publish`. The packages are not signed (install the Arch Linux one with `pacman -U`). `-t:PublishDesktopAot` only publishes
+each architecture are written to the `publish` folder at the root of the repository (`..\publish`; all of them directly in that folder, which has no subfolders, with the
+packages of the other make scripts). Each package is put together in its own folder in staging (Debian and Fedora are the templates), the AOT
+build of each runtime is in `obj\publish` of this folder. The packages are not signed (install the Arch Linux one with `pacman -U`). `-t:PublishDesktopAot` only publishes
 the `.tar.gz` files, with the musl ones too.
 
 Every `.tar.gz` (`crossbible-<Version>-<runtime>.tar.gz`, one for each runtime, and `crossbible-<Version>-noarch.tar.gz`) holds the program in the folder `crossbible` and
@@ -77,7 +78,7 @@ Alpine machine or container, with `apk add tar clang build-base zlib-dev rsync` 
 
 All three architectures are built. The ARM ones are cross-built on a x64 Alpine: `make.sh` makes a root file system of Alpine for each of them in
 `/opt/sysroot/<arch>` (`src/scripts/MakeAlpineSysroot.sh`: the C library of the target, its start files, gcc's runtime, libstdc++, zlib) and Native AOT links with `lld`
-against it. `-p:AlpineAllArchs=false` builds only the architecture of the machine; with `-p:SkipPublish=true` the packages are made from the builds in the `publish` folder
-that other machines made.
+against it. `-p:AlpineAllArchs=false` builds only the architecture of the machine; with `-p:SkipPublish=true` the packages are made from the builds in `obj/publish` (and the `.tar.gz`
+files in the `publish` folder) that other machines made.
 
 Install a package with `apk add --allow-untrusted crossbible-<Version>-r0-linux-<arch>.apk` (it is not signed).
