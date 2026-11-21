@@ -21,7 +21,9 @@ public partial class SettingsView : UserControl
     /// <summary>Inter comes with the Avalonia.Fonts.Inter package, which every platform head registers (<c>WithInterFont</c>).</summary>
     public const string InterFont = "Inter";
     /// <summary>All the fonts in this assembly's Assets folder (by family name); Bible Roman is the default.</summary>
-    private static readonly string[] AssetFonts = { EmbeddedFont, "Cardo", "Frank Ruehl CLM" };
+    private static readonly string[] AssetFonts = { EmbeddedFont, "Cardo", "Frank Ruehl CLM", HebrewDefaultFont };
+    /// <summary>The font of Hebrew words until the reader chooses one: Ezra SIL (SILEOT.ttf in the Assets folder).</summary>
+    public const string HebrewDefaultFont = "Ezra SIL";
     /// <summary>The size of the reading text until the reader chooses one: 18, larger when the system has set a larger font size.</summary>
     public static double DefaultFontSize => Math.Clamp(Math.Round(18 * UiScale.Factor), 12, 40);
 
@@ -98,8 +100,8 @@ public partial class SettingsView : UserControl
     /// <summary>The font of Greek words, as chosen in the settings (Cardo until then).</summary>
     public static FontFamily GreekFamily => FamilyOf(string.IsNullOrWhiteSpace(Settings.Current.GreekFontFamily) ? "Cardo" : Settings.Current.GreekFontFamily);
 
-    /// <summary>The font of Hebrew words, as chosen in the settings (Frank Ruehl CLM until then).</summary>
-    public static FontFamily HebrewFamily => FamilyOf(string.IsNullOrWhiteSpace(Settings.Current.HebrewFontFamily) ? "Frank Ruehl CLM" : Settings.Current.HebrewFontFamily);
+    /// <summary>The font of Hebrew words, as chosen in the settings (Ezra SIL until then).</summary>
+    public static FontFamily HebrewFamily => FamilyOf(string.IsNullOrWhiteSpace(Settings.Current.HebrewFontFamily) ? HebrewDefaultFont : Settings.Current.HebrewFontFamily);
 
     /// <summary>Lists the fonts: the ones that ship with the app, the installed ones and the system's.</summary>
     private void FillFonts()
@@ -265,7 +267,7 @@ public partial class SettingsView : UserControl
             TextOpacityText.Text = $"{TextOpacitySlider.Value:0}%";
             FontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.FontFamily) ? EmbeddedFont : settings.FontFamily;
             GreekFontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.GreekFontFamily) ? "Cardo" : settings.GreekFontFamily;
-            HebrewFontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.HebrewFontFamily) ? "Frank Ruehl CLM" : settings.HebrewFontFamily;
+            HebrewFontBox.SelectedItem = string.IsNullOrWhiteSpace(settings.HebrewFontFamily) ? HebrewDefaultFont : settings.HebrewFontFamily;
             JesusBox.IsChecked = settings.ShowWordsOfJesus ?? true;
             GreenVerseBox.IsChecked = settings.ShowVerseNumbersInGreen ?? false;
             HyphenateBox.IsChecked = settings.Hyphenate ?? true;

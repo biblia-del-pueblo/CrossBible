@@ -3921,11 +3921,11 @@ public partial class BibleTextBlock : Panel
     private static Pen StrongsPenOf(IBrush brush) =>
         new(brush, StrongsUnderlineThickness, new DashStyle(new double[] { 1, 2 }, 0), PenLineCap.Round);
 
-    // Greek and Hebrew text is set in the fonts chosen for them in the settings (Cardo and Frank Ruehl CLM until then),
+    // Greek and Hebrew text is set in the fonts chosen for them in the settings (Cardo and Ezra SIL until then),
     // whatever font the reader chose for the rest.
     private static FontFamily GreekFont => CrossBible.Library.UI.SettingsView.GreekFamily;
     private static FontFamily HebrewFont => CrossBible.Library.UI.SettingsView.HebrewFamily;
-    private const double HebrewScale = 1.5;
+    private const double HebrewScale = 1;
 
     /// <summary>
     /// Small capitals: the first letter of every word is a capital of the regular size, the other letters are

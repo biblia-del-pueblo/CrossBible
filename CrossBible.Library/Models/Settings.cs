@@ -73,7 +73,7 @@ namespace CrossBible.Library
         /// <summary>The font of Greek words in the text and of the Greek Strong's letters.</summary>
         public string GreekFontFamily { get; set; } = "Cardo";
         /// <summary>The font of Hebrew words in the text and of the Hebrew Strong's letters.</summary>
-        public string HebrewFontFamily { get; set; } = "Frank Ruehl CLM";
+        public string HebrewFontFamily { get; set; } = "Ezra SIL";
         public string ConfigPath
         {
             get
