@@ -60,10 +60,14 @@ if defined CLEAN (
         if exist "%HERE%obj\%%a" rmdir /s /q "%HERE%obj\%%a"
     )
 ) else (
-    rem The layout for the Store upload is not made again by itself when the manifest changed: a stale one fails the build.
-    if exist "%HERE%bin\x64\Release\Upload" rmdir /s /q "%HERE%bin\x64\Release\Upload"
-    if exist "%HERE%obj\x64\Release\Upload" rmdir /s /q "%HERE%obj\x64\Release\Upload"
-    if exist "%HERE%obj\x64\Release\PackageUploadLayout" rmdir /s /q "%HERE%obj\x64\Release\PackageUploadLayout"
+    rem The layout for the Store upload is not made again by itself when the manifest changed: a stale one fails the build, or worse, is packed with its old
+    rem version (an ARM64 package with the version of the last release in a bundle of the new one: Partner Center refuses it as a duplicate of the published
+    rem package). It is deleted for both architectures, the ARM64 layout is made for the bundle too.
+    for %%a in (x64 arm64) do (
+        if exist "%HERE%bin\%%a\Release\Upload" rmdir /s /q "%HERE%bin\%%a\Release\Upload"
+        if exist "%HERE%obj\%%a\Release\Upload" rmdir /s /q "%HERE%obj\%%a\Release\Upload"
+        if exist "%HERE%obj\%%a\Release\PackageUploadLayout" rmdir /s /q "%HERE%obj\%%a\Release\PackageUploadLayout"
+    )
 )
 
 rem Platform x64 builds the bundle: AppxBundlePlatforms in CrossBible.Msix.wapproj has x64 and arm64, and the app is built for both.
