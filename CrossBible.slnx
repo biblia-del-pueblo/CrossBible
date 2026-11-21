@@ -3,6 +3,8 @@
     <File Path="CrossBible.MacOS/make.bat" />
     <File Path="CrossBible.Msi/make.bat" />
     <File Path="CrossBible.Msix/make.bat" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
   </Folder>
   <Project Path="BibleMarkdown/BibleMarkdown/BibleMarkdown.csproj" />
   <Project Path="BibleMarkdown/BibleMarkdown.Tests/BibleMarkdown.Tests.csproj" />

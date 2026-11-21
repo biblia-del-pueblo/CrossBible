@@ -2989,7 +2989,7 @@ public partial class BibleTextBlock : Panel
         if (Environment.NewLine != "\r\n") markdown = markdown.Replace("\r\n", Environment.NewLine);
 
         // The markdown of the dictionaries is the same Bible Markdown as the text: bold, italic and paragraphs.
-        var runs = BookText.ParseText(markdown, new BookText.VersePosition());
+        var runs = BookText.ParseNormalText(markdown, new BookText.VersePosition()); // marks the "## G1234" title as the first, without blank lines before it
         var inlines = ToInlines(runs, FontSize * FootnoteScale, upperCase: false).ToList();
         LinkStrongsNumbers(inlines, strong, bounds);
         ShowPopup(inlines, bounds);
@@ -3068,7 +3068,7 @@ public partial class BibleTextBlock : Panel
     internal static IEnumerable<Inline> MarkdownInlines(string markdown, double size)
     {
         if (Environment.NewLine != "\r\n") markdown = markdown.Replace("\r\n", Environment.NewLine);
-        return ToInlines(BookText.ParseText(markdown, new BookText.VersePosition()), size, upperCase: false);
+        return ToInlines(BookText.ParseNormalText(markdown, new BookText.VersePosition()), size, upperCase: false);
     }
     /// <summary>The plain text of inlines (their runs, also in spans).</summary>
     internal static string PlainText(IEnumerable<Inline> inlines, List<string>? linkTexts = null)
@@ -3226,8 +3226,17 @@ public partial class BibleTextBlock : Panel
         void StopMenuTimer() { menuTimer?.Stop(); menuTimer = null; }
         void StopTouchTimer() { touchTimer?.Stop(); touchTimer = null; }
 
+        // The text cannot be hit, so it never has the focus and never gets Ctrl+C: the host takes the keys (it is given the focus by a press).
+        host.Focusable = true;
+        host.KeyDown += (_, e) =>
+        {
+            if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+            if (e.Key == Key.C) { CopySelection(); e.Handled = true; }
+            else if (e.Key == Key.A) { text.SelectAll(); e.Handled = true; }
+        };
         host.PointerPressed += (_, e) =>
         {
+            host.Focus();
             StopMenuTimer();
             StopTouchTimer();
             if (touchSelecting) LockScroll(false);

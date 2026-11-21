@@ -659,6 +659,24 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
         };
     }
 
+    /// <summary>
+    /// Parses a text that is not a Bible (a book, a dictionary entry): <see cref="ParseText"/>, with the first title
+    /// marked as <see cref="Run.First"/>, so it is shown without the blank lines a title gets before it.
+    /// </summary>
+    public static IEnumerable<Run> ParseNormalText(string text, VersePosition position)
+    {
+        bool first = true;
+        foreach (var run in ParseText(text, position))
+        {
+            if (first && run.Class == Run.Classes.Title)
+            {
+                first = false;
+                run.First = true;
+            }
+            yield return run;
+        }
+    }
+
     public static IEnumerable<Run> ParseNormalBook(Book book)
     {
         var position = new VersePosition()
@@ -668,15 +686,7 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
             Chapter = 1,
             Verse = 1
         };
-        bool first = true;
-        foreach (var run in ParseText(book.Markdown, position)) {
-            if (first && run.Class == Run.Classes.Title)
-            {
-                first = false;
-                run.First = true;
-            }
-            yield return run;
-        }
+        return ParseNormalText(book.Markdown, position);
     }
     public static IEnumerable<Run> ParseBibleBook(Book book)
     {

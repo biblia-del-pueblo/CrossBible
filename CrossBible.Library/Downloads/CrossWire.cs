@@ -4,6 +4,7 @@ using CrossBible.Library.Downloads;
 using HtmlAgilityPack;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -38,6 +39,8 @@ namespace CrossBible.Library
         /// link to download it. The name of the module is the <see cref="BookText.EnglishName"/> (it names the folder of
         /// the module), the description is the <see cref="BookText.Name"/>.
         /// </summary>
+        public static readonly string[] OmmittedBooks = [ "StrongsGreek" ];
+
         protected static async Task<List<T>> GetModulesAsync<T>(string modType, Func<T> create) where T : CrossWireBook
         {
             var html = new HtmlAgilityPack.HtmlDocument();
@@ -65,7 +68,7 @@ namespace CrossBible.Library
                     module.LanguageEnglishName = EnglishLanguageName(language);
                     module.DetailsUrl = info.Length > 0 ? Absolute(info, "/sword/modules/") : null;
                     module.CrossWireModuleUrl = Absolute(download, "/sword/modules/");
-                    modules.Add(module);
+                    if (!OmmittedBooks.Contains(module.EnglishName)) modules.Add(module);
                 }
             }
             if (modules.Count == 0) throw new NotSupportedException("crosswire.org returned an invalid format.");
