@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Књиге</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Интерлинеарни</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>Још нема инсталираних Библија</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} стихова, најбоље поклапање прво</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>О Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Инсталирај Библије…</value>

@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  책</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>행간</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>아직 설치된 성경이 없습니다</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>구절 {0}개, 가장 잘 맞는 순서</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Cross Bible 정보…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>성경 설치…</value>

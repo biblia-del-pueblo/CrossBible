@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Các sách</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Interlinear</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>Chưa cài Kinh Thánh nào</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} câu, kết quả khớp nhất ở trên</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Giới thiệu Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Cài Kinh Thánh…</value>

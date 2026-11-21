@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Գրքեր</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Ինտերլինեար</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>Դեռ Աստվածաշունչ տեղադրված չէ</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} համար, ամենահարմարը՝ առաջինը</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Cross Bible-ի մասին…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Տեղադրել Աստվածաշնչեր…</value>

@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  书卷</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>行间对照</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>尚未安装圣经</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>共 {0} 节经文，最佳匹配在前</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>关于 Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>安装圣经…</value>

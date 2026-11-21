@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Kitaplar</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Satır arası</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>Henüz yüklü Kutsal Kitap yok</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} ayet, en iyi eşleşmeler önce</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Cross Bible Hakkında…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Kutsal Kitapları yükle…</value>

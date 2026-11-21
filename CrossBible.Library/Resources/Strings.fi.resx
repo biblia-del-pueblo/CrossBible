@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Kirjat</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Interlineaarinen</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>Raamattuja ei ole vielä asennettu</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} jaetta, paras osuma ensin</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Tietoja: Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Asenna Raamattuja…</value>

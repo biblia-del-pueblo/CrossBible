@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  පොත්</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Interlinear</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>තවම බයිබල් ස්ථාපනය කර නැත</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>පද {0}ක්, හොඳම ගැළපීම මුලින්</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Cross Bible ගැන…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>බයිබල් ස්ථාපනය කරන්න…</value>

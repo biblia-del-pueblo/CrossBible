@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>›  کتاب‌ها</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>بین‌خطی</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>هنوز کتاب مقدسی نصب نشده است</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} آیه، بهترین نتیجه ابتدا</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>درباره Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>نصب کتاب‌های مقدس…</value>

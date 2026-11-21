@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Knihy</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Interlineárny</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>Zatiaľ nie sú nainštalované žiadne Biblie</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} veršov, najlepšia zhoda prvá</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>O aplikácii Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Nainštalovať Biblie…</value>

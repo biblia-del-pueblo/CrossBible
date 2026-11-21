@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  គម្ពីរ</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Interlinear</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>មិនទាន់មានព្រះគម្ពីរដែលបានដំឡើងនៅឡើយទេ</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} ខ លទ្ធផលត្រូវគ្នាបំផុតមុនគេ</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>អំពី Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>ដំឡើងព្រះគម្ពីរ…</value>

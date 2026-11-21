@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Bücher</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Interlinear</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>Noch keine Bibeln installiert</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} Verse, beste Treffer zuerst</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Über Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>Bibeln installieren…</value>

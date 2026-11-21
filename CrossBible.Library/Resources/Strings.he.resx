@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>›  ספרים</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>בין השורות</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>עדיין לא הותקנו מקראות</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} פסוקים, ההתאמות הטובות ביותר תחילה</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>אודות Cross Bible…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>התקנת מקראות…</value>

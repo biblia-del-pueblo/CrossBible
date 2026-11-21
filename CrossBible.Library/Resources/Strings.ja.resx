@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  書</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>行間訳</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>まだ聖書がインストールされていません</value>
   </data>
@@ -164,6 +167,9 @@
   </data>
   <data name="VersesFound" xml:space="preserve">
     <value>{0} 節、一致度の高い順</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>Cross Bible について…</value>
   </data>
   <data name="MenuInstallBibles" xml:space="preserve">
     <value>聖書をインストール…</value>
