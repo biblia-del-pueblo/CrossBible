@@ -37,7 +37,6 @@
          by the subject of that certificate (CN=Estrellas de Esperanza), and Partner Center refuses a package whose Publisher is not the one of the product identity
          (CN=057A2C88-...). To sideload a package, sign it with signtool and a certificate whose subject is the Publisher of the manifest. -->
     <AppxPackageSigningEnabled>False</AppxPackageSigningEnabled>
-    <EntryPointProjectUniqueName>..\CrossBible.Desktop\CrossBible.Desktop.csproj</EntryPointProjectUniqueName>
     <!-- Publish > Create App Packages: one .msixupload with the x64 and the ARM64 package. -->
     <AppxBundle>Always</AppxBundle>
     <AppxBundlePlatforms>x64|arm64</AppxBundlePlatforms>
@@ -69,11 +68,25 @@
   <ItemGroup>
     <PRIResource Include="Strings\**\Resources.resw" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\CrossBible.Desktop\CrossBible.Desktop.csproj">
-      <SkipGetTargetFrameworkProperties>True</SkipGetTargetFrameworkProperties>
-    </ProjectReference>
+  <!-- The app is not built by this project: make.bat publishes it first (dotnet publish CrossBible.Desktop -r win-<arch> -p:UseAot=true -o obj\publish\<arch>, as
+       CrossBible.Msi does) and what is in that folder goes into the package, under CrossBible.Desktop\ (see Executable in Package.appxmanifest).
+       Packaging the output of a ProjectReference instead (PublishItemsOutputGroup of the SDK) does not work with native AOT: the list of files that it makes has
+       the apphost (a stub that starts CrossBible.Desktop.dll) where the native executable should be, and not one of the assemblies, so the app did not start. -->
+  <PropertyGroup>
+    <PublishArch Condition="'$(Platform)' == 'x64'">x64</PublishArch>
+    <PublishArch Condition="'$(Platform)' == 'ARM64'">arm64</PublishArch>
+    <PublishedApp>$(MSBuildProjectDirectory)\obj\publish\$(PublishArch)</PublishedApp>
+    <!-- There is no application to refer to (the packaging targets want one): its executable is named instead. -->
+    <EntryPointExe>CrossBible.Desktop\CrossBible.Desktop.exe</EntryPointExe>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(PublishArch)' != '' and Exists('$(PublishedApp)\CrossBible.Desktop.exe')">
+    <!-- The symbols of the native executable are not for the users (the .appxsym has them). -->
+    <Content Include="$(PublishedApp)\**" Exclude="$(PublishedApp)\**\*.pdb;$(PublishedApp)\**\*.dbg" Link="CrossBible.Desktop\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
+  <Target Name="CheckPublishedApp" BeforeTargets="BeforeBuild;_GetPackageProps">
+    <Error Condition="'$(PublishArch)' == '' or !Exists('$(PublishedApp)\CrossBible.Desktop.exe')"
+           Text="The published app is missing ($(PublishedApp)\CrossBible.Desktop.exe): this project packages what 'make.bat' publishes first, so build it with make.bat." />
+  </Target>
   <Import Project="$(WapProjPath)\Microsoft.DesktopBridge.targets" />
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" PrivateAssets="all" />

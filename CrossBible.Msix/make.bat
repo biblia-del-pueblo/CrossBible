@@ -70,16 +70,32 @@ if defined CLEAN (
     )
 )
 
-rem Platform x64 builds the bundle: AppxBundlePlatforms in CrossBible.Msix.wapproj has x64 and arm64, and the app is built for both.
-rem How the code is compiled is set here, besides CrossBible.Desktop.csproj, so that the package is made this way whatever that file says: UseAot=true is
-rem native AOT (see the switch in that file), PublishReadyToRun=true is ReadyToRun.
-if "%MODE%"=="aot" (
-    echo Building with native AOT...
-    "%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -p:UseAot=true -verbosity:minimal -nologo
-) else (
-    echo Building with ReadyToRun...
-    "%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -p:PublishReadyToRun=true -verbosity:minimal -nologo
+rem The app is published first, for both architectures, into obj\publish\<arch> (as CrossBible.Msi does), and CrossBible.Msix.wapproj packages what is there. It is
+rem not packaged from a ProjectReference: with native AOT that package had the apphost (which starts CrossBible.Desktop.dll) instead of the native executable, and
+rem none of the assemblies, so the app did not start. How the code is compiled is set here, besides CrossBible.Desktop.csproj, so that the package is made this way
+rem whatever that file says: UseAot=true is native AOT (see the switch in that file), PublishReadyToRun=true is ReadyToRun (with the .NET runtime).
+for %%a in (x64 arm64) do (
+    if exist "%HERE%obj\publish\%%a" rmdir /s /q "%HERE%obj\publish\%%a"
+    if "%MODE%"=="aot" (
+        echo Publishing %%a with native AOT...
+        dotnet publish "%ROOT%\CrossBible.Desktop\CrossBible.Desktop.csproj" -c Release -r win-%%a -p:UseAot=true -o "%HERE%obj\publish\%%a" -nologo -verbosity:minimal
+    ) else (
+        echo Publishing %%a with ReadyToRun...
+        dotnet publish "%ROOT%\CrossBible.Desktop\CrossBible.Desktop.csproj" -c Release -r win-%%a --self-contained true -p:PublishReadyToRun=true -o "%HERE%obj\publish\%%a" -nologo -verbosity:minimal
+    )
+    if errorlevel 1 (
+        echo.
+        echo The publish of the %%a app failed.
+        exit /b 1
+    )
+    if not exist "%HERE%obj\publish\%%a\CrossBible.Desktop.exe" (
+        echo The publish of the %%a app made no CrossBible.Desktop.exe.
+        exit /b 1
+    )
 )
+
+rem Platform x64 builds the bundle: AppxBundlePlatforms in CrossBible.Msix.wapproj has x64 and arm64, and the published app of both is packaged.
+"%MSBUILD%" "%HERE%CrossBible.Msix.wapproj" -restore -p:Configuration=Release -p:Platform=x64 -verbosity:minimal -nologo
 if errorlevel 1 (
     echo.
     echo The build failed.
