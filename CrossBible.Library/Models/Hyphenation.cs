@@ -168,8 +168,16 @@ public static class Hyphenation
     public static string? LanguageOf(BookText? bible)
     {
         if (bible is null) return null;
+        // A combined text (see BookText.Combine) is hyphenated when all the texts it is made of are of the language of one set of patterns: the words of
+        // another language would be broken by the rules of the first.
+        if (bible.Sources is { Count: > 0 } sources)
+        {
+            var codes = sources.Select(LanguageOf).Distinct().ToList();
+            return codes.Count == 1 ? codes[0] : null;
+        }
         var installed = (Settings.Current.Books ?? new List<BookText>()).OfType<InstallableBook>()
             .FirstOrDefault(b => b.EnglishName == bible.EnglishName || b.EnglishName == bible.Name);
+        if (installed is null) return null;
         // The language code of the Bible (InstallableBook.LanguageCode: "de", "pt-BR"), not its Language, which is a name ("Deutsch"): what a name is made of differs
         // from system to system (on Linux a name that is no culture is made a custom culture, with the name as its code), the code does not.
         return CodeOf(installed.LanguageCode);

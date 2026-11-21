@@ -558,16 +558,69 @@ public partial class BibleToolbar : UserControl
         if (BiblesPopup.IsOpen) { BiblesPopup.IsOpen = false; return; }
         if ((DateTime.UtcNow - _biblesClosedAt).TotalMilliseconds < 300) return;
 
+        SyncSelectionFromShown();
+        // Several Bibles are read together (also when they were opened again at the start, with no box checked): they are shown as check boxes.
+        if (_selectedBibles.Count > 1 && !MultipleBibles) InterlinearBox.IsChecked = true;
+        FillBibles();
+        BiblesPopup.IsOpen = true;
+    }
+
+    /// <summary>Whether the Bibles in the list are check boxes ("Interlinear" is checked) and not buttons.</summary>
+    private bool MultipleBibles => InterlinearBox.IsChecked == true;
+
+    /// <summary>The Bibles that are checked, in the order they were checked: the first is the one that the titles are read from (see <see cref="BookText.Combine"/>).</summary>
+    private readonly List<BookText> _selectedBibles = new();
+    private bool _syncingBibles;
+    private object? _applyingSelection; // the selection that is being opened; a newer one drops it
+
+    /// <summary>The checked Bibles are those that are shown: one, or the texts that a combined text is made of.</summary>
+    private void SyncSelectionFromShown()
+    {
+        _selectedBibles.Clear();
+        var shown = Position?.Book?.BookText ?? BookText;
+        if (shown?.Sources is { } sources) _selectedBibles.AddRange(sources);
+        else if (shown is not null) _selectedBibles.Add(shown);
+    }
+
+    /// <summary>Fills the list of Bibles: buttons, or check boxes while <see cref="MultipleBibles"/>.</summary>
+    private void FillBibles()
+    {
         BiblesItems.Children.Clear();
         var bibles = Settings.Current.Books ?? new List<BookText>();
         string? current = Position?.Book?.BookText?.Name;
+        bool multiple = MultipleBibles;
         // Strong's dictionaries are not read like a Bible: they are switched on and off in the Strongs list.
         foreach (var bible in bibles.Where(b => !string.IsNullOrEmpty(b.EnglishName) && b is not IStrongDictionary)
             .OrderBy(b => b is InstallableBook ibook ? ibook.LanguageCode : "")
             .ThenBy(b => b.Name ?? b.EnglishName ?? ""))
         {
             var chosen = bible;
-            var button = new Button { Content = ShortenWithEllipsis(chosen.Name ?? chosen.EnglishName, 40) };
+            var name = ShortenWithEllipsis(chosen.Name ?? chosen.EnglishName, 40);
+            if (multiple)
+            {
+                var box = new CheckBox { Content = name, IsChecked = _selectedBibles.Contains(chosen), Margin = new Thickness(4, 2) };
+                box.IsCheckedChanged += (_, _) =>
+                {
+                    if (_syncingBibles) return;
+                    if (box.IsChecked == true)
+                    {
+                        if (!_selectedBibles.Contains(chosen)) _selectedBibles.Add(chosen);
+                    }
+                    else if (_selectedBibles.Count <= 1)
+                    {
+                        // One Bible stays checked: there is always something to read.
+                        _syncingBibles = true;
+                        try { box.IsChecked = true; }
+                        finally { _syncingBibles = false; }
+                        return;
+                    }
+                    else _selectedBibles.Remove(chosen);
+                    _ = ApplySelectionAsync();
+                };
+                BiblesItems.Children.Add(box);
+                continue;
+            }
+            var button = new Button { Content = name };
             button.Classes.Add("entry");
             if (chosen.EnglishName == current) button.Classes.Add("current");
             button.Click += (_, _) =>
@@ -581,7 +634,48 @@ public partial class BibleToolbar : UserControl
         }
         if (BiblesItems.Children.Count == 0)
             BiblesItems.Children.Add(new TextBlock { Text = Localizer.Get("NoBiblesInstalled"), Opacity = 0.7, Margin = new Thickness(12, 8) });
-        BiblesPopup.IsOpen = true;
+    }
+
+    /// <summary>
+    /// "Interlinear" was checked or unchecked: the Bibles become check boxes, or buttons again. With it unchecked only one Bible is read
+    /// (the first of the checked ones), as it was before.
+    /// </summary>
+    private void OnBiblesModeChanged(object? sender, RoutedEventArgs e)
+    {
+        if (!MultipleBibles && _selectedBibles.Count > 1)
+        {
+            _selectedBibles.RemoveRange(1, _selectedBibles.Count - 1);
+            _ = ApplySelectionAsync();
+        }
+        FillBibles();
+    }
+
+    /// <summary>
+    /// Reads the checked Bibles: the one that is checked, or, when there are several, the text made of them with <see cref="BookText.Combine"/>
+    /// (the books of the Bibles are read first). The place in the text stays.
+    /// </summary>
+    private async Task ApplySelectionAsync()
+    {
+        var selection = _selectedBibles.ToList();
+        if (selection.Count == 0) return;
+        var token = _applyingSelection = new object();
+        ShowOnlineBibles = false;
+        ShowSettings = false;
+        try
+        {
+            BookText target = selection[0];
+            if (selection.Count > 1)
+            {
+                await Task.WhenAll(selection.Select(bible => bible.EnsureBooksAsync()));
+                if (!ReferenceEquals(token, _applyingSelection)) return; // another selection was made while the books were read
+                target = BookText.Combine(selection);
+            }
+            if (!ReferenceEquals(BookText, target)) BookText = target;
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException)
+        {
+            System.Diagnostics.Debug.WriteLine($"Could not read the Bibles: {ex}");
+        }
     }
 
     private void OnBiblesPopupClosed(object? sender, EventArgs e) => _biblesClosedAt = DateTime.UtcNow;
@@ -856,6 +950,7 @@ public partial class BibleToolbar : UserControl
 
         var shown = Position?.Book?.BookText ?? BookText;
         if (shown is null) { SearchStatus.Text = Localizer.Get("OpenBibleFirst"); return; }
+        if (shown.Sources is { Count: > 0 } sources) shown = sources[0]; // an interlinear text is searched in its first text
 
         // The Bible that is read is a plain Bible; the installed one of the same folder does the search.
         var searchable = (Settings.Current.Books ?? new List<BookText>()).OfType<InstallableBook>()

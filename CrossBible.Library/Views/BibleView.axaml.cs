@@ -24,9 +24,10 @@ public partial class BibleView : UserControl
         {
             if (e.Property == BibleTextBlock.PositionProperty) { SavePositionSoon(); return; }
             if (e.Property != BibleTextBlock.BookTextProperty) return;
-            var id = (e.NewValue as BookText)?.Id;
-            if (Settings.Current.CurrentBible == id) return;
-            Settings.Current.CurrentBible = id;
+            // The Bibles that are read, in the order they were checked: one, or the texts that a combined text is made of.
+            var ids = (e.NewValue as BookText)?.PersistedIds.ToList();
+            if (SameIds(Settings.Current.CurrentBible, ids)) return;
+            Settings.Current.CurrentBible = ids;
             try { Settings.Current.Save(); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not save the settings: {ex}"); }
         };
         // A chapter or a verse picked in the popup of a number goes through the toolbar: it is in the history and the position indicator shows it.
@@ -140,7 +141,7 @@ public partial class BibleView : UserControl
         if (Block.IsBusy) { if (!force) SavePositionSoon(); return; } // still opening: the position is not the reader's yet
         if (Block.BookText is null || Block.Position is not { Book: { } book } position) return;
         var settings = Settings.Current;
-        if (settings.CurrentBible != Block.BookText.Id) return; // the Bible is being switched
+        if (!SameIds(settings.CurrentBible, Block.BookText.PersistedIds)) return; // the Bible is being switched
         if (settings.CurrentBookIndex == book.Index && settings.CurrentChapter == position.Chapter && settings.CurrentVerse == position.Verse) return;
         settings.CurrentBookIndex = book.Index;
         settings.CurrentChapter = position.Chapter;
@@ -156,12 +157,33 @@ public partial class BibleView : UserControl
         ApplyAppearance(); // before the first Bible is opened below, so its text is built with these
         // With no Bible to read, the list of the online Bibles is what the reader needs first.
         if (Block.BookText is null && OnlineBiblesView.NoneInstalled) { Toolbar.ShowOnlineBibles = true; return; }
-        if (Block.BookText is not null || Settings.Current.CurrentBible is not { Length: > 0 } id) return;
-        if (Settings.Current.Books?.FirstOrDefault(b => b.Id == id) is not { } bible) return;
+        if (Block.BookText is not null || Settings.Current.CurrentBible is not { Count: > 0 } ids) return;
+        // The Bibles of the saved list that are still installed, in the saved order (the first is the one the titles are read from).
+        var bibles = ids.Select(id => Settings.Current.Books?.FirstOrDefault(b => b.Id == id)).OfType<BookText>().Distinct().ToList();
+        if (bibles.Count == 0) return;
         var settings = Settings.Current;
         Block.OpenNextAt(settings.CurrentBookIndex, settings.CurrentChapter, settings.CurrentVerse);
-        Toolbar.BookText = bible; // the text block follows, and opens at the saved position
+        if (bibles.Count == 1) Toolbar.BookText = bibles[0]; // the text block follows, and opens at the saved position
+        else _ = RestoreCombinedAsync(bibles);
     }
+
+    /// <summary>Reads the Bibles that were read together: their books first, then the text made of them (see <see cref="BookText.Combine"/>) is shown.</summary>
+    private async Task RestoreCombinedAsync(List<BookText> bibles)
+    {
+        try
+        {
+            await Task.WhenAll(bibles.Select(bible => bible.EnsureBooksAsync()));
+            if (Block.BookText is null) Toolbar.BookText = BookText.Combine(bibles);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or System.IO.InvalidDataException)
+        {
+            System.Diagnostics.Debug.WriteLine($"Could not read the Bibles: {ex}");
+            Toolbar.BookText = bibles[0]; // the first one alone
+        }
+    }
+
+    /// <summary>Whether two lists of Bible Ids are the same (none and an empty list are).</summary>
+    private static bool SameIds(IReadOnlyList<string>? a, IReadOnlyList<string>? b) => (a ?? Array.Empty<string>()).SequenceEqual(b ?? Array.Empty<string>());
 
     /// <summary>
     /// Screens whose shorter side is at least this many device-independent pixels (a tablet; a phone has about 360-430)

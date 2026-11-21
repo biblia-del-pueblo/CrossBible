@@ -15,8 +15,12 @@ namespace CrossBible.Library
     {
         const string SettingsFile = "settings.json";
         public List<BookText> Books { get; set; }
-        /// <summary>The <see cref="BookText.EnglishName"/> of the Bible that was open last; it is opened again at the start.</summary>
-        public string? CurrentBible { get; set; }
+        /// <summary>
+        /// The <see cref="BookText.Id"/>s of the Bibles that were open last: one, or the ones that were read together (see <see cref="BookText.Combine"/>), in the
+        /// order they were checked; they are opened again at the start. A settings file from before has the Id of one Bible as a string: it is read as a list of one.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonConverter(typeof(StringOrListConverter))]
+        public List<string>? CurrentBible { get; set; }
         /// <summary>Where the reader was in <see cref="CurrentBible"/>: the number of the book (<c>Book.Index</c>), the chapter and the verse.</summary>
         public int CurrentBookIndex { get; set; }
         public int CurrentChapter { get; set; }

@@ -144,6 +144,9 @@
   <data name="BackToBooks" xml:space="preserve">
     <value>‹  Books</value>
   </data>
+  <data name="Interlinear" xml:space="preserve">
+    <value>Interlinear</value>
+  </data>
   <data name="NoBiblesInstalled" xml:space="preserve">
     <value>No Bibles installed yet</value>
   </data>

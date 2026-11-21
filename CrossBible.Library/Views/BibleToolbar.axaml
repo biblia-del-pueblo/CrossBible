@@ -210,9 +210,14 @@
                         CornerRadius="6"
                         Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
                         BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-                    <ScrollViewer MaxHeight="400" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel x:Name="BiblesItems" />
-                    </ScrollViewer>
+                    <StackPanel>
+                        <!-- With this checked the Bibles are check boxes: the checked ones are read together, one verse after the other (BookText.Combine). -->
+                        <CheckBox x:Name="InterlinearBox" Content="{loc:Loc Interlinear}" Margin="4,2" IsCheckedChanged="OnBiblesModeChanged" />
+                        <Border Height="1" Margin="0,2" Opacity="0.3" Background="Gray" />
+                        <ScrollViewer MaxHeight="400" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="BiblesItems" />
+                        </ScrollViewer>
+                    </StackPanel>
                 </Border>
             </Popup>
 

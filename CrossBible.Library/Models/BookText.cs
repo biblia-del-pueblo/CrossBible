@@ -247,7 +247,13 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
             set => field = value;
         }
         bool? isBible = null;
-        public bool IsBible => isBible ??= BookText.IsBibleRegex().IsMatch(Markdown);
+        public bool IsBible
+        {
+            get => isBible ??= BookText.IsBibleRegex().IsMatch(Markdown);
+            internal set => isBible = value; // a book that is made from other books (see BookText.Combine) has no markdown of its own to tell it from
+        }
+        /// <summary>Makes the runs of a book that is not read from its markdown (see <see cref="BookText.Combine"/>); called once, on first use of <see cref="Runs"/>.</summary>
+        internal Func<List<Run>>? RunsFactory { get; set; }
         private List<Run>? _runs;
         private readonly object _parseLock = new();
         /// <summary>The parsed text. Parsed on first use, once: a second thread that asks while it is parsed (the reader caught up with the preload) waits for it.</summary>
@@ -255,7 +261,7 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
             get
             {
                 if (_runs is { } parsed) return parsed;
-                lock (_parseLock) return _runs ??= BookText.ParseBibleBook(this).ToList();
+                lock (_parseLock) return _runs ??= RunsFactory?.Invoke() ?? BookText.ParseBibleBook(this).ToList();
             }
             set { _runs = value; _chapters = null; }
         }

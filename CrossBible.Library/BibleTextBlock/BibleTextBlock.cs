@@ -421,13 +421,8 @@ public partial class BibleTextBlock : Panel
         UpdateBusy();
         try
         {
-            if (bible.Books.Count == 0)
-            {
-                // Reading the folder is work for a worker thread; the books belong to the chosen Bible, not the temporary one.
-                var loaded = await Task.Run(() => BookText.OpenFrom(bible.ConfigPath));
-                foreach (var book in loaded.Books) book.BookText = bible;
-                bible.Books = loaded.Books;
-            }
+            // Reading the folder is work for a worker thread; the books belong to the chosen Bible, not the temporary one.
+            await bible.EnsureBooksAsync();
             if (!ReferenceEquals(BookText, bible)) return; // another Bible was chosen while this one loaded
             var books = bible.Books;
             Books = books;
