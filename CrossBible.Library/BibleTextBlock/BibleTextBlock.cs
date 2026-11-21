@@ -918,14 +918,18 @@ public partial class BibleTextBlock : Panel
         //    flowed on a worker thread: the first screens are shown as soon as they are ready, the rest follows.
         bool justify = TextAlignment == Avalonia.Media.TextAlignment.Justify;
         var style = BaseStyle();
-        bool rtl = IsRightToLeft(text); // a text of Hebrew or Arabic: the lines run from right to left, the columns too
-        var input = new FlowInput(text, segments, pending, breaks, width, gap, cutting, FontSize, style, justify, rtl);
+        // An interlinear text (see BookText.Combine) has texts of different directions: each verse runs the way its own language does (see RunFlow), and the page
+        // (the order of the columns, the way the text scrolls) the way of the first text, whose title or verse the text of the window begins with. The majority of
+        // the letters would turn the page around when the window moves from a chapter to the next one that has more Hebrew in it.
+        bool mixed = BookText?.Sources is { Count: > 1 };
+        bool rtl = mixed ? StartsRightToLeft(text) : IsRightToLeft(text); // a text of Hebrew or Arabic: the lines run from right to left, the columns too
+        var input = new FlowInput(text, segments, pending, breaks, width, gap, cutting, FontSize, style, justify, rtl, mixed);
         var segmentHash = new HashCode();
         foreach (var s in segments) { segmentHash.Add(s.Start); segmentHash.Add(s.End); segmentHash.Add(s.Style); }
         var floatHash = new HashCode();
         foreach (var p in pending) { floatHash.Add(p.Child); floatHash.Add(p.Size); floatHash.Add(p.Side); floatHash.Add(p.Anchor); }
         var key = new FlowKey(width, cutting, FontSize, FontFamily, style.Foreground, justify, gap,
-            text.GetHashCode(), text.Length, segmentHash.ToHashCode(), floatHash.ToHashCode(), rtl);
+            text.GetHashCode(), text.Length, segmentHash.ToHashCode(), floatHash.ToHashCode(), rtl, mixed);
 
         // The same text flowed again in another width or orientation (window resized, device rotated): the reader
         // stays at the line at the top of the view, not at the same column or offset of a different layout.
@@ -950,7 +954,7 @@ public partial class BibleTextBlock : Panel
         // A window of several chapters is flowed by chapter, so the lines of the chapters that were there before are kept (see GetChunkedFlow).
         var chunkStarts = breaks.Count == 0 ? ChunkStarts(text, markers) : null;
         var flow = chunkStarts is { Count: > 1 }
-            ? GetChunkedFlow(key, chunkStarts, text, segments, pending, width, gap, cutting, justify, style, rtl)
+            ? GetChunkedFlow(key, chunkStarts, text, segments, pending, width, gap, cutting, justify, style, rtl, mixed)
             : GetFlow(key, input, partialLines, partialFrom);
         if (flow is null)
         {
@@ -1185,7 +1189,7 @@ public partial class BibleTextBlock : Panel
 
     private sealed record FlowInput(string Text, List<Segment> Segments,
         List<(Control Child, Size Size, FloatSide Side, int Anchor)> Pending, HashSet<int> Breaks,
-        double Width, double Gap, bool Cutting, double FontSize, RunStyle Base, bool Justify, bool Rtl);
+        double Width, double Gap, bool Cutting, double FontSize, RunStyle Base, bool Justify, bool Rtl, bool Mixed = false);
 
     /// <param name="EndIndex">How much of the text is flowed; the text's length when <paramref name="Complete"/>.</param>
     private sealed record FlowResult(List<PlacedLine> Lines, List<(Control Child, Rect Slot)> Placed,
@@ -1193,7 +1197,7 @@ public partial class BibleTextBlock : Panel
 
     /// <summary>Everything that decides how the lines come out; equal keys give the same lines.</summary>
     private readonly record struct FlowKey(double Width, bool Cutting, double FontSize, FontFamily Family, IBrush? Foreground,
-        bool Justify, double Gap, int TextHash, int TextLength, int SegmentHash, int FloatHash, bool Rtl);
+        bool Justify, double Gap, int TextHash, int TextLength, int SegmentHash, int FloatHash, bool Rtl, bool Mixed = false);
 
     /// <summary>
     /// Texts shorter than this are flowed right away, on the UI thread. It was 40,000 when a window was two books; a window of chapters is a
@@ -1271,7 +1275,7 @@ public partial class BibleTextBlock : Panel
 
     /// <summary>What decides how a chunk flows: equal keys give the same lines, whatever else is in the window.</summary>
     private readonly record struct ChunkKey(int TextHash, int TextLength, int SegmentHash, int FloatHash, double Width, double FontSize,
-        FontFamily Family, IBrush? Foreground, bool Justify, double Gap, bool Rtl);
+        FontFamily Family, IBrush? Foreground, bool Justify, double Gap, bool Rtl, bool Mixed = false);
 
     /// <summary>The lines of a chunk (counting from its start, from the top of it), where its floats go, and how tall it is.</summary>
     private sealed record ChunkFlow(List<PlacedLine> Lines, List<Rect> FloatSlots, List<Rect> FloatRects, double Height);
@@ -1304,7 +1308,7 @@ public partial class BibleTextBlock : Panel
     }
 
     private FlowResult? GetChunkedFlow(FlowKey key, List<int> starts, string text, List<Segment> segments,
-        List<(Control Child, Size Size, FloatSide Side, int Anchor)> pending, double width, double gap, bool cutting, bool justify, RunStyle style, bool rtl)
+        List<(Control Child, Size Size, FloatSide Side, int Anchor)> pending, double width, double gap, bool cutting, bool justify, RunStyle style, bool rtl, bool mixed)
     {
         if (_flowCache is { } cached && cached.Key.Equals(key)) return cached.Result;
         if (_flowRunning is { } running && running.Equals(key)) return null;
@@ -1334,12 +1338,12 @@ public partial class BibleTextBlock : Panel
             var floatHash = new HashCode(); // not the controls themselves (they are made again with each window), only what decides the flow
             foreach (var f in floats) { floatHash.Add(f.Size); floatHash.Add(f.Side); floatHash.Add(f.Anchor - start); }
             var chunkKey = new ChunkKey(string.GetHashCode(text.AsSpan(start, end - start)), end - start, segmentHash.ToHashCode(), floatHash.ToHashCode(),
-                width, FontSize, FontFamily, style.Foreground, justify, gap, rtl);
+                width, FontSize, FontFamily, style.Foreground, justify, gap, rtl, mixed);
             var chunk = new Chunk(start, end, chunkKey, floats);
             chunks.Add(chunk);
             if (_chunkCache.ContainsKey(chunkKey) || missing.Any(m => m.Key.Equals(chunkKey))) continue;
             var localFloats = floats.Select(f => (f.Child, f.Size, f.Side, f.Anchor - start)).ToList();
-            missing.Add((chunkKey, new FlowInput(text.Substring(start, end - start), local, localFloats, new HashSet<int>(), width, gap, cutting, FontSize, style, justify, rtl)));
+            missing.Add((chunkKey, new FlowInput(text.Substring(start, end - start), local, localFloats, new HashSet<int>(), width, gap, cutting, FontSize, style, justify, rtl, mixed)));
         }
 
         if (missing.Count == 0) return ComposeChunks(key, text, chunks, gap);
@@ -1471,8 +1475,24 @@ public partial class BibleTextBlock : Panel
             var baseProps = ToRunProperties(input.Base);
             // The paragraphs of a right-to-left text run from right to left: the line has its trailing space on the left. The lines are placed
             // at the left of their band (alignment Left); MirrorLayout moves them to where they belong.
-            var paraProps = new GenericTextParagraphProperties(input.Rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight, Avalonia.Media.TextAlignment.Left,
+            GenericTextParagraphProperties PropsOf(FlowDirection direction) => new(direction, Avalonia.Media.TextAlignment.Left,
                 true, false, baseProps, TextWrapping.Wrap, 0, 0, 0);
+            var ltrProps = PropsOf(FlowDirection.LeftToRight);
+            var rtlProps = PropsOf(FlowDirection.RightToLeft);
+            var paraProps = input.Rtl ? rtlProps : ltrProps;
+            // In a text of several languages (input.Mixed) every paragraph (the text up to a line break: a verse, a title) runs the way its first letter says, as
+            // the browsers do for dir="auto"; the lines of a paragraph that wrap keep it. A paragraph with no letter goes the way of the page.
+            bool ParagraphIsRtl(int from)
+            {
+                for (int i = from; i < text.Length && text[i] != '\n'; i++)
+                {
+                    char c = text[i];
+                    if (!char.IsLetter(c)) continue;
+                    if (c is 'G' or 'H' && i + 1 < text.Length && char.IsDigit(text[i + 1])) continue; // a Strong's number
+                    return IsRightToLeftLetter(c);
+                }
+                return input.Rtl;
+            }
             var source = new RichTextSource(text, input.Segments);
             var formatter = TextFormatter.Current;
 
@@ -1516,6 +1536,7 @@ public partial class BibleTextBlock : Panel
             while (index < text.Length)
             {
                 cancel.ThrowIfCancellationRequested();
+                if (input.Mixed && (index == 0 || text[index - 1] == '\n')) paraProps = ParagraphIsRtl(index) ? rtlProps : ltrProps;
                 // Stops maxLines lines after the text index minIndex has been reached (at the start: after maxLines lines).
                 if (stopAfter == int.MaxValue && maxLines != int.MaxValue && index >= minIndex) stopAfter = lines.Count + maxLines;
                 if (lines.Count >= stopAfter) { complete = false; break; }
@@ -1568,7 +1589,12 @@ public partial class BibleTextBlock : Panel
                 if (input.Justify && !lastLine && line.NewLineLength == 0)
                     line = JustifyLine(line, index, text, input.Segments, lineWidth, paraProps) ?? line;
 
-                lines.Add(new PlacedLine(line, new Point(left, top), input.Breaks.Contains(index)));
+                // A line goes to the side that its direction starts at. The layout is made as for the direction of the page (and turned around by MirrorLayout
+                // when that is right to left), so a line of the other direction is flush to the other edge of its band here.
+                double lineX = left;
+                if (input.Mixed && ReferenceEquals(paraProps, rtlProps) != input.Rtl)
+                    lineX = left + Math.Max(0, lineWidth - line.WidthIncludingTrailingWhitespace);
+                lines.Add(new PlacedLine(line, new Point(lineX, top), input.Breaks.Contains(index)));
                 top += line.Height;
                 index = lineEnd;
                 textBottom = top;
