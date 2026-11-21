@@ -34,6 +34,10 @@ public partial class BookText
     /// a dictionary) is the first text's, as it is.
     /// </para>
     /// <para>
+    /// Only paragraph breaks are shown (the parser makes a space of a line break of the markdown, see <see cref="ParseText"/>). A paragraph break at the end of a
+    /// verse comes once, after the verses of all the texts, when any of them ends with one.
+    /// </para>
+    /// <para>
     /// The runs are copies that belong to the books of the combined text (so the places of the verses are those of the combined text, which is what the
     /// navigation needs); the texts that are combined are not changed. The books are made when they are first used, like a text that is read from files,
     /// not all at once.
@@ -96,30 +100,32 @@ public partial class BookText
 
         var runs = new List<Run>();
         bool verseOnLine = false; // a verse comes before on the line: the next one starts a new line (a title ends its line itself)
-        int endBreak = 0;         // what the verses of the group end with: 0 nothing, 1 a line break, 2 a paragraph break
+        bool endParagraph = false; // one of the verses of the group ends with a paragraph break
         Run NewBreak(Run.Classes kind, Run verse) => new() { Class = kind, Text = "", Position = ClonePosition(verse.Position, target), Runs = Enumerable.Empty<Run>() };
         void AddVerse(Run verse)
         {
             if (verseOnLine) runs.Add(NewBreak(Run.Classes.LineBreak, verse));
             var copy = CloneRun(verse, target);
-            // A break at the end of a verse belongs to the end of the verses of all the texts, not to the end of this one: it is taken off here, and the group
-            // gets one (see EndGroup). A paragraph break is more than a line break, so it is the one that counts when the texts differ.
             if (copy.Runs is List<Run> children)
-                while (children.Count > 0 && children[^1].Class is Run.Classes.Paragraph or Run.Classes.LineBreak)
+            {
+                // A paragraph break at the end of a verse belongs to the end of the verses of all the texts, not to the end of this one: it is taken off here,
+                // and the group gets one (see EndGroup).
+                while (children.Count > 0 && children[^1].Class == Run.Classes.Paragraph)
                 {
-                    endBreak = Math.Max(endBreak, children[^1].Class == Run.Classes.Paragraph ? 2 : 1);
+                    endParagraph = true;
                     children.RemoveAt(children.Count - 1);
                 }
+            }
             runs.Add(copy);
             verseOnLine = true;
         }
-        // The verses of all the texts are in; the break that they ended with (once, however many there were) comes now, and the next verse starts after it.
+        // The verses of all the texts are in; the paragraph break that they ended with (once, however many there were) comes now, and the next verse starts after it.
         void EndGroup(Run verse)
         {
-            if (endBreak == 0) return;
-            runs.Add(NewBreak(endBreak == 2 ? Run.Classes.Paragraph : Run.Classes.LineBreak, verse));
+            if (!endParagraph) return;
+            runs.Add(NewBreak(Run.Classes.Paragraph, verse));
             verseOnLine = false;
-            endBreak = 0;
+            endParagraph = false;
         }
         foreach (var run in chapter.Runs ?? Enumerable.Empty<Run>())
         {

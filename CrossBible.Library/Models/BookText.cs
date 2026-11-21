@@ -363,7 +363,8 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
     // A title inside a text: one or more "#" at the start of a line, a space and the text up to the end of the line.
     const string TitleStart = @"(?<![^\n])#+ ";
     // The line and paragraph breaks of Pandoc's markdown: a backslash at the end of a line, or two or more spaces, make a line break (poetry has
-    // one for each of its lines), and an empty line makes a new paragraph; a single line ending is only a space. The spaces around a break
+    // one for each of its lines), and an empty line makes a new paragraph; a single line ending is only a space. Only the paragraphs are shown:
+    // a line break is read (so that the spaces around it are not left in the text) and becomes one space, like a single line ending. The spaces around a break
     // belong to it. A backslash that is escaped (\\) is a pair of the text (and no break), which Escaped takes before this is looked at.
     const string HardBreak = @"(?:[ \t]*\\(?:\r?\n|\z)|[ \t]{2,}\r?\n)[ \t]*";
     const string ParagraphBreak = @"[ \t]*(?:\r?\n[ \t]*){2,}";
@@ -419,10 +420,12 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
                     Runs = Enumerable.Empty<Run>()
                 };
             else if (m.Groups["linebreak"].Success)
+                // A line break of the markdown is not shown: only paragraphs are. The line ends as any other does, with a space (the break is matched, with
+                // the spaces around it, so that there is one space and not two or three).
                 yield return new Run
                 {
-                    Class = Run.Classes.LineBreak,
-                    Text = "",
+                    Class = Run.Classes.Text,
+                    Text = " ",
                     Position = position,
                     Runs = Enumerable.Empty<Run>()
                 };

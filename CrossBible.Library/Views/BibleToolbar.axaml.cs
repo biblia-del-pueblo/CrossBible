@@ -558,9 +558,14 @@ public partial class BibleToolbar : UserControl
         if (BiblesPopup.IsOpen) { BiblesPopup.IsOpen = false; return; }
         if ((DateTime.UtcNow - _biblesClosedAt).TotalMilliseconds < 300) return;
 
+        // Reading Bibles together needs more than one: with a single Bible installed there is nothing to choose, and the box is not there (and is
+        // not checked, so the Bible is a button as it always was).
+        bool several = InstalledBibles().Count > 1;
+        InterlinearBox.IsVisible = InterlinearSeparator.IsVisible = several;
+        if (!several && InterlinearBox.IsChecked == true) InterlinearBox.IsChecked = false;
         SyncSelectionFromShown();
         // Several Bibles are read together (also when they were opened again at the start, with no box checked): they are shown as check boxes.
-        if (_selectedBibles.Count > 1 && !MultipleBibles) InterlinearBox.IsChecked = true;
+        if (several && _selectedBibles.Count > 1 && !MultipleBibles) InterlinearBox.IsChecked = true;
         FillBibles();
         BiblesPopup.IsOpen = true;
     }
@@ -582,17 +587,20 @@ public partial class BibleToolbar : UserControl
         else if (shown is not null) _selectedBibles.Add(shown);
     }
 
+    /// <summary>The installed Bibles in the order of the list. Strong's dictionaries are not read like a Bible: they are switched on and off in the Strongs list.</summary>
+    private static List<BookText> InstalledBibles() =>
+        (Settings.Current.Books ?? new List<BookText>()).Where(b => !string.IsNullOrEmpty(b.EnglishName) && b is not IStrongDictionary)
+            .OrderBy(b => b is InstallableBook ibook ? ibook.LanguageCode : "")
+            .ThenBy(b => b.Name ?? b.EnglishName ?? "")
+            .ToList();
+
     /// <summary>Fills the list of Bibles: buttons, or check boxes while <see cref="MultipleBibles"/>.</summary>
     private void FillBibles()
     {
         BiblesItems.Children.Clear();
-        var bibles = Settings.Current.Books ?? new List<BookText>();
         string? current = Position?.Book?.BookText?.Name;
         bool multiple = MultipleBibles;
-        // Strong's dictionaries are not read like a Bible: they are switched on and off in the Strongs list.
-        foreach (var bible in bibles.Where(b => !string.IsNullOrEmpty(b.EnglishName) && b is not IStrongDictionary)
-            .OrderBy(b => b is InstallableBook ibook ? ibook.LanguageCode : "")
-            .ThenBy(b => b.Name ?? b.EnglishName ?? ""))
+        foreach (var bible in InstalledBibles())
         {
             var chosen = bible;
             var name = ShortenWithEllipsis(chosen.Name ?? chosen.EnglishName, 40);

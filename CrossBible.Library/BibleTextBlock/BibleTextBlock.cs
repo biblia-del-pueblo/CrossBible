@@ -1033,12 +1033,27 @@ public partial class BibleTextBlock : Panel
                 return c;
             }
 
+            // The empty lines at the top of a column are not shown: a title that starts a column does not begin with the blank lines that set it apart from the
+            // text before it (they would be a gap above it). The lines of the column move up by their height; the empty lines themselves end up above the top of
+            // the column, where there is nothing to show of them (they are of no use to the reader: they hold no text).
+            var skips = new double[starts.Count];
+            int lastColumn = -1;
+            bool leading = false;
+            foreach (var pl in _lines)
+            {
+                int c = ColumnAt(pl.Origin.Y);
+                if (c != lastColumn) { lastColumn = c; leading = true; }
+                if (!leading) continue;
+                if (pl.Line.Length - pl.Line.NewLineLength == 0) skips[c] += pl.Line.Height;
+                else leading = false;
+            }
+
             double height = 0;
             var columned = new List<PlacedLine>(_lines.Count);
             foreach (var pl in _lines)
             {
                 int c = ColumnAt(pl.Origin.Y);
-                var origin = new Point(c * pitch + pl.Origin.X, pl.Origin.Y - Top(c));
+                var origin = new Point(c * pitch + pl.Origin.X, pl.Origin.Y - Top(c) - skips[c]);
                 columned.Add(pl with { Origin = origin });
                 height = Math.Max(height, origin.Y + pl.Line.Height);
             }
@@ -1049,7 +1064,7 @@ public partial class BibleTextBlock : Panel
             {
                 var (child, slot) = _arranged[i];
                 int c = ColumnAt(slot.Y);
-                slot = new Rect(c * pitch + slot.X, slot.Y - Top(c), slot.Width, slot.Height);
+                slot = new Rect(c * pitch + slot.X, slot.Y - Top(c) - skips[c], slot.Width, slot.Height);
                 _arranged[i] = (child, slot);
                 height = Math.Max(height, slot.Bottom);
             }
