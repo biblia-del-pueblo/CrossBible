@@ -4,7 +4,7 @@ Maintainer: Simon Egli <simon.jakob.egli@gmail.com>
 Homepage: https://www.crossbible.org
 Package: crossbible
 Architecture: all
-Version: 1.0.7
+Version: 1.0.8
 Depends: libc6, zlib1g, libicu78 | libicu76 | libicu74 | libicu72 | libicu70 | libicu67 | libicu66, libssl3t64 | libssl3 | libssl1.1, libx11-6, libice6, libsm6, libfontconfig1, fonts-dejavu-core | fonts-liberation | fonts-noto-core | fonts-freefont-ttf, libgl1
 Description: CrossBible is a cross platform bible reader. It runs on Windows, Linux, macOS, Android and iOS. It can download a lot of free bibles for many languages from ebible.org and crosswire.org. It displays the bible text in columns for easier reading, as your print bible does.
 Installed-Size: 234986

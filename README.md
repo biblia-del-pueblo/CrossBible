@@ -26,7 +26,7 @@ Packages for every platform are built from this repository (see [Building](#buil
 |---|---|---|
 | Windows (x64, ARM64) | `.msi` installer, native AOT | [CrossBible.Msi](CrossBible.Msi) |
 | Windows (Microsoft Store) | `.msixbundle` for x64 and ARM64 | [CrossBible.Msix](CrossBible.Msix) |
-| macOS (Apple silicon, Intel) | `Cross Bible.app` in a `.dmg` / `.zip` | [CrossBible.MacOS](CrossBible.MacOS) |
+| macOS (Apple silicon, Intel) | `Cross Bible.app` in a `.dmg` | [CrossBible.MacOS](CrossBible.MacOS) |
 | Linux | `.deb`, `.rpm`, Arch Linux, Alpine (`.apk`)  and `.tar.gz` for x64, ARM64 and 32 bit ARM | [CrossBible.LinuxPackages](CrossBible.LinuxPackages) |
 | Android | `.apk` / `.aab` | [CrossBible.Android](CrossBible.Android) |
 | iOS | app | [CrossBible.iOS](CrossBible.iOS) |
@@ -77,7 +77,7 @@ The packages are built on the oldest systems that are still supported (not on th
 is older than the one that built it, and the macOS app is built against the system of the build machine. The release is only made when all of them were built, and every package has to have the version of the release.
 
 The Store package has the version of `CrossBible.Msix\Package.appxmanifest` (the Store wants its own, raised for every upload), which has to be the `Version` of
-`Directory.Build.props` with a `.0` added (`1.0.7` is `1.0.7.0`): the build stops, saying so, when it is not. Start the workflow by hand (Actions > Release) to make a draft,
+`Directory.Build.props` with a `.0` added (`1.0.8` is `1.0.8.0`): the build stops, saying so, when it is not. Start the workflow by hand (Actions > Release) to make a draft,
 which you look at before you publish it.
 
 The Android packages are signed with your upload key, which is not in the repository: it is two secrets of the repository (Settings > Secrets and variables > Actions), and

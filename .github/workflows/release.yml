@@ -6,7 +6,7 @@
 # ubuntu-latest.
 #
 #   Windows   the installers (.msi, x64 and ARM64)               CrossBible.Msi\make.bat
-#   macOS     the app (.dmg and .zip, Apple silicon and Intel)   CrossBible.MacOS/make.sh, on macOS 15 (the oldest that GitHub has)
+#   macOS     the app (.dmg, Apple silicon and Intel)            CrossBible.MacOS/make.sh, on macOS 15 (the oldest that GitHub has)
 #   Linux     .deb, .rpm, Arch Linux, .tar.gz                    CrossBible.LinuxPackages/make.sh, on Ubuntu 22.04
 #   Alpine    .apk and the .tar.gz of the musl builds            CrossBible.LinuxPackages/make.sh, in Alpine 3.23
 #   Android   three .apk and the .aab                            CrossBible.Android\make.bat, signed with the upload key of the secrets

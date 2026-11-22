@@ -5,7 +5,7 @@ macOS is 13, and the version is the one of `Directory.Build.props`.
 
 | Where you build | What you get | Code |
 |---|---|---|
-| a Mac: `sh make.sh [arm64\|x64]` | `publish/crossbible-<version>-macos-<arch>.dmg` and `.zip` (the `publish` folder at the root of the repository) | native AOT, signed |
+| a Mac: `sh make.sh [arm64\|x64]` | `publish/crossbible-<version>-macos-<arch>.dmg` (the `publish` folder at the root of the repository) | native AOT, signed |
 | Windows: `make.bat [arm64\|x64]` (WSL) or Linux: `sh make.sh` | `publish/crossbible-<version>-macos-<arch>.tar.gz` | self-contained with the .NET runtime (JIT), not signed |
 
 Native AOT does not build for another operating system, so only a Mac makes the AOT build. The `.tar.gz` keeps the permission to execute (a `.zip` made on
