@@ -119,17 +119,33 @@ namespace CrossBible.Library.Downloads
                         var info = transform.Import.ReadInfo(path);
                         if (info != null)
                         {
-                            var oldpath = ConfigPath;
-                            LanguageCode = info.LanguageCode;
-                            Language = info.Language;
-                            LanguageEnglishName = info.LanguageEnglishName;
+                            // What info.json has is taken; what it leaves out stays as it is (the name of the file for the names).
+                            if (!string.IsNullOrWhiteSpace(info.Language))
+                            {
+                                LanguageCode = info.LanguageCode;
+                                Language = info.Language;
+                                LanguageEnglishName = info.LanguageEnglishName;
+                            }
                             Class = (CrossBible.Library.InstallableBook.Classes)info.Class;
                             CountryCode = info.CountryCode;
                             CountryName = info.CountryName;
-                            EnglishName = info.EnglishName;
-                            Name = info.Name ?? "";
+                            if (!string.IsNullOrWhiteSpace(info.EnglishName)) EnglishName = info.EnglishName;
+                            if (!string.IsNullOrWhiteSpace(info.Name)) Name = info.Name;
+                            if (!string.IsNullOrWhiteSpace(info.Image)) Image = info.Image;
+                            if (!string.IsNullOrWhiteSpace(info.Versification)) Versification = info.Versification;
+
+                            // The Id comes from the names, so it may be another one now: the folder of the Bible is named by it (see ConfigPath).
                             var newpath = ConfigPath;
-                            if (oldpath != newpath) Directory.Move(oldpath, newpath);
+                            if (!string.Equals(IO.Path.GetFullPath(path), IO.Path.GetFullPath(newpath), StringComparison.OrdinalIgnoreCase))
+                            {
+                                // A Bible with the same Id that is installed already is replaced by this one.
+                                if (Directory.Exists(newpath)) Directory.Delete(newpath, true);
+                                Directory.CreateDirectory(IO.Path.GetDirectoryName(newpath)!);
+                                Directory.Move(path, newpath);
+                                path = newpath;
+                                src = IO.Path.Combine(path, "src");
+                                transform = new Transform(path, src);
+                            }
                         }
                     } catch (Exception ex)
                     {

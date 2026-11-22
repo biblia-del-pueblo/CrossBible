@@ -212,7 +212,7 @@
                         BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
                     <StackPanel>
                         <!-- Only there when more than one Bible is installed (see OnBiblesClick). With this checked the Bibles are check boxes: the checked ones are read together, one verse after the other (BookText.Combine). -->
-                        <CheckBox x:Name="InterlinearBox" Content="{loc:Loc Interlinear}" Margin="4,2" IsCheckedChanged="OnBiblesModeChanged" />
+                        <CheckBox x:Name="InterlinearBox" Content="{loc:Loc Interlinear}" HorizontalAlignment="Stretch" Margin="0,2" Padding="8,4,8,4" IsCheckedChanged="OnBiblesModeChanged" />
                         <Border x:Name="InterlinearSeparator" Height="1" Margin="0,2" Opacity="0.3" Background="Gray" />
                         <ScrollViewer MaxHeight="400" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel x:Name="BiblesItems" />

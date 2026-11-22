@@ -754,17 +754,8 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
     public string Id => WebUtility.UrlEncode(Origin + "." + (!string.IsNullOrEmpty(EnglishName) ? EnglishName : Name));
     [System.Text.Json.Serialization.JsonIgnore] // not saved with the settings: the books are read from the folder
     public List<Book> Books { get; set; } = new List<Book>();
-    public string ConfigPath
-    {
-        get
-        {
-            if (field == null)
-            {
-                field = Path.Combine(Settings.Current.ConfigPath, "Books", Id);
-            }
-            return field;
-        }
-    }
+    /// <summary>The folder of the Bible, named by its <see cref="Id"/>. It follows the Id, which comes from the names and so changes when they do (see BookArchive.Install).</summary>
+    public string ConfigPath => Path.Combine(Settings.Current.ConfigPath, "Books", Id);
 
     public void Open()
     {

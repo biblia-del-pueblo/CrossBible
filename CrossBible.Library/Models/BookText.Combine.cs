@@ -26,12 +26,16 @@ public partial class BookText
     }
 
     /// <summary>
-    /// Combines texts into an interlinear text. The books, chapters, titles and verses are those of the first text; after each of its verses come the verses with
+    /// Combines texts into an interlinear text. The books, titles and the order of the verses are those of the first text; after each of its verses come the verses with
     /// the same number of the other texts (in the order they are given), each verse starting on a new line. The titles are the first text's only.
     /// <para>
     /// The books are matched by their <see cref="Book.Index"/>, the chapters by their number and the verses by theirs. A text that lacks a book, a chapter or a
-    /// verse just has nothing there, and the verses of a text that the first text does not have are left out. A book that is not a Bible book (an introduction,
-    /// a dictionary) is the first text's, as it is.
+    /// verse just has nothing there. The chapters and the verses that only a later text has are included, in between the others by number: after the ones with a
+    /// lower number, a verse before the titles that come in front of the next verse. The titles of a chapter that the first text does not have are those of the first
+    /// text that has it. Books that only a later text has are left out. A book that is not a Bible book (an introduction, a dictionary) is the first text's, as it is.
+    /// The numbers are what is compared, unless the texts have a versification (info.json, <see cref="InstallableBook.Versification"/>) that differs from the first
+    /// text's: then the verses of the later texts are given the numbers of the first text's versification where that is known (see <see cref="VerseMapper"/>: the
+    /// headings of the Psalms that one versification counts as verses and the other does not). A text without a versification, or the first one, is matched by number.
     /// </para>
     /// <para>
     /// Only paragraph breaks are shown (the parser makes a space of a line break of the markdown, see <see cref="ParseText"/>). A paragraph break at the end of a
@@ -55,6 +59,9 @@ public partial class BookText
             HasStrongs = all.Any(t => t.HasStrongs),
             Sources = all,
         };
+        // The versification of the first text is the one the others are adapted to, when both have one (info.json) and it is not the same.
+        var firstVersification = VerseMapper.VersificationOf(all[0]);
+        var mappers = all.Select(t => ReferenceEquals(t, all[0]) ? null : VerseMapper.Create(VerseMapper.VersificationOf(t), firstVersification)).ToList();
         foreach (var first in all[0].Books)
         {
             var book = new Book(combined)
@@ -70,33 +77,106 @@ public partial class BookText
             };
             // The same book in each text, the first text's own first (a text that has no such book is not in the list).
             var parts = new List<Book> { first };
-            foreach (var other in all.Skip(1))
-                if (other.Books.FirstOrDefault(b => b.Index == first.Index) is { } match) parts.Add(match);
-            book.RunsFactory = () => CombineRuns(book, parts);
+            var partMappers = new List<VerseMapper?> { null };
+            for (int i = 1; i < all.Count; i++)
+                if (all[i].Books.FirstOrDefault(b => b.Index == first.Index) is { } match) { parts.Add(match); partMappers.Add(mappers[i]); }
+            book.RunsFactory = () => CombineRuns(book, parts, partMappers);
             combined.Books.Add(book);
         }
         return combined;
     }
 
-    private static List<Run> CombineRuns(Book target, List<Book> parts)
+    private static List<Run> CombineRuns(Book target, List<Book> parts, List<VerseMapper?> mappers)
     {
         var first = parts[0];
         var result = new List<Run>();
+        if (!first.IsBible)
+        {
+            foreach (var run in first.Runs) result.Add(CloneRun(run, target));
+            return result;
+        }
+
+        // The chapters of each text by number. The chapters of the first text come in its order; the ones that only a later text has go in between them, by number (after the
+        // ones with a lower number): such a chapter is made from the first text that has it, which gives its titles.
+        var chaptersOf = parts.Select(p => p.Chapters.GroupBy(c => c.Chapter).ToDictionary(g => g.Key, g => g.First())).ToList();
+
+        // The verses of the later texts by the chapter and the number they have in the first text's versification (a text without a mapper keeps its own), in their order.
+        var versesOf = new List<Dictionary<int, List<(int Verse, Run Run)>>>();
+        for (int i = 1; i < parts.Count; i++)
+        {
+            var byChapter = new Dictionary<int, List<(int Verse, Run Run)>>();
+            foreach (var chapter in chaptersOf[i].Values.OrderBy(c => c.Chapter))
+                foreach (var verse in (chapter.Runs ?? Enumerable.Empty<Run>()).Where(r => r.Class == Run.Classes.Verse && r.Position is not null))
+                {
+                    var (mappedChapter, mappedVerse) = mappers[i] is { } mapper ? mapper.Map(first.Index, chapter.Chapter, verse.Position.Verse) : (chapter.Chapter, verse.Position.Verse);
+                    if (!byChapter.TryGetValue(mappedChapter, out var list)) byChapter[mappedChapter] = list = new List<(int, Run)>();
+                    list.Add((mappedVerse, verse));
+                }
+            versesOf.Add(byChapter);
+        }
+
+        var onlyLater = new SortedSet<int>(versesOf.SelectMany(d => d.Keys).Concat(chaptersOf.Skip(1).SelectMany(d => d.Keys)).Except(chaptersOf[0].Keys));
+        // The chapter of a number: the verses that the later texts have in it, and the chapter that gives its titles (the first text's, else the first later text's own chapter of that
+        // number when it is not mapped, else one without titles).
+        Run ChapterNumbered(int number, Run? firstChapter, out List<List<(int Verse, Run Run)>> others)
+        {
+            others = versesOf.Select(d => d.TryGetValue(number, out var list) ? list : new List<(int Verse, Run Run)>()).ToList();
+            if (firstChapter != null) return firstChapter;
+            for (int i = 1; i < parts.Count; i++)
+                if (mappers[i] == null && chaptersOf[i].TryGetValue(number, out var own)) return own;
+            return new Run { Class = Run.Classes.Chapter, Chapter = number, Text = number.ToString(), Position = null!, Runs = new List<Run>() };
+        }
+        void AddChaptersBefore(int number)
+        {
+            while (onlyLater.Count > 0 && onlyLater.Min < number)
+            {
+                int next = onlyLater.Min;
+                onlyLater.Remove(next);
+                var skeleton = ChapterNumbered(next, null, out var others);
+                if (others.All(list => list.Count == 0) && skeleton.Runs?.Any() != true) continue;
+                result.Add(CombineChapter(skeleton, others, target));
+            }
+        }
+
         foreach (var run in first.Runs)
-            result.Add(run.Class == Run.Classes.Chapter && first.IsBible ? CombineChapter(run, parts.Skip(1), target) : CloneRun(run, target));
+        {
+            if (run.Class != Run.Classes.Chapter) { result.Add(CloneRun(run, target)); continue; }
+            AddChaptersBefore(run.Chapter);
+            var skeleton = ChapterNumbered(run.Chapter, run, out var others);
+            result.Add(CombineChapter(skeleton, others, target));
+        }
+        AddChaptersBefore(int.MaxValue);
         return result;
     }
 
-    private static Run CombineChapter(Run chapter, IEnumerable<Book> others, Book target)
+    /// <summary>
+    /// The chapter of the combined text: the chapter <paramref name="chapter"/> that gives its titles and the order of its verses, with the verses that the later texts have in it
+    /// (<paramref name="others"/>, one list per text, as (verse number in the first text's versification, the verse)). They come after the verse with their number;
+    /// the ones that the first text does not have go in between, by number.
+    /// Verse 0 is the heading of the chapter (a verse that the first text does not count): it comes in front of the first verse, after the titles.
+    /// </summary>
+    private static Run CombineChapter(Run chapter, List<List<(int Verse, Run Run)>> others, Book target)
     {
-        // The verses of the other texts in this chapter, by their number (the first one, if a number is there twice).
+        static bool IsVerse(Run r) => r.Class == Run.Classes.Verse && r.Position is not null;
+        var items = (chapter.Runs ?? Enumerable.Empty<Run>()).ToList();
+
+        // The verses of the other texts in this chapter, by their number in the first text (all that have it, in their order).
         var otherVerses = others
-            .Select(book => book.Chapters.FirstOrDefault(c => c.Chapter == chapter.Chapter)?.Runs?
-                .Where(r => r.Class == Run.Classes.Verse && r.Position is not null)
-                .GroupBy(r => r.Position.Verse)
-                .ToDictionary(g => g.Key, g => g.First()))
-            .Where(verses => verses is not null)
+            .Select(list => list.GroupBy(v => v.Verse).ToDictionary(g => g.Key, g => g.Select(v => v.Run).ToList()))
             .ToList();
+        // The verses of the other texts that are the heading of the chapter in the first text, in the order of the texts.
+        var headings = otherVerses.SelectMany(d => d.TryGetValue(0, out var list) ? list : new List<Run>()).ToList();
+
+        // The verses that the first text does not have but later ones do, by number, each with its verses in the order of the texts.
+        var own = new HashSet<int>(items.Where(IsVerse).Select(r => r.Position.Verse));
+        var extra = new SortedDictionary<int, List<Run>>();
+        foreach (var verses in otherVerses)
+            foreach (var (number, list) in verses)
+            {
+                if (own.Contains(number) || number == 0) continue; // 0: the heading, which has its place (see AddHeadings)
+                if (!extra.TryGetValue(number, out var group)) extra[number] = group = new List<Run>();
+                group.AddRange(list);
+            }
 
         var runs = new List<Run>();
         bool verseOnLine = false; // a verse comes before on the line: the next one starts a new line (a title ends its line itself)
@@ -106,6 +186,7 @@ public partial class BookText
         {
             if (verseOnLine) runs.Add(NewBreak(Run.Classes.LineBreak, verse));
             var copy = CloneRun(verse, target);
+            if (copy.Position != null) copy.Position.Chapter = chapter.Chapter; // a verse that is mapped to another chapter is in this one now
             if (copy.Runs is List<Run> children)
             {
                 // A paragraph break at the end of a verse belongs to the end of the verses of all the texts, not to the end of this one: it is taken off here,
@@ -127,19 +208,53 @@ public partial class BookText
             verseOnLine = false;
             endParagraph = false;
         }
-        foreach (var run in chapter.Runs ?? Enumerable.Empty<Run>())
+        // The verses that only later texts have, with a number lower than `number`, are put in here (the lowest first).
+        void AddExtraBefore(int number)
         {
-            if (run.Class != Run.Classes.Verse || run.Position is null)
+            while (extra.Count > 0 && extra.Keys.First() < number)
+            {
+                int next = extra.Keys.First();
+                var group = extra[next];
+                extra.Remove(next);
+                foreach (var verse in group) AddVerse(verse);
+                EndGroup(group[0]);
+            }
+        }
+
+        // The verses of the other texts that are the heading of the chapter in the first text come in front of its first verse (after its titles), once.
+        void AddHeadings()
+        {
+            if (headings.Count == 0) return;
+            var group = headings.ToList();
+            headings.Clear();
+            foreach (var verse in group) AddVerse(verse);
+            EndGroup(group[0]);
+        }
+
+        // The number of the verse that is next at or after each run: a verse that only a later text has goes before the titles that come in front of the verse that follows it
+        // (they are the beginning of that verse's part), not between them and it.
+        var nextVerse = new int[items.Count + 1];
+        nextVerse[items.Count] = int.MaxValue;
+        for (int i = items.Count - 1; i >= 0; i--) nextVerse[i] = IsVerse(items[i]) ? items[i].Position.Verse : nextVerse[i + 1];
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            var run = items[i];
+            if (i == 0 || IsVerse(items[i - 1])) AddExtraBefore(nextVerse[i]); // the start of a verse, or of the titles in front of one
+            if (!IsVerse(run))
             {
                 runs.Add(CloneRun(run, target));
                 verseOnLine = false;
                 continue;
             }
+            AddHeadings();
             AddVerse(run);
             foreach (var verses in otherVerses)
-                if (verses!.TryGetValue(run.Position.Verse, out var other)) AddVerse(other);
+                if (verses.TryGetValue(run.Position.Verse, out var other)) foreach (var verse in other) AddVerse(verse);
             EndGroup(run);
         }
+        AddExtraBefore(int.MaxValue); // the verses after the last one of the first text
+        AddHeadings();                // a chapter of the first text without verses
 
         return new Run
         {

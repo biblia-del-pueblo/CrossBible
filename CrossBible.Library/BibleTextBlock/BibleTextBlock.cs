@@ -1617,9 +1617,12 @@ public partial class BibleTextBlock : Panel
 
                 // A line goes to the side that its direction starts at. The layout is made as for the direction of the page (and turned around by MirrorLayout
                 // when that is right to left), so a line of the other direction is flush to the other edge of its band here.
+                // The box of a line includes its trailing space, which is wider than the band by that space when the line fills it (a justified line does): not kept at the
+                // band (no Math.Max(0, ...)), the box hangs out by the trailing space, at the end of the line, and the text itself is at the edge of the band. Kept at the
+                // band, the start of the line would be that space too far out, where the number of a verse of a right to left line was cut off by the edge.
                 double lineX = left;
                 if (input.Mixed && ReferenceEquals(paraProps, rtlProps) != input.Rtl)
-                    lineX = left + Math.Max(0, lineWidth - line.WidthIncludingTrailingWhitespace);
+                    lineX = left + (lineWidth - line.WidthIncludingTrailingWhitespace);
                 lines.Add(new PlacedLine(line, new Point(lineX, top), input.Breaks.Contains(index)));
                 top += line.Height;
                 index = lineEnd;
