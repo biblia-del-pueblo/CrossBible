@@ -77,7 +77,7 @@ The packages are built on the oldest systems that are still supported (not on th
 is older than the one that built it, and the macOS app is built against the system of the build machine. The release is only made when all of them were built, and every package has to have the version of the release.
 
 The Store package has the version of `CrossBible.Msix\Package.appxmanifest` (the Store wants its own, raised for every upload), which has to be the `Version` of
-`Directory.Build.props` with a `.0` added (`1.0.8` is `1.0.8.0`): the build stops, saying so, when it is not. Start the workflow by hand (Actions > Release) to make a draft,
+`Directory.Build.props` with a `.0` added (`1.0.9` is `1.0.9.0`): the build stops, saying so, when it is not. Start the workflow by hand (Actions > Release) to make a draft,
 which you look at before you publish it.
 
 The Android packages are signed with your upload key, which is not in the repository: it is two secrets of the repository (Settings > Secrets and variables > Actions), and
