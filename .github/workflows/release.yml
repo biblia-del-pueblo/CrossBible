@@ -82,8 +82,13 @@ jobs:
           $process = Start-Process -FilePath (Join-Path $installer 'setup.exe') -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -notin 0, 3010) { throw "The setup of Visual Studio failed (exit code $($process.ExitCode))." }
 
+      # WiX 7 asks to accept its license (EULA wix7, the Open Source Maintenance Fee: see https://docs.firegiant.com/wix/osmf/) before it builds, which cannot be answered on a
+      # runner. The owner of the repository accepted it for this build. It is an environment variable of this step, which MSBuild reads as the property AcceptEula, and not a
+      # setting of CrossBible.Msi.wixproj: whoever builds the installer on another machine accepts the license there, not through the repository.
       - name: Build the installers
         shell: cmd
+        env:
+          AcceptEula: wix7
         run: call CrossBible.Msi\make.bat
 
       - uses: actions/upload-artifact@v4
