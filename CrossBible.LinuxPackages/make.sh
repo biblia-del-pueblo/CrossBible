@@ -87,6 +87,18 @@ esac
 # Alpine builds the packages for the other architectures (ARM) too: the program is linked there with lld, and the files of the target are in a sysroot (see below).
 [ "$ID" = "alpine" ] && tools="$tools ld.lld llvm-objcopy"
 
+# Debian, Ubuntu: the ARM packages are cross built (native AOT strips the symbols with the objcopy of the target and links with its gcc), so the cross tools are tools of the
+# build too, and are installed when they are missing. A machine that had the other tools already, such as the runners of GitHub, did not get them (install_prerequisites only
+# runs when a tool is missing), and the build stopped with "Symbol stripping tool ('aarch64-linux-gnu-objcopy') not found in PATH".
+case "$ID" in
+    debian|ubuntu)
+        case " $* " in
+            *PackageAlpine*|*PublishDesktopAot*|*PublishRuntime*|*PackageNoarch*) ;;
+            *) tools="$tools aarch64-linux-gnu-objcopy arm-linux-gnueabihf-objcopy" ;;
+        esac
+        ;;
+esac
+
 missing=""
 for tool in $tools; do
     command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
