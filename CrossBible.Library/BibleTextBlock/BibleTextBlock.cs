@@ -1582,6 +1582,17 @@ public partial class BibleTextBlock : Panel
                 }
                 lineWidth = Math.Max(lineWidth, 1);
 
+                // The first line of a paragraph starts further in (1 cm, but not more than a third of the line): the line break before it ends a paragraph (RunStyle.Paragraph).
+                // It starts at the side that its direction starts at: at the left of the layout, which MirrorLayout turns around for a page from right to left, and for a
+                // line of the other direction (a text of several languages, flush to the other edge) at the right, where the band of the line is narrowed.
+                int before = index > 0 && text[index - 1] == '\n' ? FindSegment(input.Segments, index - 1) : -1;
+                if (before >= 0 && input.Segments[before].Style.Paragraph)
+                {
+                    double indent = Math.Min(ParagraphIndent, lineWidth / 3);
+                    lineWidth -= indent;
+                    if (!(input.Mixed && ReferenceEquals(paraProps, rtlProps) != input.Rtl)) left += indent;
+                }
+
                 // No float beside this line: the probe is already the line.
                 var line = lineWidth == width ? probe : Format(index, lineWidth);
                 if (line is null || line.Length == 0) break;
@@ -3994,9 +4005,13 @@ public partial class BibleTextBlock : Panel
     private static string PlainText(BookText.Run run) =>
         run.Runs?.Any() == true ? string.Concat(run.Runs.Select(PlainText)) : run.Text ?? string.Empty;
 
+    /// <param name="Paragraph">Only for the line break that ends a paragraph: the line after it starts further in (<see cref="ParagraphIndent"/>), see RunFlow. It does not change how the break is drawn.</param>
     private readonly record struct RunStyle(FontFamily Family, double Size, FontStyle Style, FontWeight Weight,
         IBrush? Foreground, TextDecorationCollection? Decorations,
-        BaselineAlignment Baseline = BaselineAlignment.Baseline);
+        BaselineAlignment Baseline = BaselineAlignment.Baseline, bool Paragraph = false);
+
+    /// <summary>How far the first line of a paragraph starts in: 1 cm (96 device-independent units are an inch, 2.54 cm).</summary>
+    private const double ParagraphIndent = 96 / 2.54;
 
     /// <summary>1 → "a", 26 → "z", 27 → "aa", …</summary>
     private static string Letters(int number)

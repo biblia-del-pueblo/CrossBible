@@ -18,8 +18,9 @@ namespace CrossBible.Library.UI;
 public partial class BibleTextBlock
 {
     /// <summary>What the flat text of a chapter depends on besides the chapter: if it is another, the text is made again.</summary>
+    /// <param name="Interlinear">The text is made of several texts (see BookText.Combine): its paragraphs are set apart by an empty line, as every verse is a line of its own already.</param>
     private sealed record FlatContext(RunStyle Root, string? Hyphenation, bool GreenVerses, bool WordsOfJesus, double ChapterHeight,
-        FontFamily Greek, FontFamily Hebrew);
+        FontFamily Greek, FontFamily Hebrew, bool Interlinear = false);
 
     /// <summary>A chapter numeral that floats left: made into a control on the UI thread, once, so the lines that were flowed around it can be kept.</summary>
     private sealed class FloatSpec(string text, double size, double height)
@@ -78,7 +79,7 @@ public partial class BibleTextBlock
     }
 
     private FlatContext MakeFlatContext() =>
-        new(BaseStyle(), HyphenationLanguage, ShowVerseNumbersInGreen, ShowWordsOfJesus, CachedChapterHeight(), GreekFont, HebrewFont);
+        new(BaseStyle(), HyphenationLanguage, ShowVerseNumbersInGreen, ShowWordsOfJesus, CachedChapterHeight(), GreekFont, HebrewFont, BookText?.Sources is { Count: > 1 });
 
     /// <summary>
     /// Builds the flat text of the chapters from <paramref name="first"/> of book <paramref name="firstBook"/> to <paramref name="last"/> of book <paramref name="lastBook"/>
@@ -229,6 +230,10 @@ public partial class BibleTextBlock
         {
             var top = new Top { Drop = dropLeadingBreak };
             EmitRun(chapter, _root, _root.Size, false, ref top);
+            // The line break at the end of a chapter ends no paragraph: the first line of the next chapter is not indented (the first paragraph of a chapter, and what
+            // follows a title, start flush; only the paragraphs that follow a paragraph break in the text are indented).
+            if (_segs.Count > 0 && _segs[^1].Style.Paragraph)
+                _segs[^1] = _segs[^1] with { Style = _segs[^1].Style with { Paragraph = false } };
             if (top.Count == 0 || top.Tail == 0) AppendBreak(_root); // every chapter ends with a line break
             return Finish();
         }
@@ -431,8 +436,15 @@ public partial class BibleTextBlock
                 }
 
                 case BookText.Run.Classes.Paragraph:
-                    EmitBreak(parent, ref top);
-                    EmitBreak(parent, ref top);
+                    if (cx.Interlinear)
+                    {
+                        // An interlinear text keeps the empty line: every verse is a line of its own, and a first line that starts further in would not show where a paragraph is.
+                        EmitBreak(parent, ref top);
+                        EmitBreak(parent, ref top);
+                        return;
+                    }
+                    // A paragraph is not set apart by an empty line but by a first line that starts further in (RunFlow): one line break, and the style says it ends a paragraph.
+                    EmitBreak(parent with { Paragraph = true }, ref top);
                     return;
                 case BookText.Run.Classes.LineBreak: // a backslash at the end of a line of the markdown: the next line of a poem
                     EmitBreak(parent, ref top);

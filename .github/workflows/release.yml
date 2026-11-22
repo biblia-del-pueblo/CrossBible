@@ -95,7 +95,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-windows
-          path: publish/crossbible-*
+          path: publish/crossbible*
           if-no-files-found: error
 
   msix:
@@ -158,7 +158,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-msix
-          path: publish/crossbible-*
+          path: publish/crossbible*
           if-no-files-found: error
 
   macos:
@@ -183,7 +183,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-macos
-          path: publish/crossbible-*
+          path: publish/crossbible*
           if-no-files-found: error
 
   linux:
@@ -210,7 +210,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-linux
-          path: publish/crossbible-*
+          path: publish/crossbible*
           if-no-files-found: error
 
   alpine:
@@ -238,7 +238,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-alpine
-          path: publish/crossbible-*
+          path: publish/crossbible*
           if-no-files-found: error
 
   android:
@@ -295,7 +295,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-android
-          path: publish/crossbible-*
+          path: publish/crossbible*
           if-no-files-found: error
 
   release:
