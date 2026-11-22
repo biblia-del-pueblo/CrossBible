@@ -63,6 +63,23 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# Makes a .dmg of the folder $1 as the file $2. hdiutil sometimes stops with "create failed - Resource busy", most of all on the runners of GitHub, while something else (the
+# indexing of Spotlight, a scan of the system) still has the folder that was just made: it works when it is tried again a little later, so it is, up to five times.
+make_dmg() {
+    attempt=1
+    while :; do
+        if hdiutil create -volname "Cross Bible" -srcfolder "$1" -ov -format UDZO "$2"; then return 0; fi
+        if [ "$attempt" -ge 5 ]; then
+            echo "hdiutil failed $attempt times." >&2
+            return 1
+        fi
+        echo "hdiutil failed (attempt $attempt of 5): trying again in $((attempt * 5)) seconds."
+        rm -f "$2"
+        sleep $((attempt * 5))
+        attempt=$((attempt + 1))
+    done
+}
+
 for ARCH in $ARCHS; do
     RID="osx-$ARCH"
     APP="$WORK/$ARCH/Cross Bible.app"
@@ -103,7 +120,7 @@ for ARCH in $ARCHS; do
         mkdir -p "$DMG"
         cp -R "$APP" "$DMG/"
         ln -s /Applications "$DMG/Applications"
-        hdiutil create -volname "Cross Bible" -srcfolder "$DMG" -ov -format UDZO "$OUT/$NAME.dmg"
+        make_dmg "$DMG" "$OUT/$NAME.dmg"
         [ "$IDENTITY" = "-" ] || codesign --force --sign "$IDENTITY" "$OUT/$NAME.dmg"
         echo "Made $OUT/$NAME.dmg and $NAME.zip"
     else
