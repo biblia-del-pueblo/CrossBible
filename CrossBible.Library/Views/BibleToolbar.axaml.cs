@@ -939,7 +939,7 @@ public partial class BibleToolbar : UserControl
     }
 
     /// <summary>
-    /// Searches the Bible that is shown for the words in the box (<see cref="InstallableBook.Search"/>) and lists the
+    /// Searches the Bible that is shown (all the Bibles of an interlinear text) for the words in the box (<see cref="InstallableBook.Search"/>) and lists the
     /// verses, the best match first, with the words in bold. Choosing a verse goes to it.
     /// </summary>
     private async Task SearchAsync(bool showWords)
@@ -958,24 +958,28 @@ public partial class BibleToolbar : UserControl
 
         var shown = Position?.Book?.BookText ?? BookText;
         if (shown is null) { SearchStatus.Text = Localizer.Get("OpenBibleFirst"); return; }
-        if (shown.Sources is { Count: > 0 } sources) shown = sources[0]; // an interlinear text is searched in its first text
-
-        // The Bible that is read is a plain Bible; the installed one of the same folder does the search.
-        var searchable = (Settings.Current.Books ?? new List<BookText>()).OfType<InstallableBook>()
-            .FirstOrDefault(b => b.EnglishName == shown.EnglishName || b.EnglishName == shown.Name)
-            ?? new InstallableBook { EnglishName = shown.EnglishName ?? shown.Name, Name = shown.Name };
+        // An interlinear text is searched in all the Bibles it is made of, a single Bible in itself.
+        var texts = shown.Sources is { Count: > 0 } sources ? sources.ToList() : new List<BookText> { shown };
+        var searchables = texts.Select(SearchableFor).ToList();
 
         var running = _searchRunning = new object();
         if (!showWords) SearchResults.Children.Clear(); // while typing, the old list stays until the new one is ready (no flicker)
         SearchStatus.Text = Localizer.Get("Searching");
-        List<InstallableBook.SearchResult> results;
+        List<SearchHit> results;
         List<(string Word, int Count)> words = new();
         try
         {
             var lastWord = typed.Length > 0 && !char.IsWhiteSpace(typed[^1]) ? LastWordRx.Match(typed).Value : "";
-            var wordsTask = showWords && lastWord.Length > 0 ? searchable.WordsContaining(lastWord) : Task.FromResult(words);
-            results = await searchable.Search(phrase);
-            words = await wordsTask;
+            var wordsTasks = searchables.Select(s => showWords && lastWord.Length > 0 ? s.WordsContaining(lastWord) : Task.FromResult(new List<(string Word, int Count)>())).ToList();
+            var found = await Task.WhenAll(searchables.Select(s => s.Search(phrase)));
+            // The best match first, whichever Bible it is in; on equal scores the Bibles in the order they were chosen, then the order of the Bible.
+            var order = texts.Select((text, i) => (text, i)).ToDictionary(x => x.text, x => x.i);
+            results = found.SelectMany((list, bible) => list.Select(result => new SearchHit(texts[bible], result)))
+                .OrderByDescending(r => r.Result.Score).ThenBy(r => order[r.Bible]).ToList();
+            // The words of all the Bibles, a word that is in several once, with its counts added.
+            words = (await Task.WhenAll(wordsTasks)).SelectMany(list => list)
+                .GroupBy(w => w.Word, StringComparer.CurrentCultureIgnoreCase).Select(g => (g.First().Word, g.Sum(w => w.Count)))
+                .OrderByDescending(w => w.Item2).Take(50).ToList();
         }
         catch (Exception ex)
         {
@@ -987,22 +991,25 @@ public partial class BibleToolbar : UserControl
         SearchStatus.Text = results.Count == 0 ? Localizer.Get("NoVersesFound") : Localizer.Format("VersesFound", results.Count);
         SearchResults.Children.Clear();
         if (words.Count > 0) SearchResults.Children.Add(WordsList(words, typed)); // at the top of the results
-        foreach (var result in results)
+        foreach (var found in results)
         {
-            var found = result;
+            var hit = found.Result;
+            var source = found.Bible;
             var verse = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = UiScale.Size(14) };
-            foreach (var inline in BibleTextBlock.MarkdownInlines(BibleMarkdown.WordIndex.WithoutFootnotes(found.Markdown), UiScale.Size(14)))
+            foreach (var inline in BibleTextBlock.MarkdownInlines(BibleMarkdown.WordIndex.WithoutFootnotes(hit.Markdown), UiScale.Size(14)))
                 verse.Inlines!.Add(inline);
             // A verse of Hebrew or Arabic is written from right to left, and so is its reference above it. The popup is its own visual root,
             // so the direction is decided here, per verse (by its first letter): an English Bible in an Arabic interface stays left to right.
             bool rtl = BibleTextBlock.StartsRightToLeft(BibleTextBlock.PlainText(verse.Inlines!));
+            // With several Bibles the reference says which one the verse is from.
+            var reference = $"{hit.Position.Book.Name} {hit.Position.Chapter}:{hit.Position.Verse}" + (texts.Count > 1 ? $" · {source.Name}" : "");
             var content = new StackPanel
             {
                 Spacing = 2,
                 FlowDirection = rtl ? FlowDirection.RightToLeft : FlowDirection.LeftToRight,
                 Children =
                 {
-                    new TextBlock { Text = $"{found.Position.Book.Name} {found.Position.Chapter}:{found.Position.Verse}", FontWeight = FontWeight.SemiBold, FontSize = UiScale.Size(12), Opacity = 0.7 },
+                    new TextBlock { Text = reference, FontWeight = FontWeight.SemiBold, FontSize = UiScale.Size(12), Opacity = 0.7 },
                     verse,
                 },
             };
@@ -1013,15 +1020,40 @@ public partial class BibleToolbar : UserControl
         }
     }
 
-    private void GoToSearchResult(InstallableBook.SearchResult result)
+    /// <summary>The Bible that is read is a plain Bible; the installed one of the same folder does the search.</summary>
+    private static InstallableBook SearchableFor(BookText text) =>
+        (Settings.Current.Books ?? new List<BookText>()).OfType<InstallableBook>()
+            .FirstOrDefault(b => b.EnglishName == text.EnglishName || b.EnglishName == text.Name)
+        ?? new InstallableBook { EnglishName = text.EnglishName ?? text.Name, Name = text.Name };
+
+    /// <summary>A verse that a search found, with the Bible (the text, with its books) it was found in.</summary>
+    private sealed record SearchHit(BookText Bible, InstallableBook.SearchResult Result);
+
+    /// <summary>
+    /// Goes to a verse that was found, in the text that is shown (an interlinear text stays one). The verse of another Bible is put where the first Bible of the text has
+    /// it when the versifications of the two are known (see <see cref="VerseMapper"/>), else it keeps its numbers. A book that the text shown does not have (the books
+    /// of an interlinear text are the first Bible's) cannot be gone to: nothing happens.
+    /// </summary>
+    private void GoToSearchResult(SearchHit hit)
     {
+        if (Target is null) return;
+        var result = hit.Result;
+        var book = Target.Books?.FirstOrDefault(b => b.Index == result.Position.Book.Index);
+        if (book is null) return;
         SearchPopup.IsOpen = false;
         ShowOnlineBibles = false;
         ShowSettings = false;
-        if (Target is null) return;
-        // the book of the text block (the search made its own list of the books of the folder)
-        var book = Target.Books?.FirstOrDefault(b => b.Index == result.Position.Book.Index) ?? result.Position.Book;
-        var place = new BookText.VersePosition { Book = book, Chapter = result.Position.Chapter, Verse = result.Position.Verse };
+
+        int chapter = result.Position.Chapter, verse = result.Position.Verse;
+        var shown = Position?.Book?.BookText ?? BookText;
+        var first = shown?.Sources is { Count: > 0 } sources ? sources[0] : shown;
+        if (first is not null && !ReferenceEquals(hit.Bible, first) &&
+            VerseMapper.Create(VerseMapper.VersificationOf(hit.Bible), VerseMapper.VersificationOf(first)) is { } mapper)
+        {
+            (chapter, verse) = mapper.Map(result.Position.Book.Index, chapter, verse);
+            if (verse == 0) verse = 1; // the heading of a chapter: its first verse
+        }
+        var place = new BookText.VersePosition { Book = book, Chapter = chapter, Verse = verse };
         PushHistory(place);
         Target.Position = place;
     }

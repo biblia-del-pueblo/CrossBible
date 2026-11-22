@@ -32,9 +32,9 @@ public partial class BookText
     /// The books are matched by their <see cref="Book.Index"/>, the chapters by their number and the verses by theirs. A text that lacks a book, a chapter or a
     /// verse just has nothing there. The chapters and the verses that only a later text has are included, in between the others by number: after the ones with a
     /// lower number, a verse before the titles that come in front of the next verse. The titles of a chapter that the first text does not have are those of the first
-    /// text that has it. Books that only a later text has are left out. A book that is not a Bible book (an introduction, a dictionary) is the first text's, as it is.
+    /// text that has it. A book that only a later text has is included, by its number among the others, made from the first text that has it. A book that is not a Bible book (an introduction, a dictionary) is that text's, as it is.
     /// The numbers are what is compared, unless the texts have a versification (info.json, <see cref="InstallableBook.Versification"/>) that differs from the first
-    /// text's: then the verses of the later texts are given the numbers of the first text's versification where that is known (see <see cref="VerseMapper"/>: the
+    /// text's (the first one that has the book): then the verses of the later texts are given the numbers of that text's versification where that is known (see <see cref="VerseMapper"/>: the
     /// headings of the Psalms that one versification counts as verses and the other does not). A text without a versification, or the first one, is matched by number.
     /// </para>
     /// <para>
@@ -59,10 +59,24 @@ public partial class BookText
             HasStrongs = all.Any(t => t.HasStrongs),
             Sources = all,
         };
-        // The versification of the first text is the one the others are adapted to, when both have one (info.json) and it is not the same.
-        var firstVersification = VerseMapper.VersificationOf(all[0]);
-        var mappers = all.Select(t => ReferenceEquals(t, all[0]) ? null : VerseMapper.Create(VerseMapper.VersificationOf(t), firstVersification)).ToList();
-        foreach (var first in all[0].Books)
+        // The versification that the verses of a later text are adapted to is that of the first text that has the book (the first text, for the books that it has).
+        var versifications = all.Select(VerseMapper.VersificationOf).ToList();
+
+        // The books of the first text come in its order. A book that only a later text has is put in by its number, in front of the first book with a higher number (or at the end),
+        // and is made from the first text that has it: that text gives its titles and the order of its verses, like the first text does for its own books.
+        var entries = new List<(Book First, int Source)>();
+        foreach (var first in all[0].Books) entries.Add((first, 0));
+        var missing = all.Skip(1).SelectMany((t, i) => t.Books.Select(b => (Book: b, Source: i + 1)))
+            .Where(x => all[0].Books.All(b => b.Index != x.Book.Index))
+            .GroupBy(x => x.Book.Index).OrderBy(g => g.Key)
+            .Select(g => g.First());
+        foreach (var later in missing)
+        {
+            int at = entries.FindIndex(e => e.First.Index > later.Book.Index);
+            entries.Insert(at < 0 ? entries.Count : at, (later.Book, later.Source));
+        }
+
+        foreach (var (first, source) in entries)
         {
             var book = new Book(combined)
             {
@@ -75,11 +89,15 @@ public partial class BookText
                 File = first.File, // only so that Markdown has something to read: it is the first text's
                 IsBible = first.IsBible,
             };
-            // The same book in each text, the first text's own first (a text that has no such book is not in the list).
+            // The same book in each text, the one that gives the book first (a text that has no such book is not in the list; the texts before it have none).
             var parts = new List<Book> { first };
             var partMappers = new List<VerseMapper?> { null };
-            for (int i = 1; i < all.Count; i++)
-                if (all[i].Books.FirstOrDefault(b => b.Index == first.Index) is { } match) { parts.Add(match); partMappers.Add(mappers[i]); }
+            for (int i = source + 1; i < all.Count; i++)
+                if (all[i].Books.FirstOrDefault(b => b.Index == first.Index) is { } match)
+                {
+                    parts.Add(match);
+                    partMappers.Add(VerseMapper.Create(versifications[i], versifications[source]));
+                }
             book.RunsFactory = () => CombineRuns(book, parts, partMappers);
             combined.Books.Add(book);
         }

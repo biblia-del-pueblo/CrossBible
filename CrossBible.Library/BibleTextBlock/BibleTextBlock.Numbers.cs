@@ -145,7 +145,7 @@ public partial class BibleTextBlock
     private void ShowVerses(BookText.VersePosition at, Rect bounds)
     {
         var numbers = _markers
-            .Where(m => ReferenceEquals(m.Pos.Book, at.Book) && m.Pos.Chapter == at.Chapter && m.Pos.Verse >= 1)
+            .Where(m => SameBook(m.Pos.Book, at.Book) && m.Pos.Chapter == at.Chapter && m.Pos.Verse >= 1)
             .Select(m => m.Pos.Verse).Distinct().OrderBy(v => v).ToList();
         ShowNumbers(numbers, at.Verse, bounds, n => GoToPlace(new BookText.VersePosition { Book = at.Book, Chapter = at.Chapter, Verse = n }));
     }

@@ -287,6 +287,13 @@ public partial class BibleTextBlock : Panel
     }
 
     /// <summary>
+    /// Whether two books are the same book of the text that is shown: the same object, or the one with the same number (<see cref="BookText.Book.Index"/>, which is
+    /// unique in a text). A place that was made from another list of the books of the same text (a search makes its own, an interlinear text has copies) still finds its book.
+    /// </summary>
+    private static bool SameBook(BookText.Book? a, BookText.Book? b) =>
+        ReferenceEquals(a, b) || (a is not null && b is not null && a.Index == b.Index);
+
+    /// <summary>
     /// The mark for <paramref name="pos"/> in the laid-out text: the exact verse, else the next verse of the
     /// chapter, else the chapter start, else the start of the book (also for 1:1, so the title shows).
     /// Null when the book is not in the text.
@@ -297,7 +304,7 @@ public partial class BibleTextBlock : Panel
         (int, BookText.VersePosition)? nextVerse = null, chapterStart = null, bookStart = null;
         foreach (var m in markers)
         {
-            if (!ReferenceEquals(m.Pos.Book, pos.Book)) continue;
+            if (!SameBook(m.Pos.Book, pos.Book)) continue;
             bookStart ??= m;
             // The beginning of a book (1:1, or the chapter 1 button) shows the book's title too, which sits above
             // chapter 1: the book's first mark is its start. This comes first, as chapter 1 has an exact mark.
@@ -324,7 +331,7 @@ public partial class BibleTextBlock : Panel
         if (Books is not { } books || pos.Book is null) return false;
         int book = -1;
         for (int i = BookIndex; i <= _lastBookIndex && i < books.Count; i++)
-            if (ReferenceEquals(books[i], pos.Book)) { book = i; break; }
+            if (SameBook(books[i], pos.Book)) { book = i; break; }
         if (book < 0) return false;
         // The first book is shown from its chapter ChapterIndex on (all of it, with its title, when that is the first), the last one up to _lastChapterIndex.
         bool fromOk = book > BookIndex || ChapterIndex == 0 || pos.Chapter >= _shownChapterNumber;
@@ -341,7 +348,7 @@ public partial class BibleTextBlock : Panel
         // Not in the shown text: show the chapter of the verse (of its book) and scroll there once laid out.
         int index = -1;
         for (int i = 0; i < books.Count; i++)
-            if (ReferenceEquals(books[i], pos.Book)) { index = i; break; }
+            if (SameBook(books[i], pos.Book)) { index = i; break; }
         if (index < 0) return;
         _pendingPosition = pos;
         _keepPosition = true;
