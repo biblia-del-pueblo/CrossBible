@@ -21,6 +21,15 @@
         <!-- AndroidX Core 1.19 contains the Kotlin extensions; an older Core.Ktx next to it duplicates classes (D8 error).
              Keep this at the same version as Xamarin.AndroidX.Core. -->
         <PackageVersion Include="Xamarin.AndroidX.Core.Core.Ktx" Version="1.19.1" />
+        <!-- AndroidX Core 1.19.1 needs AndroidX Lifecycle 2.11 (Common, Runtime), while the packages of Avalonia.Android (Activity, AppCompat, Fragment, ...) bring the rest of
+             Lifecycle at 2.10.0.2: the family was split in two versions, and NuGet warned (NU1608) that Lifecycle packages of 2.10 want Common and Runtime of 2.10. These are the
+             packages that were still at 2.10.0.2, at the same version as the others (Common and Runtime come with Core). Check this when Avalonia.Android or Core is updated. -->
+        <PackageVersion Include="Xamarin.AndroidX.Lifecycle.LiveData.Core" Version="2.11.0.1" />
+        <PackageVersion Include="Xamarin.AndroidX.Lifecycle.Process" Version="2.11.0.1" />
+        <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModel" Version="2.11.0.1" />
+        <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModel.Android" Version="2.11.0.1" />
+        <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModelSavedState" Version="2.11.0.1" />
+        <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModelSavedState.Android" Version="2.11.0.1" />
 
         <!-- Browser (WebAssembly): Avalonia 12.1.5 brings SkiaSharp 3.119.4 and its native WebAssembly library, but the SVG
              package (Svg.Skia 5.2.3) needs SkiaSharp 4.148.0 / HarfBuzzSharp 14.2.0. The managed code then calls native

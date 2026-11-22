@@ -27,6 +27,13 @@
         <PackageReference Include="Svg.Controls.Skia.Avalonia" />
         <PackageReference Include="Xamarin.AndroidX.Core.SplashScreen" />
         <PackageReference Include="Xamarin.AndroidX.Core.Core.Ktx" />
+        <!-- Lifecycle at one version (see Directory.Packages.props): the ones that Avalonia.Android would bring at 2.10.0.2 are raised to the version of Core 1.19. -->
+        <PackageReference Include="Xamarin.AndroidX.Lifecycle.LiveData.Core" />
+        <PackageReference Include="Xamarin.AndroidX.Lifecycle.Process" />
+        <PackageReference Include="Xamarin.AndroidX.Lifecycle.ViewModel" />
+        <PackageReference Include="Xamarin.AndroidX.Lifecycle.ViewModel.Android" />
+        <PackageReference Include="Xamarin.AndroidX.Lifecycle.ViewModelSavedState" />
+        <PackageReference Include="Xamarin.AndroidX.Lifecycle.ViewModelSavedState.Android" />
     </ItemGroup>
 
     <ItemGroup>

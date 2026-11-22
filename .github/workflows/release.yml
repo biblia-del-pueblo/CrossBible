@@ -11,8 +11,9 @@
 #   Alpine    .apk and the .tar.gz of the musl builds            CrossBible.LinuxPackages/make.sh, in Alpine 3.23
 #   Android   three .apk and the .aab                            CrossBible.Android\make.bat, signed with the upload key of the secrets
 #             ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD (see README.md)
-#
-# Not built here: the Microsoft Store package (CrossBible.Msix, which needs Visual Studio and the identity of the Store).
+#   Store     the package for Partner Center (.msixupload)       CrossBible.Msix\make.bat; its version is the one of CrossBible.Msix\Package.appxmanifest, which has to be
+#                                                                the Version of Directory.Build.props with a 0 added (it is checked). The Store signs what it publishes: the
+#                                                                package is not for installing, it is the file that is uploaded to Partner Center.
 #
 # The release is v<Version> (Version in Directory.Build.props), titled "Cross Bible <Version>". When it is there already, its files are replaced.
 
@@ -94,6 +95,69 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-windows
+          path: publish/crossbible-*
+          if-no-files-found: error
+
+  msix:
+    runs-on: windows-latest
+    needs: version
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.x'
+
+      # The Store package has the version of Package.appxmanifest (the Store wants a version of its own, four numbers, raised for every upload), not the one of
+      # Directory.Build.props. It has to be the same as the release, or the release stops at its check of the names of the packages: this stops earlier, and says what to do.
+      - name: Check the version of the manifest
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          $manifest = Get-Content -Raw 'CrossBible.Msix\Package.appxmanifest'
+          $found = [regex]::Match($manifest, '<Identity\b[^>]*\bVersion="([0-9.]+)"').Groups[1].Value
+          "Package.appxmanifest: $found; release: $env:VERSION.0"
+          if ($found -ne "$env:VERSION.0") {
+            throw "Package.appxmanifest has the version $found, and the release is $env:VERSION: set the Version of the Identity in CrossBible.Msix\Package.appxmanifest to $env:VERSION.0."
+          }
+
+      # Native AOT is linked with the C++ tools (x64 and ARM64), and the package is made by the packaging targets of Visual Studio (Windows application packaging). What the image
+      # of the runner does not have is added.
+      - name: Make sure the C++ tools and the packaging targets are there
+        shell: pwsh
+        run: |
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          $vswhere = Join-Path $installer 'vswhere.exe'
+          function Install-Components($components) {
+            $path = & $vswhere -latest -products * -property installationPath
+            $arguments = @('modify', '--installPath', "`"$path`"", '--quiet', '--norestart', '--noUpdateInstaller')
+            foreach ($component in $components) { $arguments += '--add'; $arguments += $component }
+            $process = Start-Process -FilePath (Join-Path $installer 'setup.exe') -ArgumentList $arguments -Wait -PassThru
+            if ($process.ExitCode -notin 0, 3010) { throw "The setup of Visual Studio failed (exit code $($process.ExitCode))." }
+          }
+          $cpp = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+          $missing = @($cpp | Where-Object { -not (& $vswhere -latest -products * -requires $_ -property installationPath) })
+          if ($missing.Count -gt 0) { 'Installing: ' + ($missing -join ', '); Install-Components $missing } else { 'The C++ tools are there.' }
+
+          $path = & $vswhere -latest -products * -property installationPath
+          $targets = Join-Path $path 'MSBuild\Microsoft\DesktopBridge\Microsoft.DesktopBridge.props'
+          if (-not (Test-Path $targets)) {
+            'The packaging targets are not there: installing the Universal Windows Platform workload.'
+            Install-Components @('Microsoft.VisualStudio.Workload.Universal')
+          }
+          if (-not (Test-Path $targets)) { throw "The packaging targets of Visual Studio are missing: $targets" }
+          'The packaging targets are there.'
+
+      - name: Build the Store package
+        shell: cmd
+        run: call CrossBible.Msix\make.bat
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-msix
           path: publish/crossbible-*
           if-no-files-found: error
 
@@ -236,7 +300,7 @@ jobs:
 
   release:
     runs-on: ubuntu-22.04
-    needs: [version, windows, macos, linux, alpine, android]
+    needs: [version, windows, msix, macos, linux, alpine, android]
     permissions:
       contents: write # the release and its files
     steps:

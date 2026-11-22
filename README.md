@@ -71,12 +71,14 @@ A push to the branch `publish` (for example `git push origin main:publish`, afte
 | Ubuntu 22.04 | `CrossBible.LinuxPackages/make.sh` | Debian, Fedora, Arch Linux packages and `.tar.gz` |
 | Alpine 3.23 (in Docker) | the same script | Alpine packages and the `.tar.gz` of the musl builds |
 | Windows | `CrossBible.Android\make.bat` | the three `.apk` and the `.aab`, signed with your upload key (a secret, see below) |
+| Windows | `CrossBible.Msix\make.bat` | the Store package (`.msixupload`, for Partner Center: it is uploaded there, not installed) |
 
 The packages are built on the oldest systems that are still supported (not on the `-latest` images): a native AOT program does not run on a system whose C library
 is older than the one that built it, and the macOS app is built against the system of the build machine. The release is only made when all of them were built, and every package has to have the version of the release.
 
-The Microsoft Store package (`CrossBible.Msix`, it needs Visual Studio and the identity of the Store) is not built there: build it with its script. Start the workflow by hand
-(Actions > Release) to make a draft, which you look at before you publish it.
+The Store package has the version of `CrossBible.Msix\Package.appxmanifest` (the Store wants its own, raised for every upload), which has to be the `Version` of
+`Directory.Build.props` with a `.0` added (`1.0.6` is `1.0.6.0`): the build stops, saying so, when it is not. Start the workflow by hand (Actions > Release) to make a draft,
+which you look at before you publish it.
 
 The Android packages are signed with your upload key, which is not in the repository: it is two secrets of the repository (Settings > Secrets and variables > Actions), and
 the release stops, saying so, while they are not set. The key is the one that `CrossBible.Android\make.bat` makes on its first run, in `CrossBible.Android\publish` (the
