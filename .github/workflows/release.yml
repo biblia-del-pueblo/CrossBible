@@ -97,6 +97,7 @@ jobs:
           name: packages-windows
           path: publish/crossbible*
           if-no-files-found: error
+          retention-days: 1 # only to hand the packages to the release job (which deletes them); a failed release can be run again within the day
 
   msix:
     runs-on: windows-latest
@@ -160,6 +161,7 @@ jobs:
           name: packages-msix
           path: publish/crossbible*
           if-no-files-found: error
+          retention-days: 1 # only to hand the packages to the release job (which deletes them); a failed release can be run again within the day
 
   macos:
     # The oldest macOS image that GitHub still has (macOS 14 was retired on 2026-11-02; macos-latest is macOS 26), for the same reason as the Linux ones: the app is built
@@ -185,6 +187,7 @@ jobs:
           name: packages-macos
           path: publish/crossbible*
           if-no-files-found: error
+          retention-days: 1 # only to hand the packages to the release job (which deletes them); a failed release can be run again within the day
 
   linux:
     runs-on: ubuntu-22.04
@@ -212,6 +215,7 @@ jobs:
           name: packages-linux
           path: publish/crossbible*
           if-no-files-found: error
+          retention-days: 1 # only to hand the packages to the release job (which deletes them); a failed release can be run again within the day
 
   alpine:
     runs-on: ubuntu-22.04
@@ -240,6 +244,7 @@ jobs:
           name: packages-alpine
           path: publish/crossbible*
           if-no-files-found: error
+          retention-days: 1 # only to hand the packages to the release job (which deletes them); a failed release can be run again within the day
 
   android:
     runs-on: windows-latest
@@ -297,12 +302,14 @@ jobs:
           name: packages-android
           path: publish/crossbible*
           if-no-files-found: error
+          retention-days: 1 # only to hand the packages to the release job (which deletes them); a failed release can be run again within the day
 
   release:
     runs-on: ubuntu-22.04
     needs: [version, windows, msix, macos, linux, alpine, android]
     permissions:
       contents: write # the release and its files
+      actions: write  # to delete the artifacts of this run when the release is made
     steps:
       - name: Collect the packages
         uses: actions/download-artifact@v4
@@ -350,3 +357,18 @@ jobs:
             if [ "${DRAFT:-}" = "true" ]; then options+=(--draft); fi
             gh release create "$tag" "${files[@]}" "${options[@]}"
           fi
+
+      # The packages are in the release now: the artifacts that handed them over from the build jobs only use up the storage of the repository. They are kept when the
+      # release fails (this step does not run then), so that the failed job can be run again.
+      - name: Delete the artifacts of the build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/artifacts" --jq '.artifacts[] | select(.name | startswith("packages-")) | "\(.id) \(.name)"' |
+          while read -r id name; do
+            echo "Deleting $name"
+            gh api -X DELETE "repos/$GH_REPO/actions/artifacts/$id"
+          done
