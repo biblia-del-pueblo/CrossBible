@@ -826,6 +826,7 @@ public partial class BibleTextBlock : Panel
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (change.Property == IsEditingProperty) OnIsEditingChanged(change.GetNewValue<bool>());
         if (change.Property == TextProperty || change.Property == FontSizeProperty || change.Property == FontFamilyProperty
             || change.Property == ForegroundProperty || change.Property == TextAlignmentProperty
             || change.Property == FloatSpacingProperty || change.Property == ColumnCountProperty
@@ -910,7 +911,7 @@ public partial class BibleTextBlock : Panel
         //    while flowing, on the line that contains that index (like CSS float).
         var (text, segments, anchors, notes, breaks, markers, strongs) = FlattenCached();
         var pending = new List<(Control Child, Size Size, FloatSide Side, int Anchor)>();
-        foreach (var child in Children.OfType<Control>().Where(c => c != _layer && c != _popup && c != _scrollBar && c != _vBar && c != _tail
+        foreach (var child in Children.OfType<Control>().Where(c => c != _layer && c != _editor && c != _popup && c != _scrollBar && c != _vBar && c != _tail
                 && (_currentFloats.Contains(c) || !_ownedFloats.Contains(c)))) // not the floats of replaced content
         {
             child.Measure(new Size(width, double.PositiveInfinity));
@@ -2283,6 +2284,11 @@ public partial class BibleTextBlock : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         _layer.Arrange(new Rect(finalSize));
+        if (_editor is not null)
+        {
+            _editor.Measure(finalSize);
+            _editor.Arrange(new Rect(finalSize)); // the editor covers the text
+        }
         foreach (var (child, reserved) in _arranged)
         {
             // The room reserved in the layout may be less than the control's height: it is arranged at its full size.
@@ -2912,6 +2918,7 @@ public partial class BibleTextBlock : Panel
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (IsEditing) return; // the keys belong to the editor
         if (e.KeyModifiers == KeyModifiers.None && NavigateByKey(e.Key)) { e.Handled = true; return; }
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
         if (e.Key == Key.C) { Copy(); e.Handled = true; }

@@ -117,6 +117,8 @@ public partial class BibleToolbar : UserControl
     {
         if (!ShowOnlineBibles && !ShowSettings && OnlineBiblesView.NoneInstalled) { ShowOnlineBibles = true; return; }
         ShowText = !ShowOnlineBibles && !ShowSettings;
+        EditButton.IsVisible = ShowText;
+        if (!ShowText && Target?.IsEditing == true) Target.IsEditing = false;
         MenuStateChanged?.Invoke(null, EventArgs.Empty);
     }
 
@@ -197,6 +199,7 @@ public partial class BibleToolbar : UserControl
         UpdateStrongsSelected();
         UpdateText();
         UpdateIsWide();
+        UpdateEditButton();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -253,11 +256,32 @@ public partial class BibleToolbar : UserControl
     }
 
     // The books of another Bible were loaded and shown: the names of the bar follow them (Position is kept as it is).
-    private void OnTargetBookChanged(object? sender, EventArgs e) => UpdateText();
+    private void OnTargetBookChanged(object? sender, EventArgs e) { UpdateText(); UpdateEditButton(); }
 
     private void OnTargetPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == BibleTextBlock.PositionProperty) Position = Target?.Position;
+        if (e.Property == BibleTextBlock.PositionProperty)
+        {
+            Position = Target?.Position;
+            // Going to another book ends the editing of the one that was edited.
+            if (Target is { IsEditing: true } t && !ReferenceEquals(t.EditedBook, t.Position?.Book)) t.IsEditing = false;
+            UpdateEditButton();
+        }
+        else if (e.Property == BibleTextBlock.IsEditingProperty) UpdateEditButton();
+    }
+
+    /// <summary>The pen button looks selected while the text is edited, and is there only when the book can be edited.</summary>
+    private void UpdateEditButton()
+    {
+        EditButton.Classes.Set("selected", Target?.IsEditing == true);
+        EditButton.IsEnabled = Target is { } t && (t.IsEditing || t.CanEdit);
+    }
+
+    private void OnEditClick(object? sender, RoutedEventArgs e)
+    {
+        if (Target is null) return;
+        Target.IsEditing = !Target.IsEditing;
+        UpdateEditButton();
     }
 
     private void OnPositionClick(object? sender, RoutedEventArgs e)
@@ -492,7 +516,7 @@ public partial class BibleToolbar : UserControl
     private void OnTextSwipePressed(object? sender, PointerPressedEventArgs e)
     {
         OnSwipePressed(sender, e);
-        if (e.Pointer.Type == PointerType.Mouse || Target?.IsSingleColumn != true) _swipeTracked = false;
+        if (e.Pointer.Type == PointerType.Mouse || Target?.IsSingleColumn != true || Target.IsEditing) _swipeTracked = false;
     }
 
     /// <summary>A swipe is mostly horizontal and long enough; <paramref name="dx"/> is how far the pointer went from the press.</summary>

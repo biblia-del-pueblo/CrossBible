@@ -123,6 +123,9 @@
   <data name="Search" xml:space="preserve">
     <value>Search</value>
   </data>
+  <data name="EditMarkdown" xml:space="preserve">
+    <value>Edit text</value>
+  </data>
   <data name="Close" xml:space="preserve">
     <value>Close</value>
   </data>

@@ -67,7 +67,7 @@
             <DynamicResource ResourceKey="ToolbarBackgroundBrush" />
         </Border.Background>
         <Grid>
-            <Grid x:Name="ToolbarGrid" ColumnDefinitions ="Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="0">
+            <Grid x:Name="ToolbarGrid" ColumnDefinitions ="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="0">
                 <Button x:Name="MenuButton"
                         Grid.Column="0"
                         HorizontalAlignment="Left"
@@ -165,6 +165,18 @@
                         Click="OnStrongsClick">
                     <!-- Two Greek or Hebrew letters, after the testament of the position (see UpdateText). -->
                     <TextBlock x:Name="StrongsLetters" FontSize="{loc:Size 20}" VerticalAlignment="Center" />
+                </Button>
+                <!-- Edit mode: the markdown of the book that is read is edited in place; a second click saves it. -->
+                <Button x:Name="EditButton"
+                        Grid.Column="7"
+                        Classes="strongs"
+                        VerticalAlignment="Center"
+                        Padding="2,4"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        ToolTip.Tip="{loc:Loc EditMarkdown}"
+                        Click="OnEditClick">
+                    <loc:ThemedSvg Path="/Assets/pen.svg" Size="20" />
                 </Button>
             </Grid>
 
