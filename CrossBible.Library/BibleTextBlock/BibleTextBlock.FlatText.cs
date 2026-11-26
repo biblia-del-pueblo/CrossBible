@@ -18,9 +18,13 @@ namespace CrossBible.Library.UI;
 public partial class BibleTextBlock
 {
     /// <summary>What the flat text of a chapter depends on besides the chapter: if it is another, the text is made again.</summary>
+    /// <param name="Editing">The text is edited: the runs that are editable are made verbatim (and are recorded, see <see cref="RunRange"/>), without hyphens, and the Strong's numbers are shown after their words.</param>
     /// <param name="Interlinear">The text is made of several texts (see BookText.Combine): its paragraphs are set apart by an empty line, as every verse is a line of its own already.</param>
     private sealed record FlatContext(RunStyle Root, string? Hyphenation, bool GreenVerses, bool WordsOfJesus, double ChapterHeight,
-        FontFamily Greek, FontFamily Hebrew, bool Interlinear = false);
+        FontFamily Greek, FontFamily Hebrew, bool Interlinear = false, bool Editing = false);
+
+    /// <summary>Where the text of a run is in the flat text: an editable run (its text is there as it is), or a word with Strong's numbers (the word and its numbers).</summary>
+    private readonly record struct RunRange(int Start, int End, BookText.Run Run);
 
     /// <summary>A chapter numeral that floats left: made into a control on the UI thread, once, so the lines that were flowed around it can be kept.</summary>
     private sealed class FloatSpec(string text, double size, double height)
@@ -33,8 +37,10 @@ public partial class BibleTextBlock
 
     /// <summary>The flat text of one chapter (or of the title of a book): its indices count from its own start.</summary>
     private sealed class FlatPiece(string text, List<Segment> segments, List<(int Index, BookText.VersePosition Pos)> markers,
-        List<NoteRange> notes, List<StrongsRange> strongs, List<(int Anchor, FloatSpec Spec)> floats)
+        List<NoteRange> notes, List<StrongsRange> strongs, List<(int Anchor, FloatSpec Spec)> floats, List<RunRange> edits, List<RunRange> strongWords)
     {
+        public List<RunRange> Edits { get; } = edits;
+        public List<RunRange> StrongWords { get; } = strongWords;
         public string Text { get; } = text;
         public List<Segment> Segments { get; } = segments;
         public List<(int Index, BookText.VersePosition Pos)> Markers { get; } = markers;
@@ -45,8 +51,10 @@ public partial class BibleTextBlock
 
     /// <summary>The flat text of the chapters of the window, put together.</summary>
     private sealed class FlatWindow(FlatContext context, IReadOnlyList<BookText.Book> books, int firstBook, int first, int lastBook, int last, string text, List<Segment> segments,
-        List<(int Index, BookText.VersePosition Pos)> markers, List<NoteRange> notes, List<StrongsRange> strongs, List<(int Anchor, FloatSpec Spec)> floats)
+        List<(int Index, BookText.VersePosition Pos)> markers, List<NoteRange> notes, List<StrongsRange> strongs, List<(int Anchor, FloatSpec Spec)> floats, List<RunRange> edits, List<RunRange> strongWords)
     {
+        public List<RunRange> Edits { get; } = edits;
+        public List<RunRange> StrongWords { get; } = strongWords;
         public FlatContext Context { get; } = context;
         public IReadOnlyList<BookText.Book> Books { get; } = books;
         public int FirstBook { get; } = firstBook;
@@ -79,7 +87,7 @@ public partial class BibleTextBlock
     }
 
     private FlatContext MakeFlatContext() =>
-        new(BaseStyle(), HyphenationLanguage, ShowVerseNumbersInGreen, ShowWordsOfJesus, CachedChapterHeight(), GreekFont, HebrewFont, BookText?.Sources is { Count: > 1 });
+        new(BaseStyle(), IsEditing ? null : HyphenationLanguage, ShowVerseNumbersInGreen, ShowWordsOfJesus, CachedChapterHeight(), GreekFont, HebrewFont, BookText?.Sources is { Count: > 1 }, IsEditing);
 
     /// <summary>
     /// Builds the flat text of the chapters from <paramref name="first"/> of book <paramref name="firstBook"/> to <paramref name="last"/> of book <paramref name="lastBook"/>
@@ -121,6 +129,8 @@ public partial class BibleTextBlock
         var notes = new List<NoteRange>();
         var strongs = new List<StrongsRange>();
         var floats = new List<(int Anchor, FloatSpec Spec)>();
+        var edits = new List<RunRange>();
+        var strongWords = new List<RunRange>();
         int offset = 0;
         foreach (var p in pieces)
         {
@@ -129,9 +139,11 @@ public partial class BibleTextBlock
             foreach (var n in p.Notes) notes.Add(n with { Start = n.Start + offset, End = n.End + offset });
             foreach (var s in p.Strongs) strongs.Add(s with { Start = s.Start + offset, End = s.End + offset });
             foreach (var (anchor, spec) in p.Floats) floats.Add((anchor + offset, spec));
+            foreach (var r in p.Edits) edits.Add(r with { Start = r.Start + offset, End = r.End + offset });
+            foreach (var r in p.StrongWords) strongWords.Add(r with { Start = r.Start + offset, End = r.End + offset });
             offset += p.Text.Length;
         }
-        return new FlatWindow(cx, books, firstBook, first, lastBook, last, text, segments, markers, notes, strongs, floats);
+        return new FlatWindow(cx, books, firstBook, first, lastBook, last, text, segments, markers, notes, strongs, floats, edits, strongWords);
     }
 
     /// <summary>Keeps the pieces of this window and of the one before it (the window moves by a chapter or two, and goes back); the rest go.</summary>
@@ -220,6 +232,8 @@ public partial class BibleTextBlock
         private readonly List<NoteRange> _notes = new();
         private readonly List<StrongsRange> _strongs = new();
         private readonly List<(int Anchor, FloatSpec Spec)> _floats = new();
+        private readonly List<RunRange> _edits = new();
+        private readonly List<RunRange> _strongWords = new();
         private int _noteNumber;
         private bool _lastSpace = true; // trims leading whitespace
         private bool _afterFootnote;
@@ -274,7 +288,8 @@ public partial class BibleTextBlock
                 if (last.End - 1 <= last.Start) _segs.RemoveAt(_segs.Count - 1);
                 else _segs[^1] = last with { End = last.End - 1 };
             }
-            return new FlatPiece(_sb.ToString(), _segs, _markers, _notes, _strongs, _floats);
+            ClampEdits();
+            return new FlatPiece(_sb.ToString(), _segs, _markers, _notes, _strongs, _floats, _edits, _strongWords);
         }
 
         // ---- The text (what Flatten does with the inlines) ----
@@ -311,6 +326,18 @@ public partial class BibleTextBlock
                 else _segs[^1] = last with { End = last.End - 1 };
             }
             _lastSpace = false;
+            ClampEdits();
+        }
+
+        /// <summary>A trailing space that was taken off the text also goes from the end of the last editable range (its text still starts where the range does).</summary>
+        private void ClampEdits()
+        {
+            if (_edits.Count > 0 && _edits[^1].End > _sb.Length)
+            {
+                var last = _edits[^1];
+                if (last.Start >= _sb.Length) _edits.RemoveAt(_edits.Count - 1);
+                else _edits[^1] = last with { End = _sb.Length };
+            }
         }
 
         private void AppendBreak(RunStyle style)
@@ -462,6 +489,7 @@ public partial class BibleTextBlock
             var style = parent;
             bool strongs = run.Class == BookText.Run.Classes.WordWithStrong && !string.IsNullOrWhiteSpace(run.StrongNumber);
             bool lineAfter = false;
+            if (strongs && cx.Editing && run.IsEditable) style = style with { Numbers = true };
             switch (run.Class)
             {
                 case BookText.Run.Classes.Bold: style = style with { Weight = FontWeight.Bold }; break;
@@ -488,10 +516,25 @@ public partial class BibleTextBlock
                 var inner = new Top();
                 if (hasChildren) EmitRuns(run.Runs, style, size, upper, true, ref inner);
                 else if (upper) EmitSmallCaps(run.Text!, size, style, ref inner);
+                else if (cx.Editing && run.IsEditable) EmitEditable(run, style, ref inner);
                 else EmitText(run.Text, style, ref inner);
                 if (strongs && _sb.Length > wordStart) _strongs.Add(new StrongsRange(wordStart, _sb.Length, run.StrongNumber!, style.Foreground!));
+                if (strongs && cx.Editing && run.IsEditable && _sb.Length > wordStart)
+                    _strongWords.Add(new RunRange(wordStart, _sb.Length, run)); // the numbers are drawn below the word (DrawStrongNumbers), not part of the text
             }
             if (lineAfter) EmitBreak(parent, ref top);
+        }
+
+        /// <summary>The text of an editable run as it is, character for character (a line break or tab is a space), so that a place in the flat text is a place in <c>Run.Text</c>.</summary>
+        private void EmitEditable(BookText.Run run, RunStyle style, ref Top top)
+        {
+            var text = run.Text;
+            if (string.IsNullOrEmpty(text)) return;
+            top.Add(false);
+            _afterFootnote = false;
+            int start = _sb.Length;
+            Append(text.Replace((char)10, ' ').Replace((char)13, ' ').Replace((char)9, ' '), style, verbatim: true);
+            _edits.Add(new RunRange(start, _sb.Length, run));
         }
 
         private void EmitFloat(string text, double size, ref Top top)

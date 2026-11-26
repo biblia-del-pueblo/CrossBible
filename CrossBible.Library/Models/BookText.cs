@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -30,6 +31,7 @@ namespace CrossBible.Library;
 [System.Text.Json.Serialization.JsonDerivedType(typeof(BibliaLibreDictionary), "BibliaLibreDictionary")]
 [System.Text.Json.Serialization.JsonDerivedType(typeof(CrossBible.Library.Downloads.BookArchive), "BookArchive")]
 [System.Text.Json.Serialization.JsonDerivedType(typeof(CrossBible.Library.Downloads.BookArchiveDictionary), "BookArchiveDictionary")]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(CrossBible.Library.Downloads.BookTranslation), "BookTranslation")]
 public partial class BookText : System.ComponentModel.INotifyPropertyChanged
 {
     /// <summary>Raised when <see cref="HasStrongs"/> changes (possibly on the thread that reads a book).</summary>
@@ -48,6 +50,8 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
     } = false;
 
     public bool IsBible => Books.Any(book => book.IsBible);
+    [JsonIgnore]
+    public virtual bool IsEditable => false;
     internal static readonly Dictionary<int, Book.Classes> ClassByIndex = new Dictionary<int, Book.Classes>()
     {
         {0, Book.Classes.Prefix },
@@ -246,6 +250,7 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
             }
             set => field = value;
         }
+        public bool IsEditable => BookText.IsEditable;
         bool? isBible = null;
         public bool IsBible
         {
@@ -264,6 +269,12 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
                 lock (_parseLock) return _runs ??= RunsFactory?.Invoke() ?? BookText.ParseBibleBook(this).ToList();
             }
             set { _runs = value; _chapters = null; }
+        }
+        /// <summary>Forgets the runs of a book that is made from other books (see <see cref="BookText.Combine"/>): they are made again from them when next used (after one of them was changed).</summary>
+        internal void ResetRuns()
+        {
+            if (RunsFactory is null) return;
+            lock (_parseLock) { _runs = null; _chapters = null; }
         }
         private List<Run>? _chapters;
         /// <summary>The chapters of the book (its runs of the class chapter); none for a text that is not a Bible book.</summary>
@@ -325,6 +336,10 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
         public Run Parent { get; private set; }
         public bool First { get; set; }
         public int TitleLevel { get; set; }
+        /// <summary>Whether the text of the run can be edited in the edit mode of the text view: the Bible it is in is editable. The edited runs are written back with <see cref="ToMarkdown(IEnumerable{Run})"/>.</summary>
+        public bool IsEditable => Source?.IsEditable ?? Position.Book.BookText.IsEditable;
+        /// <summary>For a run of a combined text (see <see cref="Combine"/>): the run of the text it is a copy of. Editing the copy also changes it (see BibleTextBlock's edit mode), and it decides whether the run is editable.</summary>
+        internal Run? Source { get; set; }
         IEnumerable<Run> Append(IEnumerable<Run> children)
         {
             yield return this;
@@ -755,7 +770,7 @@ public partial class BookText : System.ComponentModel.INotifyPropertyChanged
     [System.Text.Json.Serialization.JsonIgnore] // not saved with the settings: the books are read from the folder
     public List<Book> Books { get; set; } = new List<Book>();
     /// <summary>The folder of the Bible, named by its <see cref="Id"/>. It follows the Id, which comes from the names and so changes when they do (see BookArchive.Install).</summary>
-    public string ConfigPath => Path.Combine(Settings.Current.ConfigPath, "Books", Id);
+    public virtual string ConfigPath => Path.Combine(Settings.Current.ConfigPath, "Books", Id);
 
     public void Open()
     {

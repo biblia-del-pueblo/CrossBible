@@ -93,7 +93,17 @@ public partial class BibleView : UserControl
     /// </summary>
     private void OnBackRequested(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        if (Toolbar.ShowSettings)
+        if (Toolbar.ShowRawFile)
+        {
+            Toolbar.ShowRawFile = false;
+            e.Handled = true;
+        }
+        else if (Toolbar.ShowTranslations)
+        {
+            Toolbar.ShowTranslations = false;
+            e.Handled = true;
+        }
+        else if (Toolbar.ShowSettings)
         {
             Toolbar.ShowSettings = false; // the toolbar shows the text, or the online Bibles when there is no Bible
             e.Handled = true;
@@ -286,11 +296,20 @@ public partial class BibleView : UserControl
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not rebuild the text: {ex}"); }
     }
 
+    /// <summary>The raw file of a book was saved: the text shows the new runs of the book when the reader goes back to it.</summary>
+    private async void OnRawFileSaved(object? sender, EventArgs e)
+    {
+        try { await Block.ReloadAfterSourceChangedAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Could not rebuild the text: {ex}"); }
+    }
+
     /// <summary>The close button of the online Bibles or the settings: back to the text.</summary>
     private void OnCloseOverlay(object? sender, EventArgs e)
     {
         Toolbar.ShowOnlineBibles = false;
         Toolbar.ShowSettings = false;
+        Toolbar.ShowTranslations = false;
+        Toolbar.ShowRawFile = false;
     }
 
     /// <summary>

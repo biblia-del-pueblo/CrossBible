@@ -56,6 +56,16 @@ public partial class BibleToolbar : UserControl
     public static readonly StyledProperty<bool> ShowTextProperty =
         AvaloniaProperty.Register<BibleToolbar, bool>(nameof(ShowText), true);
 
+    /// <summary>True while the translations page is shown instead of the text. Set by the "Translate…" menu entry.</summary>
+    public static readonly StyledProperty<bool> ShowTranslationsProperty =
+        AvaloniaProperty.Register<BibleToolbar, bool>(nameof(ShowTranslations));
+
+    /// <summary>True while the raw markdown file of the book is shown instead of the text (the popup of the pen button).</summary>
+    public static readonly StyledProperty<bool> ShowRawFileProperty =
+        AvaloniaProperty.Register<BibleToolbar, bool>(nameof(ShowRawFile));
+
+    public bool ShowRawFile { get => GetValue(ShowRawFileProperty); set => SetValue(ShowRawFileProperty, value); }
+    public bool ShowTranslations { get => GetValue(ShowTranslationsProperty); set => SetValue(ShowTranslationsProperty, value); }
     public bool ShowOnlineBibles { get => GetValue(ShowOnlineBiblesProperty); set => SetValue(ShowOnlineBiblesProperty, value); }
     public bool ShowSettings { get => GetValue(ShowSettingsProperty); set => SetValue(ShowSettingsProperty, value); }
     public bool ShowText { get => GetValue(ShowTextProperty); private set => SetValue(ShowTextProperty, value); }
@@ -92,12 +102,22 @@ public partial class BibleToolbar : UserControl
         // The online Bibles and the settings replace the text, one at a time.
         ShowOnlineBiblesProperty.Changed.AddClassHandler<BibleToolbar>((bar, e) =>
         {
-            if (e.NewValue is true) bar.ShowSettings = false;
+            if (e.NewValue is true) { bar.ShowSettings = false; bar.ShowTranslations = false; bar.ShowRawFile = false; }
             bar.ShowWhatIsThere();
         });
         ShowSettingsProperty.Changed.AddClassHandler<BibleToolbar>((bar, e) =>
         {
-            if (e.NewValue is true) bar.ShowOnlineBibles = false;
+            if (e.NewValue is true) { bar.ShowOnlineBibles = false; bar.ShowTranslations = false; bar.ShowRawFile = false; }
+            bar.ShowWhatIsThere();
+        });
+        ShowTranslationsProperty.Changed.AddClassHandler<BibleToolbar>((bar, e) =>
+        {
+            if (e.NewValue is true) { bar.ShowOnlineBibles = false; bar.ShowSettings = false; bar.ShowRawFile = false; }
+            bar.ShowWhatIsThere();
+        });
+        ShowRawFileProperty.Changed.AddClassHandler<BibleToolbar>((bar, e) =>
+        {
+            if (e.NewValue is true) { bar.ShowOnlineBibles = false; bar.ShowSettings = false; bar.ShowTranslations = false; }
             bar.ShowWhatIsThere();
         });
         IsWideProperty.Changed.AddClassHandler<BibleToolbar>((bar, e) => bar.UpdateIsWide());
@@ -115,9 +135,9 @@ public partial class BibleToolbar : UserControl
     /// </summary>
     public void ShowWhatIsThere()
     {
-        if (!ShowOnlineBibles && !ShowSettings && OnlineBiblesView.NoneInstalled) { ShowOnlineBibles = true; return; }
-        ShowText = !ShowOnlineBibles && !ShowSettings;
-        EditButton.IsVisible = ShowText;
+        if (!ShowOnlineBibles && !ShowSettings && !ShowTranslations && !ShowRawFile && OnlineBiblesView.NoneInstalled) { ShowOnlineBibles = true; return; }
+        ShowText = !ShowOnlineBibles && !ShowSettings && !ShowTranslations && !ShowRawFile;
+        UpdateEditButton();
         if (!ShowText && Target?.IsEditing == true) Target.IsEditing = false;
         MenuStateChanged?.Invoke(null, EventArgs.Empty);
     }
@@ -263,22 +283,51 @@ public partial class BibleToolbar : UserControl
         if (e.Property == BibleTextBlock.PositionProperty)
         {
             Position = Target?.Position;
-            // Going to another book ends the editing of the one that was edited.
-            if (Target is { IsEditing: true } t && !ReferenceEquals(t.EditedBook, t.Position?.Book)) t.IsEditing = false;
             UpdateEditButton();
         }
         else if (e.Property == BibleTextBlock.IsEditingProperty) UpdateEditButton();
     }
 
-    /// <summary>The pen button looks selected while the text is edited, and is there only when the book can be edited.</summary>
+    /// <summary>Whether a Bible that is shown (one of the Bibles of a combined text) is editable (<see cref="BookText.IsEditable"/>).</summary>
+    private bool ShownBiblesEditable()
+    {
+        var shown = Position?.Book?.BookText ?? BookText;
+        if (shown is null) return false;
+        return shown.HasEditableText;
+    }
+
+    /// <summary>The pen button is there only while the text is shown and a Bible that is read is editable; it looks selected while the text is edited.</summary>
     private void UpdateEditButton()
     {
+        EditButton.IsVisible = ShowText && ShownBiblesEditable();
         EditButton.Classes.Set("selected", Target?.IsEditing == true);
         EditButton.IsEnabled = Target is { } t && (t.IsEditing || t.CanEdit);
     }
 
+    private DateTime _editMenuOpenedAt = DateTime.MinValue;
+
+    /// <summary>A right click or a long tap on the pen button opens its menu (the entry "Show raw file").</summary>
+    private void OnEditContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        if (Position?.Book is null) return;
+        EditPopup.PlacementTarget = EditButton;
+        EditPopup.IsOpen = true;
+        _editMenuOpenedAt = DateTime.UtcNow;
+    }
+
+    private void OnShowRawFileClick(object? sender, RoutedEventArgs e)
+    {
+        EditPopup.IsOpen = false;
+        if (Position?.Book is null) return;
+        if (Target?.IsEditing == true) Target.IsEditing = false; // the edits are saved first
+        ShowRawFile = true;
+    }
+
     private void OnEditClick(object? sender, RoutedEventArgs e)
     {
+        // The release of the long tap that opened the menu is no click on the button.
+        if ((DateTime.UtcNow - _editMenuOpenedAt).TotalMilliseconds < 800) return;
         if (Target is null) return;
         Target.IsEditing = !Target.IsEditing;
         UpdateEditButton();
@@ -318,6 +367,11 @@ public partial class BibleToolbar : UserControl
                 ShowOnlineBibles = !ShowOnlineBibles;
                 return Task.CompletedTask;
             });
+        AddMenuEntry(ShowTranslations ? null : "language.svg", ShowTranslations ? Localizer.Get("MenuBackToReading") : Localizer.Get("MenuTranslate"), () =>
+        {
+            ShowTranslations = !ShowTranslations;
+            return Task.CompletedTask;
+        }); 
         AddMenuEntry(ShowSettings ? null : "gear.svg", ShowSettings ? Localizer.Get("MenuBackToReading") : Localizer.Get("MenuSettings"), () =>
         {
             ShowSettings = !ShowSettings;
@@ -404,6 +458,8 @@ public partial class BibleToolbar : UserControl
         _historyIndex = _history.IndexOf(entry);
         ShowOnlineBibles = false;
         ShowSettings = false;
+        ShowTranslations = false;
+        ShowRawFile = false;
         Target.Position = new BookText.VersePosition { Book = book, Chapter = entry.Chapter, Verse = entry.Verse };
         UpdateHistoryButtons();
         SaveHistory();
@@ -660,6 +716,8 @@ public partial class BibleToolbar : UserControl
                 BiblesPopup.IsOpen = false;
                 ShowOnlineBibles = false;
                 ShowSettings = false;
+                ShowTranslations = false;
+                ShowRawFile = false;
                 if (BookText != chosen) BookText = chosen;
             };
             BiblesItems.Children.Add(button);
@@ -693,6 +751,8 @@ public partial class BibleToolbar : UserControl
         var token = _applyingSelection = new object();
         ShowOnlineBibles = false;
         ShowSettings = false;
+        ShowTranslations = false;
+        ShowRawFile = false;
         try
         {
             BookText target = selection[0];
@@ -1067,6 +1127,8 @@ public partial class BibleToolbar : UserControl
         SearchPopup.IsOpen = false;
         ShowOnlineBibles = false;
         ShowSettings = false;
+        ShowTranslations = false;
+        ShowRawFile = false;
 
         int chapter = result.Position.Chapter, verse = result.Position.Verse;
         var shown = Position?.Book?.BookText ?? BookText;
@@ -1224,6 +1286,8 @@ public partial class BibleToolbar : UserControl
     {
         ShowOnlineBibles = false; // a place is read in the text, not in the online list
         ShowSettings = false;
+        ShowTranslations = false;
+        ShowRawFile = false;
         if (Target is null) return;
         PushHistory(place);
         Target.Position = place;

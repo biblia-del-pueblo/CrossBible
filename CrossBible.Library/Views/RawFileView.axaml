@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:CrossBible.Library"
+             x:Class="CrossBible.Library.UI.RawFileView">
+
+    <!-- Replaces the text while "Show raw file" is chosen: the markdown source of the book that is read, which can be edited and saved. -->
+    <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}" RowDefinitions="Auto,*">
+        <StackPanel Margin="16,12,96,4" Spacing="2">
+            <TextBlock x:Name="TitleText" FontSize="{loc:Size 18}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="FileText" Opacity="0.7" FontSize="{loc:Size 12}" TextTrimming="PathSegmentEllipsis" />
+            <TextBlock x:Name="StatusText" Opacity="0.8" FontSize="{loc:Size 12}" IsVisible="False" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TextBox x:Name="RawBox" Grid.Row="1" Margin="8,4,8,8"
+                 AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                 FontFamily="Cascadia Mono, Consolas, Menlo, Monospace" FontSize="{loc:Size 13}"
+                 VerticalContentAlignment="Top" TextChanged="OnTextChanged" />
+
+        <!-- Back to reading (close), and to the right of it save, in the upper right corner. -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Spacing="0">
+            <Button Padding="8,6" Background="Transparent" BorderThickness="0"
+                    ToolTip.Tip="{loc:Loc Close}" Click="OnCloseClick">
+                <loc:ThemedSvg Path="/Assets/close.svg" Size="16" />
+            </Button>
+            <Button x:Name="SaveButton" Padding="8,6" Background="Transparent" BorderThickness="0" IsEnabled="False"
+                   ToolTip.Tip="{loc:Loc TrSave}" Click="OnSaveClick">
+                <loc:ThemedSvg Path="/Assets/save.svg" Size="16" />
+            </Button>
+        </StackPanel>
+    </Grid>
+</UserControl>

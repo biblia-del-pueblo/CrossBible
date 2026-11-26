@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="using:CrossBible.Library"
+             x:Class="CrossBible.Library.UI.TranslationsView">
+
+    <!-- Replaces the text while the toolbar menu's "Translate…" is chosen. -->
+    <Grid Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+        <ScrollViewer>
+            <StackPanel Margin="16,12" Spacing="16" MaxWidth="600" HorizontalAlignment="Left">
+                <TextBlock Text="{loc:Loc Translate}" FontSize="{loc:Size 22}" FontWeight="SemiBold" VerticalAlignment="Center" />
+
+                <!-- The translations that exist (the folders of Bible-Translations), and "New Translation". -->
+                <ComboBox x:Name="TranslationBox" HorizontalAlignment="Stretch" SelectionChanged="OnTranslationChanged" />
+
+                <!-- The info.json of the translation. -->
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                    <TextBlock Grid.Row="0" Text="{loc:Loc TrName}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="NameBox" />
+                    <TextBlock Grid.Row="1" Text="{loc:Loc TrEnglishName}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="EnglishNameBox" />
+                    <TextBlock Grid.Row="2" Text="{loc:Loc TrLanguage}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="LanguageBox" />
+                    <TextBlock Grid.Row="3" Text="{loc:Loc TrLanguageEnglishName}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="3" Grid.Column="1" x:Name="LanguageEnglishNameBox" />
+                    <TextBlock Grid.Row="4" Text="{loc:Loc TrLanguageCode}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="4" Grid.Column="1" x:Name="LanguageCodeBox" Watermark="de, en-US, sr-Latn" />
+                    <TextBlock Grid.Row="5" Text="{loc:Loc TrCountryCode}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="5" Grid.Column="1" x:Name="CountryCodeBox" />
+                    <TextBlock Grid.Row="6" Text="{loc:Loc TrCountryName}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="6" Grid.Column="1" x:Name="CountryNameBox" />
+                    <TextBlock Grid.Row="7" Text="{loc:Loc TrVersification}" VerticalAlignment="Center" />
+                    <TextBox Grid.Row="7" Grid.Column="1" x:Name="VersificationBox" Watermark="KJV, German, Luther, Catholic" />
+                </Grid>
+
+                <!-- An existing translation: its info.json is saved. -->
+                <StackPanel x:Name="ExistingPanel" Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="SaveButton" Content="{loc:Loc TrSave}" Click="OnSaveClick" />
+                        <Button x:Name="CoverButton" Content="{loc:Loc TrCover}" Click="OnCoverClick" />
+                        <Button x:Name="DeleteButton" Content="{loc:Loc TrDelete}" Click="OnDeleteClick" />
+                    </StackPanel>
+                    <!-- The cover image of the translation (cover.* in its folder). -->
+                    <Image x:Name="CoverImage" HorizontalAlignment="Left" MaxHeight="160" Stretch="Uniform" IsVisible="False" />
+                </StackPanel>
+
+                <!-- A new translation: it is made empty ("New"), or from the books of an installed Bible ("Create from"). -->
+                <StackPanel x:Name="NewPanel" Spacing="12">
+                    <Button x:Name="NewButton" Content="{loc:Loc TrNew}" HorizontalAlignment="Left" Click="OnNewClick" />
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{loc:Loc TrSourceBible}" Opacity="0.7" />
+                        <ComboBox x:Name="SourceBox" HorizontalAlignment="Stretch" SelectionChanged="OnSourceChanged" />
+                        <Button x:Name="CreateFromButton" Content="{loc:Loc TrCreateFrom}" HorizontalAlignment="Left" Click="OnCreateFromClick" />
+                    </StackPanel>
+                </StackPanel>
+
+                <TextBlock x:Name="StatusText" TextWrapping="Wrap" Opacity="0.8" IsVisible="False" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Back to reading, in the upper right corner. -->
+        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
+                Padding="8,6" Background="Transparent" BorderThickness="0"
+                ToolTip.Tip="{loc:Loc Close}" Click="OnCloseClick">
+            <loc:ThemedSvg Path="/Assets/close.svg" Size="16" />
+        </Button>
+    </Grid>
+</UserControl>

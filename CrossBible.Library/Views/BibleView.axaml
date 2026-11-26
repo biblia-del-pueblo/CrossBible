@@ -31,6 +31,12 @@
         <!-- Replaces the text while the toolbar menu's "Settings…" is chosen. -->
         <local:SettingsView Grid.Row="1" CloseRequested="OnCloseOverlay" AppearanceChanged="OnAppearanceChanged" IsVisible="{Binding #Toolbar.ShowSettings}" />
 
+        <!-- Replaces the text while the toolbar menu's "Translate…" is chosen. -->
+        <local:TranslationsView Grid.Row="1" CloseRequested="OnCloseOverlay" IsVisible="{Binding #Toolbar.ShowTranslations}" />
+
+        <!-- Replaces the text while "Show raw file" of the pen button's menu is chosen: the markdown of the book that is read. -->
+        <local:RawFileView Grid.Row="1" Book="{Binding #Toolbar.Position.Book}" CloseRequested="OnCloseOverlay" Saved="OnRawFileSaved" IsVisible="{Binding #Toolbar.ShowRawFile}" />
+
         <!-- Shown over the text while a requested verse (or the first text) is still being prepared. It does not take
              touches, so the text underneath can still be scrolled. -->
         <Border Grid.Row="1"

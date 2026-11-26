@@ -876,6 +876,7 @@ public partial class BibleTextBlock : Panel
         }
         _lastTotal = result;
         _hasLayout = true;
+        if (IsEditing) Dispatcher.UIThread.Post(EnsureCaretVisible, DispatcherPriority.Background); // the text flowed again: the caret may be in another column
         return result;
     }
 
@@ -911,7 +912,7 @@ public partial class BibleTextBlock : Panel
         //    while flowing, on the line that contains that index (like CSS float).
         var (text, segments, anchors, notes, breaks, markers, strongs) = FlattenCached();
         var pending = new List<(Control Child, Size Size, FloatSide Side, int Anchor)>();
-        foreach (var child in Children.OfType<Control>().Where(c => c != _layer && c != _editor && c != _popup && c != _scrollBar && c != _vBar && c != _tail
+        foreach (var child in Children.OfType<Control>().Where(c => c != _layer && c != _popup && c != _scrollBar && c != _vBar && c != _tail
                 && (_currentFloats.Contains(c) || !_ownedFloats.Contains(c)))) // not the floats of replaced content
         {
             child.Measure(new Size(width, double.PositiveInfinity));
@@ -931,13 +932,13 @@ public partial class BibleTextBlock : Panel
         // the letters would turn the page around when the window moves from a chapter to the next one that has more Hebrew in it.
         bool mixed = BookText?.Sources is { Count: > 1 };
         bool rtl = mixed ? StartsRightToLeft(text) : IsRightToLeft(text); // a text of Hebrew or Arabic: the lines run from right to left, the columns too
-        var input = new FlowInput(text, segments, pending, breaks, width, gap, cutting, FontSize, style, justify, rtl, mixed);
+        var input = new FlowInput(text, segments, pending, breaks, width, gap, cutting, FontSize, style, justify, rtl, mixed, EditLineHeight);
         var segmentHash = new HashCode();
         foreach (var s in segments) { segmentHash.Add(s.Start); segmentHash.Add(s.End); segmentHash.Add(s.Style); }
         var floatHash = new HashCode();
         foreach (var p in pending) { floatHash.Add(p.Child); floatHash.Add(p.Size); floatHash.Add(p.Side); floatHash.Add(p.Anchor); }
         var key = new FlowKey(width, cutting, FontSize, FontFamily, style.Foreground, justify, gap,
-            text.GetHashCode(), text.Length, segmentHash.ToHashCode(), floatHash.ToHashCode(), rtl, mixed);
+            text.GetHashCode(), text.Length, segmentHash.ToHashCode(), floatHash.ToHashCode(), rtl, mixed, EditLineHeight);
 
         // The same text flowed again in another width or orientation (window resized, device rotated): the reader
         // stays at the line at the top of the view, not at the same column or offset of a different layout.
@@ -1212,7 +1213,7 @@ public partial class BibleTextBlock : Panel
 
     private sealed record FlowInput(string Text, List<Segment> Segments,
         List<(Control Child, Size Size, FloatSide Side, int Anchor)> Pending, HashSet<int> Breaks,
-        double Width, double Gap, bool Cutting, double FontSize, RunStyle Base, bool Justify, bool Rtl, bool Mixed = false);
+        double Width, double Gap, bool Cutting, double FontSize, RunStyle Base, bool Justify, bool Rtl, bool Mixed = false, double LineHeight = 0);
 
     /// <param name="EndIndex">How much of the text is flowed; the text's length when <paramref name="Complete"/>.</param>
     private sealed record FlowResult(List<PlacedLine> Lines, List<(Control Child, Rect Slot)> Placed,
@@ -1220,7 +1221,7 @@ public partial class BibleTextBlock : Panel
 
     /// <summary>Everything that decides how the lines come out; equal keys give the same lines.</summary>
     private readonly record struct FlowKey(double Width, bool Cutting, double FontSize, FontFamily Family, IBrush? Foreground,
-        bool Justify, double Gap, int TextHash, int TextLength, int SegmentHash, int FloatHash, bool Rtl, bool Mixed = false);
+        bool Justify, double Gap, int TextHash, int TextLength, int SegmentHash, int FloatHash, bool Rtl, bool Mixed = false, double LineHeight = 0);
 
     /// <summary>
     /// Texts shorter than this are flowed right away, on the UI thread. It was 40,000 when a window was two books; a window of chapters is a
@@ -1298,7 +1299,7 @@ public partial class BibleTextBlock : Panel
 
     /// <summary>What decides how a chunk flows: equal keys give the same lines, whatever else is in the window.</summary>
     private readonly record struct ChunkKey(int TextHash, int TextLength, int SegmentHash, int FloatHash, double Width, double FontSize,
-        FontFamily Family, IBrush? Foreground, bool Justify, double Gap, bool Rtl, bool Mixed = false);
+        FontFamily Family, IBrush? Foreground, bool Justify, double Gap, bool Rtl, bool Mixed = false, double LineHeight = 0);
 
     /// <summary>The lines of a chunk (counting from its start, from the top of it), where its floats go, and how tall it is.</summary>
     private sealed record ChunkFlow(List<PlacedLine> Lines, List<Rect> FloatSlots, List<Rect> FloatRects, double Height);
@@ -1361,12 +1362,12 @@ public partial class BibleTextBlock : Panel
             var floatHash = new HashCode(); // not the controls themselves (they are made again with each window), only what decides the flow
             foreach (var f in floats) { floatHash.Add(f.Size); floatHash.Add(f.Side); floatHash.Add(f.Anchor - start); }
             var chunkKey = new ChunkKey(string.GetHashCode(text.AsSpan(start, end - start)), end - start, segmentHash.ToHashCode(), floatHash.ToHashCode(),
-                width, FontSize, FontFamily, style.Foreground, justify, gap, rtl, mixed);
+                width, FontSize, FontFamily, style.Foreground, justify, gap, rtl, mixed, EditLineHeight);
             var chunk = new Chunk(start, end, chunkKey, floats);
             chunks.Add(chunk);
             if (_chunkCache.ContainsKey(chunkKey) || missing.Any(m => m.Key.Equals(chunkKey))) continue;
             var localFloats = floats.Select(f => (f.Child, f.Size, f.Side, f.Anchor - start)).ToList();
-            missing.Add((chunkKey, new FlowInput(text.Substring(start, end - start), local, localFloats, new HashSet<int>(), width, gap, cutting, FontSize, style, justify, rtl, mixed)));
+            missing.Add((chunkKey, new FlowInput(text.Substring(start, end - start), local, localFloats, new HashSet<int>(), width, gap, cutting, FontSize, style, justify, rtl, mixed, EditLineHeight)));
         }
 
         if (missing.Count == 0) return ComposeChunks(key, text, chunks, gap);
@@ -1498,11 +1499,23 @@ public partial class BibleTextBlock : Panel
             var baseProps = ToRunProperties(input.Base);
             // The paragraphs of a right-to-left text run from right to left: the line has its trailing space on the left. The lines are placed
             // at the left of their band (alignment Left); MirrorLayout moves them to where they belong.
-            GenericTextParagraphProperties PropsOf(FlowDirection direction) => new(direction, Avalonia.Media.TextAlignment.Left,
-                true, false, baseProps, TextWrapping.Wrap, 0, 0, 0);
+            GenericTextParagraphProperties PropsOf(FlowDirection direction, double lineHeight = 0) => new(direction, Avalonia.Media.TextAlignment.Left,
+                true, false, baseProps, TextWrapping.Wrap, lineHeight, 0, 0);
             var ltrProps = PropsOf(FlowDirection.LeftToRight);
             var rtlProps = PropsOf(FlowDirection.RightToLeft);
             var paraProps = input.Rtl ? rtlProps : ltrProps;
+            // A line with a word whose Strong's numbers are drawn below it (RunStyle.Numbers) is taller, the others are not.
+            var ltrTall = input.LineHeight > 0 ? PropsOf(FlowDirection.LeftToRight, input.LineHeight) : ltrProps;
+            var rtlTall = input.LineHeight > 0 ? PropsOf(FlowDirection.RightToLeft, input.LineHeight) : rtlProps;
+            bool tall = false;
+            GenericTextParagraphProperties Cur() => tall ? (ReferenceEquals(paraProps, rtlProps) ? rtlTall : ltrTall) : paraProps;
+            bool HasNumbers(int from, int length)
+            {
+                int end = from + length;
+                for (int k = FindSegment(input.Segments, from); k >= 0 && k < input.Segments.Count && input.Segments[k].Start < end; k++)
+                    if (input.Segments[k].Style.Numbers && input.Segments[k].End > from) return true;
+                return false;
+            }
             // In a text of several languages (input.Mixed) every paragraph (the text up to a line break: a verse, a title) runs the way its first letter says, as
             // the browsers do for dir="auto"; the lines of a paragraph that wrap keep it. A paragraph with no letter goes the way of the page.
             bool ParagraphIsRtl(int from)
@@ -1531,7 +1544,7 @@ public partial class BibleTextBlock : Panel
                 while (true)
                 {
                     source.Limit = Math.Min(text.Length, from + window);
-                    var l = formatter.FormatLine(source, from, lineWidth, paraProps);
+                    var l = formatter.FormatLine(source, from, lineWidth, Cur());
                     if (l is null || source.Limit >= text.Length || from + l.Length <= source.Limit - 40)
                     {
                         source.Limit = int.MaxValue;
@@ -1547,7 +1560,7 @@ public partial class BibleTextBlock : Panel
             {
                 while (line.NewLineLength == 0 && line.Length > 0 && Hyphenation.ShowsHyphen(text, from + line.Length - 1))
                 {
-                    var hyphenated = formatter.FormatLine(new HyphenSource(text, input.Segments, from + line.Length), from, lineWidth, paraProps);
+                    var hyphenated = formatter.FormatLine(new HyphenSource(text, input.Segments, from + line.Length), from, lineWidth, Cur());
                     if (hyphenated is null || hyphenated.Length == 0) return line;
                     if (hyphenated.Length == line.Length) return hyphenated;
                     line = hyphenated;
@@ -1565,7 +1578,9 @@ public partial class BibleTextBlock : Panel
                 if (lines.Count >= stopAfter) { complete = false; break; }
 
                 // Probe with full width to learn the line height, then recompute with the real band.
+                tall = false;
                 var probe = Format(index, width);
+                if (probe is not null && input.LineHeight > 0 && HasNumbers(index, probe.Length)) { tall = true; probe = Format(index, width); }
                 if (probe is null) break;
                 if (!input.Cutting && top > 0 && gapIndex != index && input.Breaks.Contains(index))
                 {
@@ -1621,7 +1636,7 @@ public partial class BibleTextBlock : Panel
                 }
 
                 if (input.Justify && !lastLine && line.NewLineLength == 0)
-                    line = JustifyLine(line, index, text, input.Segments, lineWidth, paraProps) ?? line;
+                    line = JustifyLine(line, index, text, input.Segments, lineWidth, Cur()) ?? line;
 
                 // A line goes to the side that its direction starts at. The layout is made as for the direction of the page (and turned around by MirrorLayout
                 // when that is right to left), so a line of the other direction is flush to the other edge of its band here.
@@ -1703,7 +1718,7 @@ public partial class BibleTextBlock : Panel
     /// wheel turn or a tap in the popup must not move the text or put the popup away: the card of the popup stops them (see ShowCard), and the handlers
     /// that move the text look here too, whatever the platform does with the events of a popup.
     /// </summary>
-    private bool FromPopup(Avalonia.Interactivity.RoutedEventArgs e) =>
+    private bool FromPopup(Avalonia.Interactivity.RoutedEventArgs e) => FromStrongPopup(e) ||
         _popup is { IsOpen: true, Child: Visual child } && e.Source is Visual source && (ReferenceEquals(source, child) || Avalonia.VisualTree.VisualExtensions.GetVisualAncestors(source).Contains(child));
 
     /// <summary>
@@ -2284,11 +2299,6 @@ public partial class BibleTextBlock : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         _layer.Arrange(new Rect(finalSize));
-        if (_editor is not null)
-        {
-            _editor.Measure(finalSize);
-            _editor.Arrange(new Rect(finalSize)); // the editor covers the text
-        }
         foreach (var (child, reserved) in _arranged)
         {
             // The room reserved in the layout may be less than the control's height: it is arranged at its full size.
@@ -2328,9 +2338,11 @@ public partial class BibleTextBlock : Panel
             using var clip = context.PushClip(new Rect(0, 0, width, Bounds.Height));
             using var shift = context.PushTransform(Matrix.CreateTranslation(-owner._offsetX, -owner._offsetY));
             owner.DrawSelection(context);
+            owner.DrawCaret(context);
             foreach (var placed in owner._lines)
                 if (owner.IsInView(placed)) placed.Line.Draw(context, placed.Origin);
             owner.DrawStrongsUnderlines(context);
+            owner.DrawStrongNumbers(context);
         }
     }
 
@@ -2588,6 +2600,13 @@ public partial class BibleTextBlock : Panel
 
     private void OnContextRequestedTunnel(object? sender, ContextRequestedEventArgs e)
     {
+        if (IsEditing)
+        {
+            // A right click on a word: its Strong's numbers can be changed (the menu of Copy and Select all does not open).
+            if (FromPopup(e)) return;
+            if (e.TryGetPosition(this, out var at) && OpenStrongEditor(at)) e.Handled = true;
+            return;
+        }
         // The finger lifted (its release does not always arrive). Not when the selection began a moment ago: the Holding gesture of Avalonia asks for the menu
         // about 50 ms after the long press that selected the word, with the finger still down, and ending the selection then handed the finger to the scroll.
         if (_touchSelecting && Environment.TickCount64 - _touchSelectionEnded > 400) { _touchSelecting = false; _touchSelectionEnded = Environment.TickCount64; }
@@ -2918,7 +2937,7 @@ public partial class BibleTextBlock : Panel
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (IsEditing) return; // the keys belong to the editor
+        if (IsEditing) { if (FromPopup(e)) return; if (EditKey(e)) { e.Handled = true; EnsureCaretVisible(); } return; } // the keys belong to the editor
         if (e.KeyModifiers == KeyModifiers.None && NavigateByKey(e.Key)) { e.Handled = true; return; }
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
         if (e.Key == Key.C) { Copy(); e.Handled = true; }
@@ -3007,6 +3026,7 @@ public partial class BibleTextBlock : Panel
         _pressedStrong = e.ClickCount == 1 && HitStrongs(point, out var wordBounds) is { } strong ? (strong, wordBounds) : null;
 
         // Start a selection: click collapses it, double-click selects a word, dragging extends it.
+        if (IsEditing) _caretActive = true;
         Focus();
         if (IndexAt(point) is not { } index) return;
         if (e.ClickCount == 2)
@@ -3746,10 +3766,12 @@ public partial class BibleTextBlock : Panel
             _firstColumn = 0;
             _offsetX = _offsetY = 0;
         }
+        var caretPlace = CaretRun(); // while editing: the caret stays at its place in the text (the chapters of the window change)
         _anchor = _caret = 0;
         Inlines.Clear(); // (a change notification: it forgets the content that was made from runs)
         _flat = content;
         AttachFloats(content);
+        RestoreCaret(caretPlace);
         _inlinesVersion++;
         MarkDirty();
     }
@@ -4022,10 +4044,11 @@ public partial class BibleTextBlock : Panel
     private static string PlainText(BookText.Run run) =>
         run.Runs?.Any() == true ? string.Concat(run.Runs.Select(PlainText)) : run.Text ?? string.Empty;
 
+    /// <param name="Numbers">A word whose Strong's numbers are drawn below it while editing (see DrawStrongNumbers): a line with such a word is taller.</param>
     /// <param name="Paragraph">Only for the line break that ends a paragraph: the line after it starts further in (<see cref="ParagraphIndent"/>), see RunFlow. It does not change how the break is drawn.</param>
     private readonly record struct RunStyle(FontFamily Family, double Size, FontStyle Style, FontWeight Weight,
         IBrush? Foreground, TextDecorationCollection? Decorations,
-        BaselineAlignment Baseline = BaselineAlignment.Baseline, bool Paragraph = false);
+        BaselineAlignment Baseline = BaselineAlignment.Baseline, bool Paragraph = false, bool Numbers = false);
 
     /// <summary>How far the first line of a paragraph starts in: 1 cm (96 device-independent units are an inch, 2.54 cm).</summary>
     private const double ParagraphIndent = 96 / 2.54;

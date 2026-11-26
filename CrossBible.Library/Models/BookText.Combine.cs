@@ -12,6 +12,10 @@ public partial class BookText
     [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyList<BookText>? Sources { get; private set; }
 
+    /// <summary>Whether this text, or one of the texts it was combined of, is editable (<see cref="IsEditable"/>).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasEditableText => Sources is { Count: > 0 } sources ? sources.Any(s => s.IsEditable) : IsEditable;
+
     /// <summary>The <see cref="Id"/>s that are saved as the Bible that is open (<see cref="Settings.CurrentBible"/>): its own, or for a combined text those of the texts it is made of.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyList<string> PersistedIds => Sources is { Count: > 0 } sources ? sources.Select(s => s.Id).ToList() : new[] { Id };
@@ -287,6 +291,7 @@ public partial class BookText
     /// <summary>A copy of a run (and of the runs in it) whose places belong to <paramref name="target"/>.</summary>
     private static Run CloneRun(Run run, Book target) => new()
     {
+        Source = run.Source ?? run,
         Class = run.Class,
         Text = run.Text,
         Url = run.Url,

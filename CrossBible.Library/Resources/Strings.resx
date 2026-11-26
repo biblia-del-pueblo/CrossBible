@@ -123,6 +123,15 @@
   <data name="Search" xml:space="preserve">
     <value>Search</value>
   </data>
+  <data name="StrongsNumbers" xml:space="preserve">
+    <value>Strong's numbers</value>
+  </data>
+  <data name="StrongsApply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="StrongsRemove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
   <data name="EditMarkdown" xml:space="preserve">
     <value>Edit text</value>
   </data>
@@ -179,6 +188,37 @@
   </data>
   <data name="MenuBackToReading" xml:space="preserve">
     <value>Back to reading</value>
+  </data>
+  <data name="Translate" xml:space="preserve">
+    <value>Translate</value>
+  </data>
+  <data name="TrNewTranslation" xml:space="preserve"><value>New Translation</value></data>
+  <data name="TrName" xml:space="preserve"><value>Name</value></data>
+  <data name="TrEnglishName" xml:space="preserve"><value>English name</value></data>
+  <data name="TrLanguage" xml:space="preserve"><value>Language</value></data>
+  <data name="TrLanguageEnglishName" xml:space="preserve"><value>Language (English)</value></data>
+  <data name="TrLanguageCode" xml:space="preserve"><value>Language code</value></data>
+  <data name="TrCountryCode" xml:space="preserve"><value>Country code</value></data>
+  <data name="TrCountryName" xml:space="preserve"><value>Country</value></data>
+  <data name="TrVersification" xml:space="preserve"><value>Versification</value></data>
+  <data name="TrSave" xml:space="preserve"><value>Save</value></data>
+  <data name="TrCover" xml:space="preserve"><value>Cover image…</value></data>
+  <data name="TrDelete" xml:space="preserve"><value>Delete</value></data>
+  <data name="TrConfirmDelete" xml:space="preserve"><value>Really delete?</value></data>
+  <data name="TrDeleted" xml:space="preserve"><value>Translation deleted.</value></data>
+  <data name="TrCoverSet" xml:space="preserve"><value>Cover image set.</value></data>
+  <data name="TrNotImage" xml:space="preserve"><value>That file is not an image that can be shown.</value></data>
+  <data name="TrNew" xml:space="preserve"><value>New</value></data>
+  <data name="TrSourceBible" xml:space="preserve"><value>Source Bible</value></data>
+  <data name="TrCreateFrom" xml:space="preserve"><value>Create from</value></data>
+  <data name="TrSaved" xml:space="preserve"><value>Saved.</value></data>
+  <data name="TrCreated" xml:space="preserve"><value>Translation created.</value></data>
+  <data name="TrCopying" xml:space="preserve"><value>Copying the books…</value></data>
+  <data name="TrNameRequired" xml:space="preserve"><value>Give the translation a name first.</value></data>
+  <data name="TrExists" xml:space="preserve"><value>A translation named "{0}" exists already.</value></data>
+  <data name="ShowRawFile" xml:space="preserve"><value>Show raw file</value></data>
+  <data name="MenuTranslate" xml:space="preserve">
+    <value>Translate…</value>
   </data>
   <data name="MenuSettings" xml:space="preserve">
     <value>Settings…</value>

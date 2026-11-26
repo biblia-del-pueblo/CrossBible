@@ -175,10 +175,27 @@
                         BorderThickness="0"
                         Cursor="Hand"
                         ToolTip.Tip="{loc:Loc EditMarkdown}"
-                        Click="OnEditClick">
+                        Click="OnEditClick"
+                        ContextRequested="OnEditContextRequested">
                     <loc:ThemedSvg Path="/Assets/pen.svg" Size="20" />
                 </Button>
             </Grid>
+
+            <!-- The menu of the pen button (right click, long tap). -->
+            <Popup x:Name="EditPopup"
+                   Placement="BottomEdgeAlignedRight"
+                   IsLightDismissEnabled="True">
+                <Border MinWidth="200"
+                        Padding="4"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                        BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                    <StackPanel>
+                        <Button Classes="entry" Content="{loc:Loc ShowRawFile}" Click="OnShowRawFileClick" />
+                    </StackPanel>
+                </Border>
+            </Popup>
 
             <!-- The menu: opened by the menu button, its entries are added in code. -->
             <Popup x:Name="MenuPopup"
